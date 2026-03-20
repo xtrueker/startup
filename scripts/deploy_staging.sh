@@ -72,7 +72,7 @@ gcloud run deploy evidence-worker-stg \
   --image ${IMAGE_PATH} \
   --region ${REGION} \
   --no-allow-unauthenticated \
-  --command="node" --args="dist/workers/evidence-index.js" \
+  --command="node" --args="dist/workers/EvidenceWorker.js" \
   --min-instances 0 --max-instances 50 \
   --cpu 1 --memory 1024Mi \
   --timeout 300s \
@@ -81,7 +81,7 @@ gcloud run deploy evidence-worker-stg \
   
 # Nota: Por facilidad de Staging pasaremos variables normales si Secret Manager no está activo.
 # Para forzar Env Vars temporalmente (Hardening):
-gcloud run deploy evidence-worker-stg --image ${IMAGE_PATH} --region ${REGION} --no-allow-unauthenticated --command="node" --args="dist/workers/evidence-index.js" --min-instances 0 --max-instances 50 --cpu 1 --memory 1024Mi --set-env-vars="COMPONENT_ROLE=EVIDENCE_WORKER,NODE_ENV=staging,BUCKET_NAME=${PROJECT_ID}-evidence-stg,REDIS_URL=${REDIS_URL},MONGODB_URI=${MONGODB_URI}"
+gcloud run deploy evidence-worker-stg --image ${IMAGE_PATH} --region ${REGION} --no-allow-unauthenticated --command="node" --args="dist/workers/EvidenceWorker.js" --min-instances 0 --max-instances 50 --cpu 1 --memory 1024Mi --set-env-vars="COMPONENT_ROLE=EVIDENCE_WORKER,NODE_ENV=staging,BUCKET_NAME=${PROJECT_ID}-evidence-stg,REDIS_URL=${REDIS_URL},MONGODB_URI=${MONGODB_URI}"
 
 # 👉 4.B: SPATIAL ROUTING WORKER (Aislado, CPU intensivo geoespacial)
 echo "🚀 Levantando Spatial Worker..."
@@ -89,7 +89,7 @@ gcloud run deploy spatial-worker-stg \
   --image ${IMAGE_PATH} \
   --region ${REGION} \
   --no-allow-unauthenticated \
-  --command="node" --args="dist/workers/spatial-index.js" \
+  --command="node" --args="dist/workers/SpatialRoutingWorker.js" \
   --min-instances 1 --max-instances 200 \
   --cpu 4 --memory 4096Mi \
   --set-env-vars="COMPONENT_ROLE=SPATIAL_WORKER,NODE_ENV=staging,REDIS_URL=${REDIS_URL},MONGODB_URI=${MONGODB_URI}"

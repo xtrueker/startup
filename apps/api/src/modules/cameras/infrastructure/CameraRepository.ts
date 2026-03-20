@@ -1,4 +1,4 @@
-import Camera from '../../../../infrastructure/database/models/Camera';
+import Camera from '../../../infrastructure/database/models/Camera';
 
 // Puerto de salida (Port) - Debería estar en domain/
 export interface ICameraRepository {

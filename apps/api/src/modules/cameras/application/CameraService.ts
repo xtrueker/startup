@@ -1,5 +1,5 @@
 import { ICameraRepository } from '../infrastructure/CameraRepository';
-import { getSocket, emitToOperators } from '../../../../shared/utils/socket';
+import { getSocket, emitToOperators } from '../../../shared/utils/socket';
 
 export class CameraService {
   constructor(private readonly cameraRepository: ICameraRepository) {}
