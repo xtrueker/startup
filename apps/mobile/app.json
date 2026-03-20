@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Red Ciudadana de Seguridad",
+    "slug": "barranca-segura",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "splash": {
+      "backgroundColor": "#1a365d"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.redciudadana.seguridad",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación para enviar ayuda en caso de emergencia.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos tu ubicación en segundo plano cuando tienes una emergencia activa."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a365d"
+      },
+      "package": "com.redciudadana.seguridad",
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Necesitamos tu ubicación para enviar ayuda en caso de emergencia."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1a365d",
+          "sounds": []
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "scheme": "redciudadana",
+    "extra": {
+      "eas": {
+        "projectId": "61892a99-3d1f-4638-9b78-3bb7f11bc85a"
+      }
+    }
+  }
+}
