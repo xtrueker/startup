@@ -1,5 +1,15 @@
 {
+  "name": "red-ciudadana-core",
+  "private": true,
+  "scripts": {
+    "dev:web": "npm run dev --prefix apps/web",
+    "dev:api": "npm run dev --prefix apps/api",
+    "dev:mobile": "npm start --prefix apps/mobile",
+    "build:web": "npm run build --prefix apps/web",
+    "build:api": "npm run build --prefix apps/api"
+  },
   "dependencies": {
     "pg": "^8.21.0"
   }
 }
+
