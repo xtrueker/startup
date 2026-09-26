@@ -105,7 +105,8 @@ async function calculateEscapeRoutes(startLat, startLng, direction) {
     const rawRoutes = await Promise.all(routePromises);
     const validRoutes = rawRoutes.filter((r) => r !== null);
     // 3. Fetch active cameras to see which routes they intersect
-    const activeCameras = await Camera_1.default.find({ status: 'online' });
+    const allCameras = await Camera_1.default.find();
+    const activeCameras = allCameras.filter((c) => c.status === 'online');
     // 4. Score routes based on camera exposure
     // A suspect wants to minimize the number of cameras they pass
     const scoredRoutes = validRoutes.map((routeData, index) => {
@@ -115,16 +116,28 @@ async function calculateEscapeRoutes(startLat, startLng, direction) {
         // Note: GeoJSON coordinates are [longitude, latitude]
         if (routeData.geometry.type === 'LineString' && routeData.geometry.coordinates.length > 1) {
             const line = turf.lineString(routeData.geometry.coordinates);
-            activeCameras.forEach(camera => {
+            activeCameras.forEach((camera) => {
+                let lng = 0, lat = 0;
+                if (camera.location && typeof camera.location === 'object' && camera.location.coordinates) {
+                    lng = camera.location.coordinates[0];
+                    lat = camera.location.coordinates[1];
+                }
+                else if (typeof camera.location === 'string') {
+                    const match = camera.location.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
+                    if (match) {
+                        lng = parseFloat(match[1]);
+                        lat = parseFloat(match[2]);
+                    }
+                }
                 // Camera location is [lng, lat]
-                const pt = turf.point(camera.location.coordinates);
+                const pt = turf.point([lng, lat]);
                 // Calculate shortest distance from camera to the route (in kilometers)
                 const distance = turf.pointToLineDistance(pt, line, { units: 'kilometers' });
                 // If the route passes within ~100 meters (0.1 km) of the camera, consider it exposed
                 const coverageKm = (camera.coverageRadius || 100) / 1000;
                 if (distance <= coverageKm) {
                     camerasIntersected++;
-                    nearbyCameras.push(camera._id.toString());
+                    nearbyCameras.push(camera.id);
                 }
             });
         }

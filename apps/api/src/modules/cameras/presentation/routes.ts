@@ -10,7 +10,7 @@ const cameraService = new CameraService(cameraRepository);
 const router = Router();
 
 // 2. Controladores Ligeros (Solo gestionan HTTP y respuestas)
-router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
   try {
     const newCamera = await cameraService.createCamera(req.body);
     return res.status(201).json({
@@ -27,9 +27,27 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: 
   }
 });
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
   try {
-    const cameras = await cameraService.getAllCameras();
+    let cameras = await cameraService.getAllCameras();
+    
+    // --- MOCK SIMULADOR DE CÁMARAS ---
+    if (cameras.length === 0) {
+      cameras = Array.from({ length: 5 }).map((_, i) => ({
+        id: `mock-cam-${i}`,
+        name: `Cámara Vigilancia P0${i + 1}`,
+        location: {
+          latitude: 4.6097 + (Math.random() - 0.5) * 0.05,
+          longitude: -74.0817 + (Math.random() - 0.5) * 0.05,
+          address: `Poste de Luz ${Math.floor(Math.random() * 1000)}`
+        },
+        // Un video dummy público para que el iframe del frontend muestre movimiento
+        streamUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', 
+        status: 'active',
+      })) as any;
+    }
+    // ---------------------------------
+
     return res.json({
       success: true,
       count: cameras.length,
@@ -37,6 +55,37 @@ router.get('/', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+});
+
+router.put('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+  try {
+    const updatedCamera = await cameraService.updateCamera(req.params.id, req.body);
+    if (!updatedCamera) {
+      return res.status(404).json({ success: false, message: 'Cámara no encontrada' });
+    }
+    return res.json({
+      success: true,
+      message: 'Cámara actualizada exitosamente',
+      data: { camera: updatedCamera },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: 'Error interno del servidor', error: error.message });
+  }
+});
+
+router.delete('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+  try {
+    const deleted = await cameraService.deleteCamera(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Cámara no encontrada' });
+    }
+    return res.json({
+      success: true,
+      message: 'Cámara eliminada exitosamente'
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: 'Error interno del servidor', error: error.message });
   }
 });
 

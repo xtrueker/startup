@@ -1,82 +1,87 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import { supabase, getPgPool } from '../connection';
 
-// Estados de la cámara
-export type CameraStatus = 'online' | 'offline' | 'maintenance';
-
-// Interfaz de la cámara
-export interface ICamera extends Document {
-  name: string;                      // Nombre identificativo
-  location: {
-    type: 'Point';
-    coordinates: [number, number];   // [longitud, latitud]
-    address: string;                 // Dirección completa
-  };
-  streamUrl: string;                 // URL del video (simulado por ahora)
-  status: CameraStatus;
-  coverageRadius: number;            // Metros de cobertura
-  isPublic: boolean;                 // Ciudadanos pueden verla
-  authorityId: string;               // Quién la administra
-  createdAt: Date;
+export interface CreateCameraDTO {
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+  streamUrl?: string;
+  coverageRadius?: number;
+  isPublic?: boolean;
+  authorityId?: string;
 }
 
-// Schema de la cámara
-const CameraSchema: Schema = new Schema(
-  {
-    name: {
-      type: String,
-      required: [true, 'El nombre es obligatorio'],
-      trim: true,
-    },
-    location: {
-      type: {
-        type: String,
-        enum: ['Point'],
-        required: true,
-      },
-      coordinates: {
-        type: [Number],
-        required: true,
-      },
-      address: {
-        type: String,
-        required: true,
-      },
-    },
-    streamUrl: {
-      type: String,
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ['online', 'offline', 'maintenance'],
-      default: 'offline',
-    },
-    coverageRadius: {
-      type: Number,
-      default: 100,                  // 100 metros por defecto
-      min: 10,
-      max: 1000,
-    },
-    isPublic: {
-      type: Boolean,
-      default: false,                // Por defecto solo autoridades ven
-    },
-    authorityId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-  },
-  {
-    timestamps: true,
+export class Camera {
+  /**
+   * Fetch all cameras
+   */
+  static async find() {
+    const pool = getPgPool();
+    const query = `SELECT id, name, stream_url, status, coverage_radius, is_public, authority_id, ST_AsText(location) as location, address, created_at, updated_at FROM cameras ORDER BY created_at DESC`;
+    try {
+      const result = await pool.query(query);
+      return result.rows;
+    } catch (error) {
+      console.error('Error fetching cameras:', error);
+      throw error;
+    }
   }
-);
 
-// Índice geoespacial para búsquedas por ubicación
-CameraSchema.index({ location: '2dsphere' });
+  static async findById(id: string) {
+    const sb = supabase();
+    const { data, error } = await sb.from('cameras').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
 
-// Crear modelo
-const Camera = mongoose.model<ICamera>('Camera', CameraSchema);
+  static async create(data: CreateCameraDTO) {
+    const sb = supabase();
+    
+    const wktLocation = `POINT(${data.longitude} ${data.latitude})`;
 
-// Exportar
+    const { data: inserted, error } = await sb.from('cameras').insert({
+      name: data.name,
+      location: wktLocation,
+      address: data.address || '',
+      stream_url: data.streamUrl || '',
+      status: 'online',
+      coverage_radius: data.coverageRadius || 100,
+      is_public: data.isPublic ?? true,
+      authority_id: data.authorityId || null
+    }).select().single();
+
+    if (error) {
+      console.error('Error in Camera.create PostGIS:', error);
+      throw error;
+    }
+
+    return inserted;
+  }
+
+  static async delete(id: string) {
+    const sb = supabase();
+    const { data, error } = await sb.from('cameras').delete().eq('id', id).select().maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  static async update(id: string, updateData: any) {
+    const sb = supabase();
+    const mappedUpdate: any = {};
+    if (updateData.name !== undefined) mappedUpdate.name = updateData.name;
+    if (updateData.status !== undefined) mappedUpdate.status = updateData.status;
+    if (updateData.streamUrl !== undefined) mappedUpdate.stream_url = updateData.streamUrl;
+    if (updateData.coverageRadius !== undefined) mappedUpdate.coverage_radius = updateData.coverageRadius;
+    if (updateData.isPublic !== undefined) mappedUpdate.is_public = updateData.isPublic;
+
+    if (updateData.latitude && updateData.longitude) {
+      mappedUpdate.location = `POINT(${updateData.longitude} ${updateData.latitude})`;
+    }
+
+    const { data, error } = await sb.from('cameras').update(mappedUpdate).eq('id', id).select().maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+}
+
 export default Camera;

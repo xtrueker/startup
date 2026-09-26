@@ -1,92 +1,78 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
-const mongoose_1 = __importStar(require("mongoose"));
-// Schema de la cámara
-const CameraSchema = new mongoose_1.Schema({
-    name: {
-        type: String,
-        required: [true, 'El nombre es obligatorio'],
-        trim: true,
-    },
-    location: {
-        type: {
-            type: String,
-            enum: ['Point'],
-            required: true,
-        },
-        coordinates: {
-            type: [Number],
-            required: true,
-        },
-        address: {
-            type: String,
-            required: true,
-        },
-    },
-    streamUrl: {
-        type: String,
-        required: true,
-    },
-    status: {
-        type: String,
-        enum: ['online', 'offline', 'maintenance'],
-        default: 'offline',
-    },
-    coverageRadius: {
-        type: Number,
-        default: 100, // 100 metros por defecto
-        min: 10,
-        max: 1000,
-    },
-    isPublic: {
-        type: Boolean,
-        default: false, // Por defecto solo autoridades ven
-    },
-    authorityId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-}, {
-    timestamps: true,
-});
-// Índice geoespacial para búsquedas por ubicación
-CameraSchema.index({ location: '2dsphere' });
-// Crear modelo
-const Camera = mongoose_1.default.model('Camera', CameraSchema);
-// Exportar
+exports.Camera = void 0;
+const connection_1 = require("../connection");
+class Camera {
+    /**
+     * Fetch all cameras
+     */
+    static async find() {
+        const pool = (0, connection_1.getPgPool)();
+        const query = `SELECT id, name, stream_url, status, coverage_radius, is_public, authority_id, ST_AsText(location) as location, address, created_at, updated_at FROM cameras ORDER BY created_at DESC`;
+        try {
+            const result = await pool.query(query);
+            return result.rows;
+        }
+        catch (error) {
+            console.error('Error fetching cameras:', error);
+            throw error;
+        }
+    }
+    static async findById(id) {
+        const sb = (0, connection_1.supabase)();
+        const { data, error } = await sb.from('cameras').select('*').eq('id', id).maybeSingle();
+        if (error)
+            throw error;
+        return data;
+    }
+    static async create(data) {
+        const sb = (0, connection_1.supabase)();
+        const wktLocation = `POINT(${data.longitude} ${data.latitude})`;
+        const { data: inserted, error } = await sb.from('cameras').insert({
+            name: data.name,
+            location: wktLocation,
+            address: data.address || '',
+            stream_url: data.streamUrl || '',
+            status: 'online',
+            coverage_radius: data.coverageRadius || 100,
+            is_public: data.isPublic ?? true,
+            authority_id: data.authorityId || null
+        }).select().single();
+        if (error) {
+            console.error('Error in Camera.create PostGIS:', error);
+            throw error;
+        }
+        return inserted;
+    }
+    static async delete(id) {
+        const sb = (0, connection_1.supabase)();
+        const { data, error } = await sb.from('cameras').delete().eq('id', id).select().maybeSingle();
+        if (error)
+            throw error;
+        return data;
+    }
+    static async update(id, updateData) {
+        const sb = (0, connection_1.supabase)();
+        const mappedUpdate = {};
+        if (updateData.name !== undefined)
+            mappedUpdate.name = updateData.name;
+        if (updateData.status !== undefined)
+            mappedUpdate.status = updateData.status;
+        if (updateData.streamUrl !== undefined)
+            mappedUpdate.stream_url = updateData.streamUrl;
+        if (updateData.coverageRadius !== undefined)
+            mappedUpdate.coverage_radius = updateData.coverageRadius;
+        if (updateData.isPublic !== undefined)
+            mappedUpdate.is_public = updateData.isPublic;
+        if (updateData.latitude && updateData.longitude) {
+            mappedUpdate.location = `POINT(${updateData.longitude} ${updateData.latitude})`;
+        }
+        const { data, error } = await sb.from('cameras').update(mappedUpdate).eq('id', id).select().maybeSingle();
+        if (error)
+            throw error;
+        return data;
+    }
+}
+exports.Camera = Camera;
 exports.default = Camera;
 //# sourceMappingURL=Camera.js.map

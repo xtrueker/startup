@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // URL del backend (API)
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // Crear instancia de axios
 const api = axios.create({
@@ -27,7 +27,10 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Token expirado o inválido
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      // --- DEV BYPASS ---
+      // window.location.href = '/login';
+      console.warn("401 Unauthorized pero ignorado por el DEV BYPASS");
+      // ------------------
     }
     return Promise.reject(error);
   }

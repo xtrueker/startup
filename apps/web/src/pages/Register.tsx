@@ -9,6 +9,7 @@ function Register() {
     email: '',
     password: '',
     confirmPassword: '',
+    role: 'citizen',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -47,7 +48,7 @@ function Register() {
         cedula: formData.cedula,
         email: formData.email,
         password: formData.password,
-        role: 'citizen',
+        role: formData.role as any,
       });
 
       if (response.success) {
@@ -61,6 +62,7 @@ function Register() {
           email: '',
           password: '',
           confirmPassword: '',
+          role: 'citizen',
         });
       }
     } catch (err: any) {
@@ -140,6 +142,14 @@ function Register() {
               required
               placeholder="••••••••"
             />
+          </div>
+
+          <div className="form-group">
+            <label>Tipo de Usuario:</label>
+            <select name="role" value={formData.role} onChange={handleChange as any} required>
+              <option value="citizen">Ciudadano (Reporte de incidentes)</option>
+              <option value="admin">Administrador (Monitoreo de cámaras y alertas)</option>
+            </select>
           </div>
 
           <button type="submit" disabled={loading}>

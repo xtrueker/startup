@@ -30,19 +30,35 @@ app.use(cors({
   credentials: true,
 }));
 
-// Limitar peticiones
-const limiter = rateLimit({
+// Limitar peticiones (Global)
+const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Demasiadas peticiones, intenta más tarde',
+  max: 2000, // Alto para soportar location streaming y uso normal de operadores
+  message: 'Demasiadas peticiones al servidor, intenta más tarde',
 });
-app.use('/api/', limiter);
+app.use('/api/', globalLimiter);
+
+// Límite estricto para Autenticación
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20, // Prevenir fuerza bruta
+  message: 'Demasiados intentos de inicio de sesión, intenta en 15 minutos'
+});
+app.use('/api/auth', authLimiter);
+
+// Límite para el botón de pánico
+const panicLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 5, // Evitar spam de falsas alarmas repetitivas
+  message: 'Por favor, espera antes de activar otro pánico'
+});
+app.use('/api/mobile/panic', panicLimiter);
 
 // Permitir leer JSON en el body
 app.use(express.json({ limit: '10mb' }));
 
 // Ruta de prueba
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     message: 'Servidor funcionando',
@@ -61,7 +77,7 @@ app.use('/api/mobile', mobileRouter);
 logger.info(`📱 Mobile API: /api/mobile (panic, location, alerts/me)`);
 
 // Ruta no encontrada
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({
     success: false,
     message: 'Ruta no encontrada',
@@ -79,9 +95,9 @@ function startServer() {
   });
 
   // 2. Conectar Base de Datos (en paralelo, sin bloquear el inicio)
-  dbConnection.connect(env.MONGODB_URI)
+  dbConnection.connect()
     .then(() => {
-      logger.info('✅ Mongoose: Base de datos conectada con éxito');
+      logger.info('✅ PostgreSQL (Supabase): Base de datos conectada con éxito');
       
       // 3. Inicializar Sockets (Soporte Redis para Escalabilidad)
       return initSocket(server);
@@ -97,6 +113,59 @@ function startServer() {
       // No cerramos el proceso para permitir que Cloud Run mantenga el contenedor
       // y reintente la conexión internamente si es necesario.
     });
+
+  // --- MOCK SIMULADOR DE ALERTAS ---
+  const { emitToOperators } = require('./shared/utils/socket');
+  
+  const dispararAlertasSimuladas = () => {
+    logger.info('🎯 Disparando 3 Alertas de Pánico Simuladas con Cámaras Cercanas...');
+    for (let i = 0; i < 3; i++) {
+      const alertLat = 4.6097 + (Math.random() - 0.5) * 0.05;
+      const alertLng = -74.0817 + (Math.random() - 0.5) * 0.05;
+      
+      const mockAlert = {
+        id: `mock-alert-${Date.now()}-${i}`,
+        createdAt: new Date().toISOString(),
+        location: {
+          latitude: alertLat,
+          longitude: alertLng,
+          address: `Simulación Barrio ${Math.floor(Math.random() * 100)}`
+        },
+        status: 'pending',
+        userId: 'citizen_simulated',
+        type: Math.random() > 0.5 ? 'Robo a Mano Armada (Simulado)' : 'Pánico Disparado (Simulado)'
+      };
+      
+      emitToOperators('alert:new', mockAlert);
+
+      // Inyectar 2 cámaras en un radio menor a 50 metros (~0.00045 grados)
+      for (let j = 0; j < 2; j++) {
+        const camLat = alertLat + (Math.random() - 0.5) * 0.0008; // ~44 metros máx varianza
+        const camLng = alertLng + (Math.random() - 0.5) * 0.0008;
+        
+        const mockCam = {
+          id: `mock-cam-${Date.now()}-${i}-${j}`,
+          name: `Cámara Táctica C${i}${j}`,
+          location: {
+            latitude: camLat,
+            longitude: camLng,
+            address: `Poste Intersección ${j}`
+          },
+          streamUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+          status: 'active'
+        };
+        emitToOperators('camera:new', mockCam);
+      }
+    }
+  };
+
+  // Disparar la primera vez a los 10 segundos para dar tiempo a que los clientes se conecten
+  setTimeout(() => {
+    dispararAlertasSimuladas();
+    // Luego cada minuto
+    setInterval(dispararAlertasSimuladas, 60000);
+  }, 10000);
+  // ---------------------------------
 }
 
 // ✅ Lanzar inicio

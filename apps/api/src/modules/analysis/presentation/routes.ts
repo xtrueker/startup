@@ -1,23 +1,33 @@
 import { Router, Request, Response } from 'express';
 import * as turf from '@turf/turf';
-import HistoricalIncident from '../../../infrastructure/database/models/HistoricalIncident';
+import Alert from '../../../infrastructure/database/models/Alert';
+import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
 
 const router = Router();
 
 // GET /api/analysis/hotspots
 // Devuelve una agregación de incidentes históricos para Heatmaps
-router.get('/hotspots', async (req: Request, res: Response) => {
+router.get('/hotspots', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
   console.log('INFO: GET /api/analysis/hotspots called');
   try {
-    // Retornamos todos los históricos (en producción se filtraría por fecha/tipo)
-    const incidents = await HistoricalIncident.find().sort({ reportedAt: -1 }).limit(1000);
+    // Retornamos todas las activas por ahora para el heatmap (hasta tener la API de históricos lista)
+    const incidents = await Alert.findActive(100);
     
     // Devolvemos el array de coordenadas [lat, lng, weight] para el Heatmap de Leaflet
-    const heatmapData = incidents.map(inc => [
-      inc.location.coordinates[1], // lat
-      inc.location.coordinates[0], // lng
-      1 // peso base
-    ]);
+    const heatmapData = incidents.map((inc: any) => {
+      let lat = 0, lng = 0;
+      if (inc.location && typeof inc.location === 'object' && inc.location.coordinates) {
+         lng = inc.location.coordinates[0];
+         lat = inc.location.coordinates[1];
+      } else if (typeof inc.location === 'string') {
+         const match = inc.location.match(/POINT\(([^ ]+) ([^)]+)\)/);
+         if (match) {
+           lng = parseFloat(match[1]);
+           lat = parseFloat(match[2]);
+         }
+      }
+      return [lat, lng, 1]; // lat, lng, peso base
+    });
 
     res.json({
       success: true,
@@ -36,7 +46,7 @@ router.get('/hotspots', async (req: Request, res: Response) => {
 
 // GET /api/analysis/reachability
 // Estima la zona de alcance de un sospechoso (Isochrone simple usando Buffer de Turf)
-router.get('/reachability', async (req: Request, res: Response) => {
+router.get('/reachability', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
   console.log('INFO: GET /api/analysis/reachability called');
   try {
     const { lat, lng, mode, minutes } = req.query;
@@ -85,6 +95,34 @@ router.get('/reachability', async (req: Request, res: Response) => {
       message: 'Error interno del servidor al calcular alcance',
       error: error.message
     });
+  }
+});
+
+// GET /api/analysis/kpis
+// Estadísticas agregadas para el dashboard de supervisores
+router.get('/kpis', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
+  console.log('INFO: GET /api/analysis/kpis called');
+  try {
+    // Simulación de datos extraídos por consultas de agregación SQL sobre alert_events
+    res.json({
+      success: true,
+      data: {
+        topNeighborhoods: [
+          { name: 'Centro Histórico', incidents: 12 },
+          { name: 'Distrito Financiero', incidents: 8 },
+          { name: 'Zona Industrial Sur', incidents: 5 }
+        ],
+        overdueAlerts: 2, // Alertas en pendiente > 5 min
+        operatorLoads: [
+          { operator: 'Op. Alpha', active: 4, resolvedLastHour: 15 },
+          { operator: 'Op. Bravo', active: 1, resolvedLastHour: 8 },
+          { operator: 'Op. Charlie', active: 0, resolvedLastHour: 2 }
+        ]
+      }
+    });
+  } catch (error: any) {
+    console.error('ERROR obteniendo KPIs:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno' });
   }
 });
 

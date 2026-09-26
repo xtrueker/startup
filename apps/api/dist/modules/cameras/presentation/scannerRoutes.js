@@ -3,10 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.scannerRouter = void 0;
 const express_1 = require("express");
 const CameraScanner_1 = require("../../../infrastructure/scanner/CameraScanner");
+const auth_1 = require("../../../shared/middlewares/auth");
 const router = (0, express_1.Router)();
 exports.scannerRouter = router;
 // GET /api/cameras/discover - Descubrir cámara automáticamente
-router.get('/discover', async (req, res) => {
+router.get('/discover', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (req, res) => {
     try {
         const force = req.query.force === 'true';
         let ip;
@@ -41,7 +42,7 @@ router.get('/discover', async (req, res) => {
     }
 });
 // GET /api/cameras/status - Estado del escaneo
-router.get('/status', async (req, res) => {
+router.get('/status', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (_req, res) => {
     const ip = await CameraScanner_1.cameraScanner.getCameraIP();
     res.json({
         success: true,

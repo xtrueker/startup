@@ -13,8 +13,11 @@ function validateEnv() {
     if (!process.env.JWT_SECRET) {
         throw new Error('Falta JWT_SECRET en variables de entorno');
     }
-    if (!process.env.MONGODB_URI) {
-        throw new Error('Falta MONGODB_URI en variables de entorno');
+    if (!process.env.SUPABASE_URL) {
+        throw new Error('Falta SUPABASE_URL en variables de entorno');
+    }
+    if (!process.env.SUPABASE_KEY) {
+        throw new Error('Falta SUPABASE_KEY en variables de entorno');
     }
     // Devolver objeto con valores (o valores por defecto)
     return {
@@ -24,6 +27,10 @@ function validateEnv() {
         JWT_SECRET: process.env.JWT_SECRET,
         FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
         REDIS_URL: process.env.REDIS_URL,
+        SUPABASE_URL: process.env.SUPABASE_URL,
+        SUPABASE_KEY: process.env.SUPABASE_KEY,
+        DATABASE_URL: process.env.DATABASE_URL,
+        DB_PASSWORD: process.env.DB_PASSWORD,
     };
 }
 // Exportar configuración validada

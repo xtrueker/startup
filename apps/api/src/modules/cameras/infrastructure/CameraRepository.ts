@@ -16,7 +16,7 @@ export class MongoCameraRepository implements ICameraRepository {
   }
 
   async findAll() {
-    return await Camera.find().sort({ createdAt: -1 });
+    return await Camera.find();
   }
 
   async findById(id: string) {
@@ -24,10 +24,10 @@ export class MongoCameraRepository implements ICameraRepository {
   }
 
   async update(id: string, data: any) {
-    return await Camera.findByIdAndUpdate(id, data, { new: true });
+    return await Camera.update(id, data);
   }
 
   async delete(id: string) {
-    return await Camera.findByIdAndDelete(id);
+    return await Camera.delete(id);
   }
 }

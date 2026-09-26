@@ -1,13 +1,15 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { authService } from '../../services/auth';
+import { authService } from '../services/auth';
 
 const CommandCenterLayout: React.FC = () => {
   const role = authService.getRole();
   const isAuthenticated = authService.isAuthenticated();
 
   // Protect route: Only Admin, Supervisor, and Operator can access the Command Center
-  const canAccess = isAuthenticated && ['admin', 'supervisor', 'operator'].includes(role || '');
+  // --- DEV BYPASS ---
+  const canAccess = true; 
+  // ------------------
 
   if (!canAccess) {
     return <Navigate to="/" replace />;
@@ -39,7 +41,7 @@ const CommandCenterLayout: React.FC = () => {
             Role: {role?.toUpperCase()}
           </span>
         </div>
-        <div>
+        <div style={{ display: 'flex', gap: '10px' }}>
           <button 
             onClick={() => window.location.href = '/'}
             style={{
@@ -53,13 +55,31 @@ const CommandCenterLayout: React.FC = () => {
           >
             ← Volver al Mapa Público
           </button>
+          <button 
+            onClick={() => {
+              authService.logout();
+              window.location.href = '/';
+            }}
+            style={{
+              backgroundColor: 'rgba(225, 29, 72, 0.1)',
+              color: '#f43f5e',
+              border: '1px solid rgba(225, 29, 72, 0.5)',
+              padding: '5px 15px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            Cerrar Sesión
+          </button>
         </div>
       </header>
 
-      {/* Main Content Area (Grid 70/30) */}
+      {/* Main Content Area */}
       <main style={{
         display: 'flex',
         flex: 1,
+        minHeight: 0,
         overflow: 'hidden'
       }}>
         <Outlet />

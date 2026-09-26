@@ -69,12 +69,39 @@ export function useGeolocation({ smoothingWindow = 5, updateIntervalMs = 5000 }:
       return;
     }
 
+    // Fallback timer for Desktop/Localhost without real GPS
+    const fallbackTimer = setTimeout(() => {
+      console.warn("⚠️ GPS real tardando mucho o no disponible, usando fallback (Bogotá)");
+      onSuccess({
+        coords: {
+          latitude: 4.6097,
+          longitude: -74.0817,
+          accuracy: 100,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        },
+        timestamp: Date.now()
+      } as GeolocationPosition);
+    }, 5000);
+
     // Initial one-shot read for fast first position
-    navigator.geolocation.getCurrentPosition(onSuccess, onError, {
-      enableHighAccuracy: true,
-      timeout: 8000,
-      maximumAge: 0,
-    });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        clearTimeout(fallbackTimer);
+        onSuccess(pos);
+      }, 
+      (err) => {
+        clearTimeout(fallbackTimer);
+        onError(err);
+      }, 
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0,
+      }
+    );
 
     // Continuous watch for real-time tracking
     watchId.current = navigator.geolocation.watchPosition(onSuccess, onError, {

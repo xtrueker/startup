@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Marco Teórico - Red Ciudadana de Seguridad</title>
+    <style>
+        body { font-family: 'Calibri', 'Arial', sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 40px auto; padding: 20px; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 10px; text-align: center; }
+        h2 { color: #2980b9; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 30px; }
+        h3 { color: #34495e; margin-top: 20px; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul { margin-bottom: 15px; }
+        li { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>MARCO TEÓRICO</h1>
+
+    <div class="section">
+        <h2>1. Arquitectura de Sistemas y Patrones</h2>
+        <h3>1.1 Arquitectura Orientada a Eventos (EDA)</h3>
+        <p>El sistema implementa un modelo basado en eventos para la gestión de alertas de seguridad. A diferencia del modelo tradicional de petición-respuesta, la arquitectura orientada a eventos permite que el servidor emita notificaciones automáticas a los clientes (operadores) inmediatamente después de que se registre una alerta en el sistema, minimizando la latencia crítica en situaciones de emergencia.</p>
+
+        <h3>1.2 Patrón Cliente-Servidor y Monorepo</h3>
+        <p>Se utiliza una estructura de monorepo para gestionar la coherencia de datos entre los distintos clientes (Web y Móvil) y la lógica de servidor (API). Esto garantiza que las interfaces compartan los mismos contratos de datos e interfaces de TypeScript, reduciendo la fragmentación del código.</p>
+    </div>
+
+    <div class="section">
+        <h2>2. Persistencia de Datos y Bases de Datos NoSQL</h2>
+        <h3>2.1 MongoDB como Base de Datos de Documentos</h3>
+        <p>Se utiliza MongoDB bajo el modelo de base de datos NoSQL orientada a documentos. Esta elección se fundamenta en la alta disponibilidad y la escalabilidad horizontal que ofrece el sistema. Al no requerir un esquema rígido, permite almacenar datos de alertas que varían en estructura (metadatos de dispositivos, fotos, ubicación, niveles de audio) sin comprometer la integridad del sistema.</p>
+
+        <h3>2.2 Almacenamiento Geoespacial (GeoJSON)</h3>
+        <p>La persistencia de coordenadas se basa en el estándar GeoJSON. Esto permite realizar consultas espaciales nativas en la base de datos (índices 2dsphere), facilitando la detección de incidentes en un radio determinado o la asignación de recursos basados en la proximidad geográfica.</p>
+    </div>
+
+    <div class="section">
+        <h2>3. Seguridad e Integridad de la Información</h2>
+        <h3>3.1 Autenticación Basada en Tokens (JWT)</h3>
+        <p>Para la gestión de accesos se emplea JSON Web Tokens (JWT). Este estándar permite una autenticación segura y "sin estado" (stateless), donde el servidor no necesita mantener una sesión activa en memoria, mejorando el rendimiento y permitiendo el escalado del backend en la nube.</p>
+
+        <h3>3.2 Criptografía y Hashing de Contraseñas</h3>
+        <p>La integridad de las credenciales de usuario se asegura mediante el uso de algoritmos de hashing unidireccional (Bcrypt). Este proceso incluye un factor de costo y un "salt" aleatorio para mitigar ataques de fuerza bruta y asegurar que los datos sensibles no sean recuperables incluso en caso de acceso no autorizado a la base de datos.</p>
+    </div>
+
+    <div class="section">
+        <h2>4. Comunicación en Tiempo Real y Protocolos</h2>
+        <h3>4.1 Protocolo WebSockets y Socket.io</h3>
+        <p>Se emplea el protocolo WebSockets a través de la biblioteca Socket.io para establecer una conexión persistente y bidireccional entre el ciudadano y el centro de mando. Esto es fundamental para la transmisión en vivo de la ubicación GPS mientras una alerta de pánico está activa.</p>
+
+        <h3>4.2 Transmisión de Video (WebRTC y RTSP)</h3>
+        <p>El sistema requiere la integración de flujos de video de cámaras de seguridad. Se utiliza el protocolo RTSP para la captura de flujos IP y WebRTC para la visualización en el navegador web, logrando transmisiones con una latencia inferior a un segundo.</p>
+    </div>
+
+    <div class="section">
+        <h2>5. Análisis y Procesamiento Geográfico</h2>
+        <h3>5.1 Geometría Computacional con Turf.js</h3>
+        <p>El análisis espacial se realiza mediante algoritmos de geometría computacional (Turf.js). Esto permite el cálculo en el lado del servidor de zonas de alcance, polígonos de búsqueda e isócronas, que son representaciones del área que una persona puede recorrer en un tiempo determinado según su medio de transporte.</p>
+    </div>
+
+</body>
+</html>

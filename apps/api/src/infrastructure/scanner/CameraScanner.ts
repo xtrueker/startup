@@ -43,7 +43,7 @@ export class CameraScanner {
       return null;
 
     } catch (error) {
-      logger.error('Error escaneando red:', error);
+      logger.error(error, 'Error escaneando red:');
       return this.currentIP; // Retornar última IP conocida
     }
   }
@@ -69,7 +69,7 @@ export class CameraScanner {
       }
       return null;
     } catch (error) {
-      logger.error('Error en ARP scan:', error);
+      logger.error(error, 'Error en ARP scan:');
       return null;
     }
   }
@@ -164,27 +164,6 @@ export class CameraScanner {
 
       socket.connect(port, ip);
     });
-  }
-
-  /**
-   * Ejecuta promesas en lotes para no saturar la red
-   */
-  private async runInBatches<T>(
-    promises: Promise<T>[],
-    batchSize: number
-  ): Promise<T[]> {
-    const results: T[] = [];
-    
-    for (let i = 0; i < promises.length; i += batchSize) {
-      const batch = promises.slice(i, i + batchSize);
-      const batchResults = await Promise.all(batch);
-      results.push(...batchResults);
-      
-      // Pequeña pausa entre lotes
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    return results;
   }
 
   /**

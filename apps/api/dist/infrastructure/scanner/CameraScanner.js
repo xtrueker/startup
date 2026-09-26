@@ -74,7 +74,7 @@ class CameraScanner {
             return null;
         }
         catch (error) {
-            logger_1.logger.error('Error escaneando red:', error);
+            logger_1.logger.error(error, 'Error escaneando red:');
             return this.currentIP; // Retornar última IP conocida
         }
     }
@@ -99,7 +99,7 @@ class CameraScanner {
             return null;
         }
         catch (error) {
-            logger_1.logger.error('Error en ARP scan:', error);
+            logger_1.logger.error(error, 'Error en ARP scan:');
             return null;
         }
     }
@@ -179,20 +179,6 @@ class CameraScanner {
             });
             socket.connect(port, ip);
         });
-    }
-    /**
-     * Ejecuta promesas en lotes para no saturar la red
-     */
-    async runInBatches(promises, batchSize) {
-        const results = [];
-        for (let i = 0; i < promises.length; i += batchSize) {
-            const batch = promises.slice(i, i + batchSize);
-            const batchResults = await Promise.all(batch);
-            results.push(...batchResults);
-            // Pequeña pausa entre lotes
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        return results;
     }
     /**
      * Obtiene la IP actual de la cámara (de caché o escaneando)

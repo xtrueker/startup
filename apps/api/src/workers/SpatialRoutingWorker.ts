@@ -1,6 +1,6 @@
 import { Redis } from 'ioredis';
 // En producción, reemplazar con las entidades Mongoose reales de la base de datos de Autoridades/Patrullas
-const mockFindAuthoritiesNear = async (latitude: number, longitude: number, maxDistanceMeters: number) => {
+const mockFindAuthoritiesNear = async (_latitude: number, _longitude: number, _maxDistanceMeters: number) => {
     return [
        { id: 'police-station-central', name: 'Comisaría Central', distance: 1200 },
        { id: 'patrol-car-9x', name: 'Patrulla 9X', distance: 350 }
@@ -8,11 +8,9 @@ const mockFindAuthoritiesNear = async (latitude: number, longitude: number, maxD
 };
 
 export class SpatialRoutingWorker {
-  private subscriber: Redis;
   private publisher: Redis;
 
   constructor() {
-    this.subscriber = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
     this.publisher = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
     console.log('🗺️ [SpatialRoutingWorker] Online and processing Geospatial Streams');
   }

@@ -29,17 +29,31 @@ app.use((0, cors_1.default)({
     origin: process.env.NODE_ENV === 'production' ? env_1.env.FRONTEND_URL : true, // 'true' permite cualquier origen en desarrollo
     credentials: true,
 }));
-// Limitar peticiones
-const limiter = (0, express_rate_limit_1.default)({
+// Limitar peticiones (Global)
+const globalLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: 'Demasiadas peticiones, intenta más tarde',
+    max: 2000, // Alto para soportar location streaming y uso normal de operadores
+    message: 'Demasiadas peticiones al servidor, intenta más tarde',
 });
-app.use('/api/', limiter);
+app.use('/api/', globalLimiter);
+// Límite estricto para Autenticación
+const authLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 20, // Prevenir fuerza bruta
+    message: 'Demasiados intentos de inicio de sesión, intenta en 15 minutos'
+});
+app.use('/api/auth', authLimiter);
+// Límite para el botón de pánico
+const panicLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 1 * 60 * 1000,
+    max: 5, // Evitar spam de falsas alarmas repetitivas
+    message: 'Por favor, espera antes de activar otro pánico'
+});
+app.use('/api/mobile/panic', panicLimiter);
 // Permitir leer JSON en el body
 app.use(express_1.default.json({ limit: '10mb' }));
 // Ruta de prueba
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
     res.json({
         status: 'ok',
         message: 'Servidor funcionando',
@@ -55,7 +69,7 @@ app.use('/api/analysis', routes_4.analysisRouter);
 app.use('/api/mobile', routes_5.mobileRouter);
 logger_1.logger.info(`📱 Mobile API: /api/mobile (panic, location, alerts/me)`);
 // Ruta no encontrada
-app.use((req, res) => {
+app.use((_req, res) => {
     res.status(404).json({
         success: false,
         message: 'Ruta no encontrada',
@@ -70,9 +84,9 @@ function startServer() {
         logger_1.logger.info(`📊 Health check listo: http://0.0.0.0:${PORT}/health`);
     });
     // 2. Conectar Base de Datos (en paralelo, sin bloquear el inicio)
-    connection_1.dbConnection.connect(env_1.env.MONGODB_URI)
+    connection_1.dbConnection.connect()
         .then(() => {
-        logger_1.logger.info('✅ Mongoose: Base de datos conectada con éxito');
+        logger_1.logger.info('✅ PostgreSQL (Supabase): Base de datos conectada con éxito');
         // 3. Inicializar Sockets (Soporte Redis para Escalabilidad)
         return (0, socket_1.initSocket)(server);
     })

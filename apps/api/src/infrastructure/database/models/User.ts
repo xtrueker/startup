@@ -1,83 +1,56 @@
-import mongoose, { Schema, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { supabase } from '../connection';
 
-// Interfaz de TypeScript
-export interface IUser extends Document {
-  _id: mongoose.Types.ObjectId;
+export interface CreateUserDTO {
   fullName: string;
   cedula: string;
   email: string;
-  password: string;
-  role: 'citizen' | 'operator' | 'supervisor' | 'admin';
-  isVerified: boolean;
-  facialVerificationStatus: 'pending' | 'verified' | 'failed';
-  createdAt: Date;
-  updatedAt: Date;
-  comparePassword(candidatePassword: string): Promise<boolean>;
+  password?: string;
+  role?: string;
+  isVerified?: boolean;
 }
 
-// Schema de Mongoose
-const UserSchema: Schema = new Schema(
-  {
-    fullName: {
-      type: String,
-      required: [true, 'El nombre es obligatorio'],
-      trim: true,
-    },
-    cedula: {
-      type: String,
-      required: [true, 'La cédula es obligatoria'],
-      unique: true,
-      match: [/^\d{6,10}$/, 'Cédula inválida (6-10 dígitos)'],
-    },
-    email: {
-      type: String,
-      required: [true, 'El email es obligatorio'],
-      unique: true,
-      lowercase: true,
-    },
-    password: {
-      type: String,
-      required: [true, 'La contraseña es obligatoria'],
-      minlength: [6, 'Mínimo 6 caracteres'],
-      select: false,
-    },
-    role: {
-      type: String,
-      enum: ['citizen', 'operator', 'supervisor', 'admin'],
-      default: 'citizen',
-    },
-    isVerified: {
-      type: Boolean,
-      default: false,
-    },
-    facialVerificationStatus: {
-      type: String,
-      enum: ['pending', 'verified', 'failed'],
-      default: 'pending',
-    },
-  },
-  {
-    timestamps: true,
+export class User {
+  static async findByEmail(email: string) {
+    const sb = supabase();
+    const { data, error } = await sb.from('users').select('*').eq('email', email.toLowerCase()).maybeSingle();
+    if (error) throw error;
+    return data;
   }
-);
 
-// Middleware: encriptar contraseña antes de guardar
-UserSchema.pre<IUser>('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
-});
+  static async findByCedula(cedula: string) {
+    const sb = supabase();
+    const { data, error } = await sb.from('users').select('*').eq('cedula', cedula).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
 
-// Método: comparar contraseña
-UserSchema.methods.comparePassword = async function (
-  candidatePassword: string
-): Promise<boolean> {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
+  static async create(data: CreateUserDTO) {
+    const sb = supabase();
+    
+    let passwordHash = data.password;
+    if (passwordHash) {
+      passwordHash = await bcrypt.hash(passwordHash, 10);
+    }
 
-// Crear modelo
-const User = mongoose.model<IUser>('User', UserSchema);
+    const { data: inserted, error } = await sb.from('users').insert({
+      full_name: data.fullName,
+      cedula: data.cedula,
+      email: data.email.toLowerCase(),
+      password: passwordHash,
+      role: data.role || 'citizen',
+      is_verified: data.isVerified || false,
+      facial_verification_status: 'pending'
+    }).select().single();
 
-// Exportar
+    if (error) throw error;
+    return inserted;
+  }
+
+  static async comparePassword(plain: string, hash: string): Promise<boolean> {
+    if (!hash || !plain) return false;
+    return await bcrypt.compare(plain, hash);
+  }
+}
+
 export default User;

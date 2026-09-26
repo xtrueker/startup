@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Metodología Completa - Red Ciudadana de Seguridad</title>
+    <style>
+        body { font-family: 'Times New Roman', 'Calibri', serif; line-height: 1.6; color: #000; max-width: 800px; margin: 40px auto; padding: 20px; }
+        h1 { color: #111; border-bottom: 2px solid #111; padding-bottom: 10px; text-align: center; text-transform: uppercase; font-size: 22px; }
+        h2 { color: #222; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 40px; font-size: 18px; font-weight: bold; text-transform: uppercase; }
+        h3 { color: #333; margin-top: 25px; font-size: 16px; font-weight: bold; font-style: italic; }
+        h4 { color: #444; margin-top: 15px; font-size: 14px; font-weight: bold; }
+        p { margin-bottom: 15px; text-align: justify; }
+        ul { margin-bottom: 15px; padding-left: 30px; }
+        li { margin-bottom: 10px; text-align: justify; }
+        .methodology-title { font-weight: bold; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <h1>CAPÍTULO: DISEÑO METODOLÓGICO Y MARCO DE DESARROLLO</h1>
+
+    <div class="section">
+        <h2>1. Enfoque y Tipo de Investigación</h2>
+        <p>El presente proyecto de grado se estructura bajo el paradigma de <strong>Investigación Aplicada</strong> de carácter <strong>Tecnológico y Cuantitativo</strong>. A diferencia de la investigación pura, cuyo propósito es la generación de conocimiento abstracto, este modelo busca la resolución de un problema tangible en el entorno social: la inmediatez en el reporte y gestión de incidentes de seguridad ciudadana.</p>
+        
+        <p>El enfoque tecnológico radica en la materialización del conocimiento teórico (criptografía, algoritmos geoespaciales, transmisión de datos multimedia) en un producto de software funcional. Por su parte, la vertiente cuantitativa se evidencia durante las fases de validación, donde se miden variables objetivas de rendimiento informático, tales como la latencia de red en la transmisión de video (medida en milisegundos) y la concurrencia soportada por los servidores de Sockets (cantidad de conexiones simultáneas sin pérdida de paquetes).</p>
+    </div>
+
+    <div class="section">
+        <h2>2. Técnicas e Instrumentos de Recolección de Información</h2>
+        <p>Para cimentar las bases del desarrollo, fue necesario comprender las dinámicas operativas de los sistemas de seguridad actuales. Se emplearon las siguientes técnicas:</p>
+        <ul>
+            <li><strong>Análisis Documental:</strong> Revisión de literatura técnica, manuales de arquitecturas C4 (Centro de Comando, Control, Comunicaciones y Cómputo) y documentación oficial de protocolos de transmisión (RTSP, WebRTC) para comprender el estado del arte en monitoreo urbano.</li>
+            <li><strong>Observación y Entrevistas Informales:</strong> Análisis del flujo de trabajo de operadores de seguridad y las fricciones que experimentan los ciudadanos al reportar emergencias a través de líneas telefónicas convencionales, determinando así la necesidad de una plataforma de "un solo toque" (Botón de Pánico).</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>3. Selección y Justificación del Modelo de Desarrollo de Software</h2>
+        <p>Para la ingeniería de la "Red Ciudadana de Seguridad", se descartó el modelo tradicional en cascada a favor de una <strong>Metodología Ágil</strong>, apoyada en el marco de trabajo <strong>Scrum</strong>. Esta adaptación (ajustada a la envergadura de un proyecto académico) se justifica por la alta incertidumbre tecnológica del proyecto.</p>
+        
+        <p>En sistemas que integran múltiples ecosistemas de hardware (cámaras IP, sensores GPS nativos de teléfonos móviles) y protocolos en tiempo real, pretender congelar los requisitos en una etapa temprana es inviable. La metodología ágil proporciona la flexibilidad necesaria para iterar. Si durante una iteración se descubre que un adaptador de base de datos genera cuellos de botella en la lectura espacial, Scrum permite pivotar la arquitectura sin desechar meses de documentación previa. Este enfoque iterativo e incremental garantiza la entrega continua de valor tecnológico, mitigando los riesgos operativos de forma temprana.</p>
+    </div>
+
+    <div class="section">
+        <h2>4. Roles y Artefactos de la Metodología</h2>
+        <p>Para mantener el rigor académico del marco Scrum dentro del desarrollo del proyecto, se simularon las interacciones formales del marco de trabajo:</p>
+        
+        <h3>4.1 Roles Asumidos</h3>
+        <ul>
+            <li><strong>Product Owner (Dueño del Producto):</strong> Rol representado figurativamente por los asesores del proyecto y los requerimientos del problema de investigación, quienes dictan el "qué" debe lograr la plataforma para ser considerada un éxito (visión del negocio).</li>
+            <li><strong>Scrum Master y Development Team:</strong> Asumido íntegramente por el desarrollador principal del proyecto, encargado de autogestionar los impedimentos técnicos, escribir el código (Backend, Web, Móvil), configurar los contenedores (Docker) y garantizar la aplicación de las mejores prácticas de ingeniería.</li>
+        </ul>
+
+        <h3>4.2 Artefactos de Gestión</h3>
+        <ul>
+            <li><strong>Product Backlog:</strong> Un repositorio dinámico y priorizado de todos los requerimientos funcionales del sistema, redactados bajo el formato de <em>Historias de Usuario</em>. (Ej: "Como operador del C4, quiero visualizar en un mapa los marcadores GPS en vivo de las víctimas para enviar la patrulla más cercana").</li>
+            <li><strong>Definition of Done (DoD - Criterio de Terminado):</strong> Se estableció que una característica solo se consideraría terminada si cumplía tres requisitos: 1) Código compilado sin errores en TypeScript, 2) Ausencia de vulnerabilidades de seguridad evidentes, y 3) Despliegue funcional sin interferir con módulos previamente aprobados.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>5. Estructuración del Ciclo de Vida: Ejecución por Sprints</h2>
+        <p>La construcción del ecosistema se dividió en iteraciones cortas, cada una enfocada en entregar una pieza funcional del rompecabezas.</p>
+
+        <h3>Sprint 0: Preparación Arquitectónica y Prototipado</h3>
+        <p>Fase de mitigación de riesgos tecnológicos iniciales. Se configuró el repositorio bajo una estructura "Monorepo" para unificar el código. Se crearon prototipos de baja fidelidad (Wireframes) para la interfaz web y móvil, asegurando que la experiencia de usuario (UX) en situaciones de pánico fuera lo más sencilla posible (regla de los 2 toques). Adicionalmente, se configuró el clúster inicial de la base de datos no relacional (MongoDB).</p>
+
+        <h3>Sprint 1: El Núcleo de Emergencia y Telemetría</h3>
+        <p>El primer sprint de desarrollo duro tuvo un único objetivo: lograr que la señal del ciudadano llegara al servidor de forma segura.</p>
+        <ul>
+            <li>Construcción del Backend (Node.js/Express) y los esquemas de Mongoose.</li>
+            <li>Implementación de la autenticación de usuarios y encriptación de contraseñas.</li>
+            <li>Desarrollo de la App Móvil (React Native/Expo) habilitando los permisos nativos de GPS en background y la construcción del botón de pánico central.</li>
+        </ul>
+
+        <h3>Sprint 2: El Centro de Mando Táctico</h3>
+        <p>Con los datos llegando al servidor, el enfoque giró hacia el operador. Este sprint se caracterizó por la integración intensiva de herramientas visuales.</p>
+        <ul>
+            <li>Creación de la plataforma web utilizando React y Vite.</li>
+            <li>Integración de la librería cartográfica <strong>Leaflet</strong> para la visualización del plano urbano.</li>
+            <li>Implementación de <strong>Socket.io</strong> y <strong>Redis</strong> para establecer canales bidireccionales, logrando que el mapa del operador se actualizara automáticamente (sin necesidad de recargar la página) cada vez que la app móvil emitía una nueva coordenada.</li>
+        </ul>
+
+        <h3>Sprint 3: Analítica Avanzada, Geometría y Video</h3>
+        <p>Consolidado el sistema base, se incorporaron los módulos de alta complejidad matemática y multimedia.</p>
+        <ul>
+            <li>Desarrollo de las API analíticas apoyadas en <strong>Turf.js</strong> para el cálculo en el servidor de las isócronas (reachability) y rutas de escape, enviando polígonos GeoJSON calculados al frontend.</li>
+            <li>Configuración de la infraestructura de medios con <strong>MediaMTX</strong>, transformando las señales RTSP crudas de cámaras de seguridad en flujos WebRTC de baja latencia consumibles nativamente por el navegador del Centro de Mando.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>6. Estrategia de Validación y Pruebas Continuas (Testing)</h2>
+        <p>En el marco ágil, las pruebas no son una fase final, sino una constante. Para asegurar la fiabilidad de una plataforma crítica para la vida humana, se ejecutaron las siguientes validaciones:</p>
+        <ul>
+            <li><strong>Validación Funcional Temprana:</strong> Pruebas manuales constantes en emuladores móviles y navegadores durante el desarrollo de cada incremento.</li>
+            <li><strong>Pruebas de Estrés de Red (Stress Testing):</strong> Se bombardearon los puertos de Socket.io con peticiones concurrentes simuladas para garantizar que el servidor Node.js no colapsara ante una oleada masiva de alertas en la ciudad.</li>
+            <li><strong>Validación de Latencia Multimedia:</strong> Se midió el retardo introducido por el proceso de Transmuxing (FFmpeg) de video, optimizando los códecs para mantener el retraso por debajo de los 1.5 segundos, estándar aceptable para videovigilancia reactiva.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>7. Herramientas de Apoyo a la Metodología</h2>
+        <p>Para orquestar todo el flujo de trabajo ágil y de ingeniería, se utilizó un ecosistema de herramientas de soporte:</p>
+        <ul>
+            <li><strong>Control de Versiones y Código Fuente:</strong> Git y GitHub, empleando un flujo de ramas (Git Flow simplificado) para aislar el desarrollo de nuevas características (features) del código estable de producción.</li>
+            <li><strong>Gestión del Backlog:</strong> Herramientas de tableros Kanban (como Trello o Jira) para mover gráficamente las historias de usuario entre los estados "Por Hacer", "En Progreso" y "Terminado".</li>
+            <li><strong>Diseño de Interfaces:</strong> Figma, para la vectorización de los componentes visuales previo a la codificación, reduciendo el retrabajo en la capa de frontend.</li>
+            <li><strong>Aprovisionamiento:</strong> Docker, para la creación de imágenes de los servicios que garantizaran que la aplicación se comportara idénticamente al ser desplegada en servidores en la nube.</li>
+        </ul>
+    </div>
+
+</body>
+</html>

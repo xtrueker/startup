@@ -1,26 +1,20 @@
 "use strict";
-// Logger simple usando console
-// En producción se reemplaza por Winston o similar
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.logger = void 0;
-exports.logger = {
-    // Información general
-    info: (message, ...args) => {
-        console.log(`[INFO] ${new Date().toISOString()} - ${message}`, ...args);
-    },
-    // Errores
-    error: (message, ...args) => {
-        console.error(`[ERROR] ${new Date().toISOString()} - ${message}`, ...args);
-    },
-    // Advertencias
-    warn: (message, ...args) => {
-        console.warn(`[WARN] ${new Date().toISOString()} - ${message}`, ...args);
-    },
-    // Para debugging
-    debug: (message, ...args) => {
-        if (process.env.NODE_ENV === 'development') {
-            console.log(`[DEBUG] ${new Date().toISOString()} - ${message}`, ...args);
+const pino_1 = __importDefault(require("pino"));
+const isProduction = process.env.NODE_ENV === 'production';
+exports.logger = (0, pino_1.default)({
+    level: isProduction ? 'info' : 'debug',
+    transport: !isProduction ? {
+        target: 'pino-pretty',
+        options: {
+            colorize: true,
+            translateTime: 'SYS:standard',
+            ignore: 'pid,hostname'
         }
-    }
-};
+    } : undefined,
+});
 //# sourceMappingURL=logger.js.map

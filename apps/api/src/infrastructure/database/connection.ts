@@ -1,15 +1,15 @@
-import mongoose from 'mongoose';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Pool } from 'pg';
+import { env } from '../../config/env';
 
-// Esta clase maneja la conexión a MongoDB
-// Usa el patrón Singleton: solo existe UNA conexión en toda la app
 export class DatabaseConnection {
   private static instance: DatabaseConnection;
   private isConnected: boolean = false;
+  private supabaseClient: SupabaseClient | null = null;
+  private pgPool: Pool | null = null;
 
-  // Constructor privado: nadie puede crear instancias directamente
   private constructor() {}
 
-  // Método para obtener la única instancia
   public static getInstance(): DatabaseConnection {
     if (!DatabaseConnection.instance) {
       DatabaseConnection.instance = new DatabaseConnection();
@@ -17,47 +17,76 @@ export class DatabaseConnection {
     return DatabaseConnection.instance;
   }
 
-  // Conectar a la base de datos
-  public async connect(uri: string): Promise<void> {
-    // Si ya estamos conectados, no hacer nada
+  public async connect(): Promise<void> {
     if (this.isConnected) {
-      console.log('Ya conectado a MongoDB');
       return;
     }
 
     try {
-      // Opciones de conexión
-      const options = {
-        maxPoolSize: 10,        // Máximo 10 conexiones simultáneas
-        serverSelectionTimeoutMS: 5000, // Esperar 5 segundos máximo
-      };
-
-      // Intentar conectar
-      await mongoose.connect(uri, options);
-      
-      this.isConnected = true;
-      console.log('✅ Conectado a MongoDB');
-
-      // Escuchar errores después de conectar
-      mongoose.connection.on('error', (err) => {
-        console.error('Error en MongoDB:', err);
+      this.supabaseClient = createClient(env.SUPABASE_URL, env.SUPABASE_KEY, {
+        auth: {
+          persistSession: false,
+        },
       });
 
+      let connectionString = env.DATABASE_URL;
+      if (!connectionString && env.SUPABASE_URL && env.DB_PASSWORD) {
+        try {
+          const urlObj = new URL(env.SUPABASE_URL);
+          let host = urlObj.hostname;
+          if (!host.startsWith('db.')) {
+            host = `db.${host}`;
+          }
+          connectionString = `postgresql://postgres:${env.DB_PASSWORD}@${host}:5432/postgres`;
+        } catch (e) {
+          // Fallback just in case SUPABASE_URL parsing fails
+          connectionString = `postgresql://postgres:${env.DB_PASSWORD}@db.yqfltmwohsyumwpqdkwh.supabase.co:5432/postgres`;
+        }
+      }
+
+      if (!connectionString) {
+        throw new Error('You must set either DATABASE_URL or DB_PASSWORD in your .env file to connect to the database.');
+      }
+
+      this.pgPool = new Pool({
+        connectionString,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      // Hacer una consulta rápida para verificar conectividad
+      const { error } = await this.supabaseClient.from('users').select('*').limit(1);
+      if (error) throw error;
+
+      this.isConnected = true;
+      console.log('✅ Conectado a Supabase (PostgreSQL)');
     } catch (error) {
-      console.error('❌ Error conectando a MongoDB:', error);
-      throw error; // Lanzar error para que lo maneje quien llamó
+      console.error('❌ Error conectando a Supabase:', error);
+      throw error;
     }
   }
 
-  // Desconectar (útil para tests)
+  public getClient(): SupabaseClient {
+    if (!this.supabaseClient) {
+      throw new Error('El cliente de Supabase no ha sido inicializado. Llama a connect() primero.');
+    }
+    return this.supabaseClient;
+  }
+
+  public getPgPool(): Pool {
+    if (!this.pgPool) {
+      throw new Error('El cliente nativo PG no ha sido inicializado.');
+    }
+    return this.pgPool;
+  }
+
   public async disconnect(): Promise<void> {
-    if (!this.isConnected) return;
-    
-    await mongoose.disconnect();
+    this.supabaseClient = null;
+    if (this.pgPool) await this.pgPool.end();
+    this.pgPool = null;
     this.isConnected = false;
-    console.log('Desconectado de MongoDB');
   }
 }
 
-// Exportar instancia única para usar en toda la app
 export const dbConnection = DatabaseConnection.getInstance();
+export const supabase = () => dbConnection.getClient();
+export const getPgPool = () => dbConnection.getPgPool();

@@ -1,82 +1,100 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
-const mongoose_1 = __importStar(require("mongoose"));
-const AlertSchema = new mongoose_1.Schema({
-    userId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-    type: {
-        type: String,
-        enum: ['emergency', 'suspicious', 'medical', 'fire', 'robo', 'other'],
-        default: 'emergency',
-        required: true,
-    },
-    status: {
-        type: String,
-        enum: ['active', 'resolved', 'false_alarm'],
-        default: 'active',
-    },
-    location: {
-        type: {
-            type: String,
-            enum: ['Point'],
-            required: true,
-        },
-        coordinates: {
-            type: [Number],
-            required: true,
-        },
-        address: String,
-    },
-    description: {
-        type: String,
-        maxlength: 500,
-    },
-    direction: {
-        type: String,
-    },
-    escapeRoutes: {
-        type: [mongoose_1.Schema.Types.Mixed],
-    },
-}, {
-    timestamps: true,
-});
-AlertSchema.index({ location: '2dsphere' });
-const Alert = mongoose_1.default.model('Alert', AlertSchema);
+exports.Alert = void 0;
+const connection_1 = require("../connection");
+class Alert {
+    /**
+     * Fetch active alerts with their PostGIS location cast to JSON
+     */
+    static async findActive(limit = 50) {
+        const pool = (0, connection_1.getPgPool)();
+        const result = await pool.query(`
+      SELECT id, user_id, type, status, ST_AsText(location) as location, 
+             address, description, direction, escape_routes, created_at, updated_at
+      FROM alerts
+      WHERE status NOT IN ('resolved', 'discarded')
+      ORDER BY created_at DESC
+      LIMIT $1;
+    `, [limit]);
+        return result.rows;
+    }
+    static async findById(id) {
+        const pool = (0, connection_1.getPgPool)();
+        const result = await pool.query(`
+      SELECT id, user_id, type, status, ST_AsText(location) as location,
+             address, description, direction, escape_routes, created_at, updated_at
+      FROM alerts WHERE id = $1 LIMIT 1;
+    `, [id]);
+        return result.rows[0] || null;
+    }
+    static async create(data) {
+        const pool = (0, connection_1.getPgPool)();
+        // PostGIS accepts Well-Known Text (WKT)
+        const wktLocation = `POINT(${data.longitude} ${data.latitude})`;
+        // Ensure user exists (auto-create anonymous citizen if missing)
+        await pool.query(`
+      INSERT INTO users (id, full_name, cedula, email, role)
+      VALUES ($1, $2, $3, $4, 'citizen')
+      ON CONFLICT (id) DO NOTHING;
+    `, [data.userId, 'Ciudadano Anónimo', '0000000000', `anon_${data.userId.substring(0, 8)}@red-ciudadana.local`]);
+        const query = `
+      INSERT INTO alerts (user_id, type, status, location, address, description, direction, escape_routes)
+      VALUES ($1, $2, $3, ST_GeomFromText($4, 4326), $5, $6, $7, $8)
+      RETURNING id, user_id, type, status, ST_AsText(location) as location, address, description, direction, escape_routes, created_at, updated_at;
+    `;
+        const values = [
+            data.userId, data.type, 'pending', wktLocation,
+            data.address || '', data.description || '', data.direction || null,
+            JSON.stringify(data.escapeRoutes || [])
+        ];
+        try {
+            const result = await pool.query(query, values);
+            const inserted = result.rows[0];
+            // Insert Event Sourcing Log
+            await pool.query(`
+        INSERT INTO alert_events (alert_id, actor_id, event_type, new_status, location, notes)
+        VALUES ($1, $2, $3, $4, ST_GeomFromText($5, 4326), $6)
+      `, [inserted.id, data.userId, 'created', 'pending', wktLocation, 'Alert reported by citizen']);
+            return inserted;
+        }
+        catch (error) {
+            console.error('Error in Alert.create PostGIS (Native PG):', error);
+            throw error;
+        }
+    }
+    static async updateStatus(id, newStatus, actorId, notes) {
+        const pool = (0, connection_1.getPgPool)();
+        // Get old status
+        const oldResult = await pool.query('SELECT status FROM alerts WHERE id = $1', [id]);
+        const oldStatus = oldResult.rows[0]?.status;
+        // Validate UUID format, fallback to System Admin UUID
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actorId);
+        const finalActorId = isValidUUID ? actorId : '00000000-0000-0000-0000-000000000001';
+        // Ensure actor exists to satisfy foreign key (alert_events_actor_id_fkey)
+        await pool.query(`
+      INSERT INTO users (id, full_name, cedula, email, role)
+      VALUES ($1, 'Operador del Sistema', '0000000001', 'system@red-ciudadana.local', 'admin')
+      ON CONFLICT (id) DO NOTHING;
+    `, [finalActorId]);
+        // Update alert
+        const result = await pool.query(`
+      UPDATE alerts SET status = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, user_id, type, status, ST_AsText(location) as location, address, description, direction, escape_routes, created_at, updated_at;
+    `, [newStatus, id]);
+        if (result.rows.length === 0)
+            throw new Error('Alert not found');
+        // Log event
+        await pool.query(`
+      INSERT INTO alert_events (alert_id, actor_id, event_type, previous_status, new_status, notes)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [id, finalActorId, 'status_change', oldStatus, newStatus, notes || 'Status updated manually']);
+        return result.rows[0];
+    }
+    static async archive(id, actorId) {
+        return this.updateStatus(id, 'resolved', actorId, 'Archived to historical records');
+    }
+}
+exports.Alert = Alert;
 exports.default = Alert;
 //# sourceMappingURL=Alert.js.map

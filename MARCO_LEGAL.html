@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Marco Legal - Red Ciudadana de Seguridad</title>
+    <style>
+        body { font-family: 'Times New Roman', 'Calibri', serif; line-height: 1.6; color: #000; max-width: 800px; margin: 40px auto; padding: 20px; }
+        h1 { color: #111; border-bottom: 1px solid #111; padding-bottom: 10px; text-align: center; text-transform: uppercase; font-size: 20px; }
+        h2 { color: #222; margin-top: 30px; font-size: 16px; font-weight: bold; }
+        p { margin-bottom: 15px; text-align: justify; }
+        .legal-title { font-weight: bold; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <h1>MARCO LEGAL Y NORMATIVO</h1>
+    <p>La implementación y operación de la plataforma "Red Ciudadana de Seguridad" supone el tratamiento de información sensible, geolocalización y captura de video. Por consiguiente, el diseño de la arquitectura y la lógica de negocio se ciñen a los principios universales del derecho informático, la protección a la intimidad y las directrices internacionales sobre el manejo de datos personales.</p>
+
+    <div class="section">
+        <h2>1. Protección de Datos Personales y Habeas Data</h2>
+        
+        <p><span class="legal-title">Consentimiento Previo e Informado:</span> Acorde a los estándares internacionales de protección de datos (como el GDPR en Europa o las leyes estatutarias de Habeas Data en Latinoamérica), el sistema exige que el usuario de la aplicación móvil otorgue su consentimiento explícito antes de recopilar información de registro (nombre, contacto) o datos de telemetría. La plataforma debe garantizar que los datos se utilicen exclusivamente para fines de seguridad comunitaria y no para comercialización a terceros.</p>
+
+        <p><span class="legal-title">Principio de Finalidad y Temporalidad:</span> La recopilación de la ubicación en tiempo real se activa únicamente bajo la voluntad del usuario (al accionar el botón de pánico) y cesa cuando la alerta es desactivada o resuelta. Los datos históricos de incidentes conservados para el análisis espacial (mapas de calor) deben someterse a procesos de anonimización o pseudo-anonimización para desvincular la identidad del ciudadano del evento estadístico.</p>
+    </div>
+
+    <div class="section">
+        <h2>2. Derechos a la Intimidad y Manejo de Videovigilancia</h2>
+        
+        <p><span class="legal-title">Expectativa de Privacidad en Espacios Públicos:</span> La integración de flujos de video mediante cámaras de vigilancia se rige por el balance entre el derecho a la intimidad y el interés general de la seguridad pública. El sistema asume que las cámaras conectadas están instaladas en áreas de tránsito público, donde la expectativa de privacidad es legalmente menor, prohibiéndose estrictamente la conexión de cámaras que enfoquen interiores de domicilios privados.</p>
+
+        <p><span class="legal-title">Cadena de Custodia Digital:</span> Las grabaciones y alertas gestionadas por el Centro de Mando son susceptibles de convertirse en material probatorio durante investigaciones policiales o procesos judiciales. Por ello, la arquitectura del sistema contempla el aseguramiento criptográfico de las alertas y la inmutabilidad de los registros generados en la base de datos (logs de auditoría) para preservar la integridad de la evidencia digital.</p>
+    </div>
+
+    <div class="section">
+        <h2>3. Seguridad de la Información frente a Ciberdelitos</h2>
+
+        <p><span class="legal-title">Obligación de Medidas Técnicas (Accountability):</span> La legislación penal y civil contemporánea exige a los administradores de plataformas que almacenen datos sensibles implementar medidas de seguridad razonables para prevenir la interceptación ilícita de comunicaciones, accesos abusivos a sistemas informáticos o la fuga de datos. La adopción de encriptación (JWT, Bcrypt) y transmisión segura descrita en el marco tecnológico constituye el cumplimiento directo de este deber legal preventivo.</p>
+    </div>
+
+    <div class="section">
+        <h2>4. Cooperación con la Fuerza Pública y Autoridades</h2>
+
+        <p><span class="legal-title">Participación Ciudadana y Prevención:</span> Los marcos constitucionales establecen el deber de los ciudadanos de obrar conforme al principio de solidaridad social, respondiendo con acciones humanitarias ante situaciones que pongan en peligro la vida de las personas. La Red Ciudadana de Seguridad funciona bajo el marco legal de "redes de apoyo cívico" o "frentes locales de seguridad", sirviendo como canal de mediación preventivo y no asumiendo, en ningún caso, las funciones de policía coercitiva o de uso de fuerza legítima, las cuales son monopolio exclusivo del Estado.</p>
+    </div>
+
+</body>
+</html>

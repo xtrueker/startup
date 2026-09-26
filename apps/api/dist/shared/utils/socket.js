@@ -6,6 +6,7 @@ const redis_1 = require("redis");
 const redis_adapter_1 = require("@socket.io/redis-adapter");
 const logger_1 = require("./logger");
 const env_1 = require("../../config/env");
+const PredictiveEngine_1 = require("../../services/PredictiveEngine");
 let io = null;
 // ─── Namespaces ──────────────────────────────────────────────────────────────
 // /citizens  → Mobile app clients (emit location, trigger alarms)
@@ -32,7 +33,7 @@ const initSocket = async (server) => {
             logger_1.logger.info('🚀 Redis Adapter activado para escalabilidad horizontal');
         }
         catch (err) {
-            logger_1.logger.error('❌ Error inicializando Redis Adapter:', err);
+            logger_1.logger.error(err, '❌ Error inicializando Redis Adapter:');
             logger_1.logger.warn('⚠️ Continuando sin escalabilidad horizontal (modo instancia única)');
         }
     }
@@ -62,6 +63,25 @@ const initSocket = async (server) => {
                     latitude,
                     longitude,
                     timestamp: new Date().toISOString(),
+                });
+            }
+        });
+        // ─── PROTOCOLO MODO FANTASMA ──────────────────────────────────────────────
+        socket.on('ghost:location_update', async (payload) => {
+            const { userId, lat, lng } = payload;
+            // 1. Enviar coordenadas puras a los operadores
+            io.of('/operators').emit('ghost:live_tracking', {
+                userId,
+                lat,
+                lng,
+                timestamp: new Date().toISOString(),
+            });
+            // 2. Motor Predictivo: Buscar cámaras en un radio de 200m
+            const nearbyCameras = await PredictiveEngine_1.predictiveEngine.getNearbyCameras(lat, lng, 200);
+            if (nearbyCameras.length > 0) {
+                io.of('/operators').emit('ghost:nearby_cameras', {
+                    userId,
+                    cameras: nearbyCameras
                 });
             }
         });

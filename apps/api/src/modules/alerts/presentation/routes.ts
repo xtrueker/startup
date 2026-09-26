@@ -1,123 +1,108 @@
 import { Router, Request, Response } from 'express';
 import Alert from '../../../infrastructure/database/models/Alert';
-import HistoricalIncident from '../../../infrastructure/database/models/HistoricalIncident';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
 import { calculateEscapeRoutes } from '../services/escapeRouting';
 import { getSocket, emitToOperators } from '../../../shared/utils/socket';
+import { AuditService } from '../../../shared/services/AuditService';
 
 const router = Router();
 
 // CREAR ALERTA DE EMERGENCIA
 // POST /api/alerts
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
   console.log('INFO: POST /api/alerts called');
   try {
     const { userId, type, latitude, longitude, address, description, direction } = req.body;
 
-    // Validar datos requeridos
     if (!userId || !latitude || !longitude) {
-      return res.status(400).json({
-        success: false,
-        message: 'Faltan datos obligatorios: userId, latitude, longitude',
-      });
+      return res.status(400).json({ success: false, message: 'Faltan datos obligatorios' });
     }
 
-    // Calcular rutas de escape si es un robo y hay dirección
     let escapeRoutes: any[] = [];
     if (type === 'robo' && direction) {
       escapeRoutes = await calculateEscapeRoutes(latitude, longitude, direction);
     }
 
-    // Crear alerta
     const alert = await Alert.create({
       userId,
       type: type || 'emergency',
-      status: 'active',
-      location: {
-        type: 'Point',
-        coordinates: [longitude, latitude], // [longitud, latitud]
-        address: address || '',
-      },
-      description: description || '',
+      latitude,
+      longitude,
+      address,
+      description,
       direction,
-      escapeRoutes: escapeRoutes.length > 0 ? escapeRoutes : undefined,
+      escapeRoutes
     });
 
     const alertData = {
-      id: alert._id,
+      id: alert.id,
       type: alert.type,
       status: alert.status,
-      location: {
-        latitude: alert.location.coordinates[1],
-        longitude: alert.location.coordinates[0],
-        address: alert.location.address,
-      },
+      location: { latitude, longitude, address },
       description: alert.description,
       direction: alert.direction,
-      escapeRoutes: alert.escapeRoutes,
-      createdAt: alert.createdAt,
+      escapeRoutes: alert.escape_routes,
+      createdAt: alert.created_at,
     };
 
-    // Emitir evento WebSocket a todos los operadores conectados
     try {
-      getSocket().emit('alert:new', alertData);   // legacy namespace
-      emitToOperators('alert:new', alertData);    // /operators namespace
+      getSocket().emit('alert:new', alertData);
+      emitToOperators('alert:new', alertData);
     } catch (wsError) {
-      console.error('Error emitiendo WebSocket (alert:new):', wsError);
+      console.error('Error emitiendo WebSocket:', wsError);
     }
 
-    // Responder éxito
-    res.status(201).json({
-      success: true,
-      message: 'Alerta creada exitosamente',
-      data: { alert: alertData },
-    });
+    res.status(201).json({ success: true, message: 'Alerta creada exitosamente', data: { alert: alertData } });
 
   } catch (error: any) {
-    console.error('ERROR creando alerta:', error.message, error.stack);
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor al crear alerta',
-      error: error.message,
-    });
+    console.error('ERROR creando alerta:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno', error: error.message });
   }
 });
 
 // OBTENER TODAS LAS ALERTAS ACTIVAS
 // GET /api/alerts
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
   console.log('INFO: GET /api/alerts called');
   try {
-    const alerts = await Alert.find({ status: 'active' })
-      .sort({ createdAt: -1 }) // Más recientes primero
-      .limit(50);
+    const alerts = await Alert.findActive(50);
 
     res.json({
       success: true,
       count: alerts.length,
-      data: alerts.map(alert => ({
-        id: alert._id,
-        type: alert.type,
-        status: alert.status,
-        location: {
-          latitude: alert.location.coordinates[1],
-          longitude: alert.location.coordinates[0],
-          address: alert.location.address,
-        },
-        description: alert.description,
-        direction: alert.direction,
-        escapeRoutes: alert.escapeRoutes,
-        createdAt: alert.createdAt,
-      })),
+      data: alerts.map((alert: any) => {
+        let lat = 0, lng = 0;
+        if (alert.location && typeof alert.location === 'object' && alert.location.coordinates) {
+           lng = alert.location.coordinates[0];
+           lat = alert.location.coordinates[1];
+        } else if (typeof alert.location === 'string') {
+           const match = alert.location.match(/POINT\(([^ ]+) ([^)]+)\)/);
+           if (match) {
+             lng = parseFloat(match[1]);
+             lat = parseFloat(match[2]);
+           }
+        }
+        
+        return {
+          id: alert.id,
+          type: alert.type,
+          status: alert.status,
+          location: {
+            latitude: lat,
+            longitude: lng,
+            address: alert.address,
+          },
+          description: alert.description,
+          direction: alert.direction,
+          escapeRoutes: alert.escape_routes,
+          createdAt: alert.created_at,
+        };
+      }),
     });
 
   } catch (error: any) {
-    console.error('ERROR obteniendo alertas:', error.message, error.stack);
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor al obtener alertas',
-      error: error.message
-    });
+    console.error('ERROR obteniendo alertas:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno', error: error.message });
   }
 });
 
@@ -127,49 +112,84 @@ router.delete('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator
   console.log(`INFO: DELETE /api/alerts/${req.params.id} called`);
   try {
     const { id } = req.params;
+    const adminId = (req as any).user?.id || 'system';
     
-    // Buscar la alerta original
-    const alert = await Alert.findById(id);
-    
-    if (!alert) {
-      return res.status(404).json({
-        success: false,
-        message: 'Alerta no encontrada',
-      });
-    }
+    await Alert.archive(id, adminId);
 
-    // Mover a incidente histórico
-    await HistoricalIncident.create({
-      originalAlertId: alert._id,
-      type: alert.type,
-      location: alert.location,
-      reportedAt: alert.createdAt,
-      resolvedAt: new Date(),
-    });
-
-    // Eliminar alerta activa
-    await Alert.findByIdAndDelete(id);
-
-    // Emitir evento WebSocket a todos los operadores conectados
     try {
-      getSocket().emit('alert:deleted', { id });   // legacy
-      emitToOperators('alert:deleted', { id });    // /operators namespace
+      getSocket().emit('alert:deleted', { id });
+      emitToOperators('alert:deleted', { id });
     } catch (wsError) {
-      console.error('Error emitiendo WebSocket (alert:deleted):', wsError);
+      console.error('Error emitiendo WebSocket:', wsError);
     }
 
-    res.json({
-      success: true,
-      message: 'Alerta resuelta y archivada históricamente',
-    });
+    res.json({ success: true, message: 'Alerta resuelta y archivada históricamente' });
 
   } catch (error: any) {
-    console.error('ERROR eliminando alerta:', error.message, error.stack);
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor al eliminar la alerta',
-      error: error.message,
-    });
+    console.error('ERROR eliminando alerta:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno', error: error.message });
+  }
+});
+
+// ACTUALIZAR ESTADO DE ALERTA (MÁQUINA DE ESTADOS)
+// PATCH /api/alerts/:id/status
+router.patch('/:id/status', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+  console.log(`INFO: PATCH /api/alerts/${req.params.id}/status called`);
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+    const actorId = (req as any).user?.id || (req as any).user?.userId || 'system';
+
+    const validStatuses = ['pending', 'reviewing', 'verified', 'resolved', 'discarded'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: 'Estado inválido' });
+    }
+
+    const alertBefore = await Alert.findById(id);
+    const oldStatus = alertBefore ? alertBefore.status : 'unknown';
+
+    // Call DAO which handles the update and also logs the event in alert_events
+    await Alert.updateStatus(id, status, actorId, notes);
+
+    // General Audit tracking
+    try {
+      await AuditService.logAlertTransition(actorId, id, oldStatus, status, req.ip);
+    } catch (auditErr: any) {
+      console.warn('⚠️ Warning: AuditService.logAlertTransition failed, but skipping crash:', auditErr.message);
+    }
+
+    // Broadcast update
+    try {
+      getSocket().emit('alert:updated', { id, status });
+      emitToOperators('alert:updated', { id, status });
+    } catch (wsError) {
+      console.error('Error emitiendo WebSocket:', wsError);
+    }
+
+    res.json({ success: true, message: `Estado de alerta actualizado a ${status}` });
+  } catch (error: any) {
+    console.error('ERROR actualizando estado de alerta:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno', error: error.message });
+  }
+});
+
+// HISTORIAL DE EVENTOS DE ALERTA
+// GET /api/alerts/:id/events
+router.get('/:id/events', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pool = require('../../../infrastructure/database/connection').getPgPool();
+    const result = await pool.query(`
+      SELECT id, event_type, previous_status, new_status, notes, created_at 
+      FROM alert_events 
+      WHERE alert_id = $1 
+      ORDER BY created_at ASC
+    `, [id]);
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('ERROR obteniendo eventos de alerta:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno', error: error.message });
   }
 });
 
