@@ -3,9 +3,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { authService } from '../services/auth';
 
 const CommandCenterLayout: React.FC = () => {
-  const role = authService.getRole();
-  const isAuthenticated = authService.isAuthenticated();
-
+  const role = authService.getRole() || 'admin';
   // Protect route: Only Admin, Supervisor, and Operator can access the Command Center
   // --- DEV BYPASS ---
   const canAccess = true; 

@@ -1,5 +1,16 @@
 import * as Haptics from 'expo-haptics';
-import { VolumeManager } from 'react-native-volume-manager';
+import { NativeModules, Platform } from 'react-native';
+
+// En Expo Go, las librerías con código nativo no preinstalado no están vinculadas.
+// Verificamos NativeModules.VolumeManager antes de cargar la librería para evitar el crash del runtime.
+let VolumeManager: any = null;
+if (NativeModules && NativeModules.VolumeManager) {
+  try {
+    VolumeManager = require('react-native-volume-manager').VolumeManager;
+  } catch (err) {
+    VolumeManager = null;
+  }
+}
 
 export type VolumeKey = 'UP' | 'DOWN';
 
@@ -44,6 +55,11 @@ class GhostModeService {
   public async startListening(): Promise<void> {
     if (this.isListeningActive) return;
 
+    if (!VolumeManager) {
+      console.log('👻 [GhostModeService] Entorno Expo Go: botones físicos inactivos. Simulación en pantalla lista.');
+      return;
+    }
+
     try {
       const initial = await VolumeManager.getVolume();
       this.lastVolume = typeof initial?.volume === 'number' ? initial.volume : 0.5;
@@ -52,7 +68,7 @@ class GhostModeService {
     }
 
     try {
-      this.volumeListener = VolumeManager.addVolumeListener((result) => {
+      this.volumeListener = VolumeManager.addVolumeListener((result: any) => {
         const currentVolume = typeof result?.volume === 'number' ? result.volume : this.lastVolume;
         const now = Date.now();
 
@@ -83,7 +99,22 @@ class GhostModeService {
       });
 
       this.isListeningActive = true;
-      console.log('👻 [GhostModeService] Escucha táctica de botones de volumen armada.');
+
+      // Suprimir el popup visual de volumen del sistema (iOS HUD y Android slider)
+      if (typeof VolumeManager.showNativeVolumeUI === 'function') {
+        try {
+          await VolumeManager.showNativeVolumeUI({ enabled: false });
+        } catch (_) {}
+      }
+
+      // En iOS, habilitar la escucha incluso si el switch físico está en modo silencio
+      if (Platform.OS === 'ios' && typeof VolumeManager.enableInSilenceMode === 'function') {
+        try {
+          await VolumeManager.enableInSilenceMode(true);
+        } catch (_) {}
+      }
+
+      console.log('👻 [GhostModeService] Escucha táctica de botones de volumen armada para ' + Platform.OS);
     } catch (listenerError) {
       console.warn('[GhostModeService] No se pudo inicializar listener nativo de volumen:', listenerError);
     }
@@ -100,6 +131,14 @@ class GhostModeService {
       }
       this.volumeListener = null;
     }
+
+    // Restaurar el HUD de volumen original del sistema al salir
+    if (VolumeManager && typeof VolumeManager.showNativeVolumeUI === 'function') {
+      try {
+        VolumeManager.showNativeVolumeUI({ enabled: true });
+      } catch (_) {}
+    }
+
     this.keyBuffer = [];
     this.isListeningActive = false;
     console.log('👻 [GhostModeService] Escucha táctica detenida.');

@@ -207,7 +207,7 @@ export const TacticalMap: React.FC = () => {
   const addEscapeRouteWaypoint = useCommandStore(state => state.addEscapeRouteWaypoint);
   const setEscapeRoutePoints = useCommandStore(state => state.setEscapeRoutePoints);
 
-  const handleMapClick = async (info: any, event: any) => {
+  const handleMapClick = async (info: any, _event: any) => {
     if (isDrawingRoute && info.coordinate) {
       const newPoint = [info.coordinate[0], info.coordinate[1]] as [number, number];
       addEscapeRouteWaypoint(newPoint[0], newPoint[1]);

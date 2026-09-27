@@ -10,6 +10,7 @@ import HomeScreen from './screens/HomeScreen';
 import { ghostModeService } from './services/GhostModeService';
 import { GhostModeScreen } from './screens/GhostModeScreen';
 import { panicService } from './services/panicService';
+import { localDatabase } from './services/localDatabase';
 
 export default function App() {
   const [checking, setChecking] = useState(true);
@@ -22,6 +23,7 @@ export default function App() {
   useEffect(() => {
     async function checkAuth() {
       try {
+        await localDatabase.init();
         const auth = await authService.isAuthenticated();
         setAuthenticated(auth);
       } catch (error) {

@@ -1,6 +1,6 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
-const BUFFER_FILE = FileSystem.documentDirectory + 'emergency_buffer.json';
+const BUFFER_FILE = (FileSystem.documentDirectory ?? '') + 'emergency_buffer.json';
 
 export interface BufferedPayload {
   id: string;
@@ -9,47 +9,72 @@ export interface BufferedPayload {
   timestamp: string;
 }
 
+// Respaldo en memoria por si el sistema de archivos del SO está bloqueado
+let memoryQueue: BufferedPayload[] = [];
+
 export class OfflineBufferService {
   /**
    * Lee la cola de eventos no enviados.
    */
   static async getBuffer(): Promise<BufferedPayload[]> {
     try {
-      const fileInfo = await FileSystem.getInfoAsync(BUFFER_FILE);
-      if (!fileInfo.exists) return [];
-      
-      const contents = await FileSystem.readAsStringAsync(BUFFER_FILE);
-      return JSON.parse(contents) as BufferedPayload[];
+      if (FileSystem.documentDirectory) {
+        const fileInfo = await FileSystem.getInfoAsync(BUFFER_FILE);
+        if (fileInfo.exists) {
+          const contents = await FileSystem.readAsStringAsync(BUFFER_FILE);
+          const parsed = JSON.parse(contents) as BufferedPayload[];
+          if (Array.isArray(parsed)) return parsed;
+        }
+      }
     } catch (e) {
-      console.error('Error leyendo buffer offline', e);
-      return [];
+      console.warn('[OfflineBuffer] Error leyendo archivo de buffer, usando memoria:', e);
     }
+    return [...memoryQueue];
   }
 
   /**
    * Agrega un evento a la cola para enviarlo cuando haya señal.
    */
   static async enqueue(type: BufferedPayload['type'], payload: any): Promise<void> {
-    const queue = await this.getBuffer();
     const newEvent: BufferedPayload = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substring(2, 11),
       type,
       payload,
       timestamp: new Date().toISOString(),
     };
-    
-    queue.push(newEvent);
-    await FileSystem.writeAsStringAsync(BUFFER_FILE, JSON.stringify(queue));
-    console.log(`[OfflineBuffer] Embalado evento ${type}. Total: ${queue.length}`);
+
+    memoryQueue.push(newEvent);
+
+    try {
+      if (FileSystem.documentDirectory) {
+        const queue = await this.getBuffer();
+        // Evitar duplicados en disco
+        if (!queue.some((e) => e.id === newEvent.id)) {
+          queue.push(newEvent);
+        }
+        await FileSystem.writeAsStringAsync(BUFFER_FILE, JSON.stringify(queue));
+      }
+      console.log(`[OfflineBuffer] Embalado evento ${type}. Total en cola: ${memoryQueue.length}`);
+    } catch (err) {
+      console.warn('[OfflineBuffer] No se pudo escribir en disco, retenido en memoria:', err);
+    }
   }
 
   /**
    * Elimina un evento procesado exitosamente de la cola.
    */
   static async dequeue(id: string): Promise<void> {
-    const queue = await this.getBuffer();
-    const filtered = queue.filter(e => e.id !== id);
-    await FileSystem.writeAsStringAsync(BUFFER_FILE, JSON.stringify(filtered));
+    memoryQueue = memoryQueue.filter((e) => e.id !== id);
+
+    try {
+      if (FileSystem.documentDirectory) {
+        const queue = await this.getBuffer();
+        const filtered = queue.filter((e) => e.id !== id);
+        await FileSystem.writeAsStringAsync(BUFFER_FILE, JSON.stringify(filtered));
+      }
+    } catch (err) {
+      console.warn('[OfflineBuffer] Error actualizando cola en disco tras dequeue:', err);
+    }
   }
 
   /**
@@ -59,24 +84,20 @@ export class OfflineBufferService {
     const queue = await this.getBuffer();
     if (queue.length === 0) return;
 
-    console.log(`[OfflineBuffer] Intentando purgar ${queue.length} eventos pendentes...`);
-    
+    console.log(`[OfflineBuffer] Intentando purgar ${queue.length} eventos pendientes...`);
+
     for (const event of queue) {
       try {
-        // Rutado lógico basado en Event Type
         if (event.type === 'PANIC_TRIGGER') {
-          await apiClient.post('/mobile/panic/sync', event.payload);
+          await apiClient.post('/mobile/panic', event.payload);
         } else if (event.type === 'GPS_UPDATE') {
-          await apiClient.post('/mobile/tracker/sync', event.payload);
-        } else if (event.type === 'AUDIO_CHUNK') {
-          // Implementación formData pendiente
+          await apiClient.post('/mobile/location', event.payload);
         }
-        
-        // Si sale bien, quitarlo del buffer
+
+        // Si se envió bien, retirarlo
         await this.dequeue(event.id);
       } catch (e) {
         console.warn(`[OfflineBuffer] Falla sincronizando evento ${event.id}, se reintentará luego.`);
-        // Romper el loop para evitar spam si la red sigue caída permanentemente
         break;
       }
     }

@@ -4,46 +4,75 @@
     "slug": "barranca-segura",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
     "splash": {
-      "backgroundColor": "#1a365d"
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0E17"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.redciudadana.seguridad",
       "buildNumber": "1",
+      "userInterfaceStyle": "dark",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación para enviar ayuda en caso de emergencia.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos tu ubicación en segundo plano cuando tienes una emergencia activa."
+        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación para enviar ayuda y alertar a la red ciudadana en caso de emergencia.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos tu ubicación en segundo plano durante una emergencia activa para que los rescatistas y cuadrantes puedan rastrearte.",
+        "NSLocationAlwaysUsageDescription": "Rastreo continuo de ubicación mientras una alerta de pánico esté activa.",
+        "NSMicrophoneUsageDescription": "Captura discreta de audio como evidencia acústica de seguridad mientras una alerta de pánico esté activa.",
+        "UIBackgroundModes": [
+          "location",
+          "audio",
+          "fetch",
+          "remote-notification"
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1a365d"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0E17"
       },
       "package": "com.redciudadana.seguridad",
       "versionCode": 1,
+      "userInterfaceStyle": "dark",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "RECORD_AUDIO",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "FOREGROUND_SERVICE_MICROPHONE",
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "WAKE_LOCK"
       ]
     },
     "plugins": [
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Necesitamos tu ubicación para enviar ayuda en caso de emergencia."
+          "locationAlwaysAndWhenInUsePermission": "Necesitamos tu ubicación para enviar ayuda y alertar a la red en caso de emergencia.",
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Captura de audio para evidencia de seguridad en caso de una alerta de pánico activa."
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#1a365d",
+          "color": "#38BDF8",
           "sounds": []
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-asset"
     ],
     "scheme": "redciudadana",
     "extra": {

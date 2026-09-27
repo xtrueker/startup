@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService } from '../services/auth';
 
 interface RegisterScreenProps {
@@ -38,8 +39,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
       let msg = 'No se pudo completar el registro';
       
       if (!e.response) {
-        // No hubo respuesta del servidor (Error de red)
-        msg = 'No se pudo conectar al servidor. Asegrate de que el backend est corriendo en tu PC y que la IP en config.ts (' + authService.getApiUrl() + ') sea la correcta de tu red Wi-Fi.';
+        msg = 'No se pudo conectar al servidor. Asegúrate de que el backend esté corriendo en tu PC y que la IP en config.ts sea accesible.';
       } else if (e.response?.data?.message) {
         msg = e.response.data.message;
       }
@@ -51,7 +51,8 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0A0E17' }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.logoArea}>
           <Text style={styles.logo}>🛡️</Text>
@@ -111,32 +112,33 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
           </TouchableOpacity>
 
           <TouchableOpacity onPress={onGoLogin} style={styles.loginLink}>
-            <Text style={styles.loginText}>¿Ya tienes cuenta? <Text style={{ color: '#63b3ed', fontWeight: 'bold' }}>Ingresa</Text></Text>
+            <Text style={styles.loginText}>¿Ya tienes cuenta? <Text style={{ color: '#38BDF8', fontWeight: 'bold' }}>Ingresa</Text></Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: '#1a202c', justifyContent: 'center', padding: 24 },
+  container: { flexGrow: 1, backgroundColor: '#0A0E17', justifyContent: 'center', padding: 24 },
   logoArea: { alignItems: 'center', marginBottom: 32 },
   logo: { fontSize: 64 },
-  appName: { color: '#63b3ed', fontSize: 28, fontWeight: 'bold', marginTop: 8 },
-  appSub: { color: '#718096', fontSize: 14 },
-  card: { backgroundColor: '#2d3748', borderRadius: 16, padding: 24 },
+  appName: { color: '#38BDF8', fontSize: 28, fontWeight: 'bold', marginTop: 8 },
+  appSub: { color: '#94A3B8', fontSize: 14 },
+  card: { backgroundColor: '#0F172A', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   title: { color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
-  label: { color: '#a0aec0', fontSize: 13, marginBottom: 6, marginTop: 12 },
+  label: { color: '#94A3B8', fontSize: 13, marginBottom: 6, marginTop: 12 },
   input: {
-    backgroundColor: '#4a5568', color: 'white', borderRadius: 8,
-    padding: 14, fontSize: 15, borderWidth: 1, borderColor: '#718096',
+    backgroundColor: '#1E293B', color: 'white', borderRadius: 10,
+    padding: 14, fontSize: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   registerBtn: {
-    backgroundColor: '#38a169', borderRadius: 8, padding: 16,
+    backgroundColor: '#059669', borderRadius: 10, padding: 16,
     alignItems: 'center', marginTop: 24,
   },
   registerBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   loginLink: { alignItems: 'center', marginTop: 16 },
-  loginText: { color: '#a0aec0', fontSize: 14 },
+  loginText: { color: '#94A3B8', fontSize: 14 },
 });

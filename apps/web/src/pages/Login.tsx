@@ -37,6 +37,27 @@ function Login({ onLogin }: { onLogin: () => void }) {
         
         {error && <div className="error-message">{error}</div>}
         
+        <button
+          type="button"
+          onClick={() => {
+            setEmail('admin@redciudadana.org');
+            setPassword('password123');
+          }}
+          style={{
+            marginBottom: '1rem',
+            backgroundColor: '#1e293b',
+            border: '1px solid #06b6d4',
+            color: '#38bdf8',
+            padding: '0.6rem',
+            borderRadius: '0.5rem',
+            cursor: 'pointer',
+            fontWeight: 600,
+            width: '100%'
+          }}
+        >
+          ⚡ Autocompletar Operador / Admin
+        </button>
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Email:</label>

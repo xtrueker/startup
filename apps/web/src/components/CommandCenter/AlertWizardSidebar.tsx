@@ -148,7 +148,7 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                  <button 
                    onClick={() => {
                      useCommandStore.getState().clearEscapeRoute();
-                     alert("Modelo Predictivo Actualizado ✅\nLa ruta ha sido guardada y procesada por la IA.");
+                     window.alert("Modelo Predictivo Actualizado ✅\nLa ruta ha sido guardada y procesada por la IA.");
                    }}
                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded text-xs font-bold transition-colors"
                  >

@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService } from '../services/auth';
 
 interface LoginScreenProps {
@@ -33,7 +34,8 @@ export default function LoginScreen({ onLogin, onGoRegister }: LoginScreenProps)
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0A0E17' }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.logoArea}>
           <Text style={styles.logo}>🛡️</Text>
@@ -73,33 +75,67 @@ export default function LoginScreen({ onLogin, onGoRegister }: LoginScreenProps)
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={onGoRegister} style={styles.registerLink}>
-            <Text style={styles.registerText}>¿No tienes cuenta? <Text style={{ color: '#63b3ed', fontWeight: 'bold' }}>Regístrate</Text></Text>
+          {/* Botón de acceso rápido con cuenta de prueba */}
+          <TouchableOpacity
+            style={styles.demoBtn}
+            onPress={() => {
+              setEmail('demo@redciudadana.org');
+              setPassword('password123');
+            }}
+          >
+            <Text style={styles.demoBtnText}>⚡ Autocompletar Cuenta Demo</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity onPress={onGoRegister} style={styles.registerLink}>
+            <Text style={styles.registerText}>¿No tienes cuenta? <Text style={{ color: '#38BDF8', fontWeight: 'bold' }}>Regístrate</Text></Text>
+          </TouchableOpacity>
+
+          <View style={styles.serverBadge}>
+            <Text style={styles.serverText}>📡 Servidor: {authService.getApiUrl()}</Text>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: '#1a202c', justifyContent: 'center', padding: 24 },
+  container: { flexGrow: 1, backgroundColor: '#0A0E17', justifyContent: 'center', padding: 24 },
   logoArea: { alignItems: 'center', marginBottom: 32 },
   logo: { fontSize: 64 },
-  appName: { color: '#63b3ed', fontSize: 28, fontWeight: 'bold', marginTop: 8 },
-  appSub: { color: '#718096', fontSize: 14 },
-  card: { backgroundColor: '#2d3748', borderRadius: 16, padding: 24 },
+  appName: { color: '#38BDF8', fontSize: 28, fontWeight: 'bold', marginTop: 8 },
+  appSub: { color: '#94A3B8', fontSize: 14 },
+  card: { backgroundColor: '#0F172A', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   title: { color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
-  label: { color: '#a0aec0', fontSize: 13, marginBottom: 6, marginTop: 12 },
+  label: { color: '#94A3B8', fontSize: 13, marginBottom: 6, marginTop: 12 },
   input: {
-    backgroundColor: '#4a5568', color: 'white', borderRadius: 8,
-    padding: 14, fontSize: 15, borderWidth: 1, borderColor: '#718096',
+    backgroundColor: '#1E293B', color: 'white', borderRadius: 10,
+    padding: 14, fontSize: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   loginBtn: {
-    backgroundColor: '#3182ce', borderRadius: 8, padding: 16,
+    backgroundColor: '#0284C7', borderRadius: 10, padding: 16,
     alignItems: 'center', marginTop: 24,
   },
   loginBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   registerLink: { alignItems: 'center', marginTop: 16 },
-  registerText: { color: '#a0aec0', fontSize: 14 },
+  registerText: { color: '#94A3B8', fontSize: 14 },
+  demoBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  demoBtnText: { color: '#38BDF8', fontWeight: '700', fontSize: 13 },
+  serverBadge: {
+    marginTop: 18,
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  serverText: { color: '#64748B', fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
 });

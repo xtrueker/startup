@@ -1,9 +1,8 @@
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
 import { OfflineBufferService } from './OfflineBufferService';
+import { AudioModule, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 
 export class CovertAudioService {
-  private static recording: Audio.Recording | null = null;
+  private static recording: any = null;
   private static isRecording = false;
 
   /**
@@ -13,12 +12,12 @@ export class CovertAudioService {
     if (this.isRecording) return;
     
     try {
-      const { status } = await Audio.requestPermissionsAsync();
+      const { status } = await requestRecordingPermissionsAsync();
       if (status !== 'granted') return;
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true, // Evade el Switch de silencio
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true, // Evade el Switch de silencio
       });
 
       console.log('🎙️ [CovertAudio] Grabación oscura iniciada...');
@@ -36,7 +35,7 @@ export class CovertAudioService {
     this.isRecording = false;
     if (this.recording) {
       try {
-        await this.recording.stopAndUnloadAsync();
+        await this.recording.stop();
         this.recording = null;
       } catch (e) {}
     }
@@ -47,18 +46,25 @@ export class CovertAudioService {
     if (!this.isRecording) return;
 
     try {
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.LOW_QUALITY // Formato de alta compresión celular
-      );
-      this.recording = recording;
+      // Instanciar usando el módulo nativo y el preset de baja calidad (reemplazo de LOW_QUALITY)
+      if (!AudioModule?.AudioRecorder) {
+        console.warn('🎙️ [CovertAudio] AudioModule.AudioRecorder no está disponible en este entorno.');
+        this.isRecording = false;
+        return;
+      }
+      const options = RecordingPresets.LOW_QUALITY;
+      this.recording = new AudioModule.AudioRecorder(options);
+      
+      await this.recording.prepareToRecordAsync();
+      this.recording.record();
 
       // Esperar 30 Segundos
       setTimeout(async () => {
         if (!this.isRecording) return;
         
         try {
-          await this.recording?.stopAndUnloadAsync();
-          const uri = this.recording?.getURI();
+          await this.recording?.stop();
+          const uri = this.recording?.uri;
           this.recording = null;
 
           if (uri) {

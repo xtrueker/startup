@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import { api } from './auth';
 import { CovertAudioService } from '../features/panic/services/CovertAudioService';
 import { OfflineBufferService } from '../features/panic/services/OfflineBufferService';
+import { localDatabase } from './localDatabase';
 
 export interface PanicTriggerOptions {
   triggerType?: 'button' | 'ghost_mode';
@@ -167,11 +168,36 @@ class PanicService {
         console.warn('[PanicService] Error enviando a la API, recurriendo a cola offline:', apiErr);
         isOffline = true;
         alertId = `OFFLINE_${Date.now()}`;
-        await OfflineBufferService.enqueue('PANIC_TRIGGER', payload);
+        try {
+          await OfflineBufferService.enqueue('PANIC_TRIGGER', payload);
+        } catch (enqueueErr) {
+          console.warn('[PanicService] Error encolando en offline buffer:', enqueueErr);
+        }
       }
 
       // 4. Iniciar recolección de audio encubierta
-      CovertAudioService.startCovertRecording(alertId);
+      try {
+        CovertAudioService.startCovertRecording(alertId);
+      } catch (audioErr) {
+        console.warn('[PanicService] Error iniciando audio encubierto:', audioErr);
+      }
+
+      // 5. Persistir en la base de datos local SQLite del dispositivo
+      try {
+        await localDatabase.saveAlert({
+          id: `local_${Date.now()}`,
+          alertId,
+          triggerType,
+          latitude,
+          longitude,
+          address,
+          description,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+        });
+      } catch (dbErr) {
+        console.warn('[PanicService] Error guardando en BD local:', dbErr);
+      }
 
       this.state = {
         alertId,

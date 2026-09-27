@@ -1,4 +1,4 @@
-import { supabase, getPgPool } from '../connection';
+import { supabase } from '../connection';
 
 export interface CreateCameraDTO {
   name: string;
@@ -16,11 +16,20 @@ export class Camera {
    * Fetch all cameras
    */
   static async find() {
-    const pool = getPgPool();
-    const query = `SELECT id, name, stream_url, status, coverage_radius, is_public, authority_id, ST_AsText(location) as location, address, created_at, updated_at FROM cameras ORDER BY created_at DESC`;
+    const sb = supabase();
     try {
-      const result = await pool.query(query);
-      return result.rows;
+      const { data, error } = await sb
+        .from('cameras')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []).map(cam => ({
+        ...cam,
+        location: typeof cam.location === 'object' && cam.location?.coordinates
+          ? `POINT(${cam.location.coordinates[0]} ${cam.location.coordinates[1]})`
+          : cam.location
+      }));
     } catch (error) {
       console.error('Error fetching cameras:', error);
       throw error;

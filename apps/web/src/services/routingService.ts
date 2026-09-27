@@ -1,6 +1,3 @@
-import { point } from '@turf/helpers';
-import distance from '@turf/distance';
-
 const MAPBOX_KEY = import.meta.env.VITE_ROUTING_API_KEY;
 
 export const routingService = {

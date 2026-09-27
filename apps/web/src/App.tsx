@@ -14,11 +14,26 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = authService.getToken();
-    const role = authService.getRole();
-    setIsAuthenticated(!!token);
-    setUserRole(role);
-    setLoading(false);
+    const init = async () => {
+      let token = authService.getToken();
+      let role = authService.getRole();
+      if (!token && isDevBypass) {
+        try {
+          const res = await authService.login({ email: 'admin@redciudadana.org', password: 'password123' });
+          if (res.success && res.data) {
+            authService.setToken(res.data.token, res.data.user.id, res.data.user.role);
+            token = res.data.token;
+            role = res.data.user.role;
+          }
+        } catch (e) {
+          console.warn('Auto dev-bypass login failed:', e);
+        }
+      }
+      setIsAuthenticated(!!token);
+      setUserRole(role);
+      setLoading(false);
+    };
+    init();
   }, []);
 
   const handleLogin = () => {

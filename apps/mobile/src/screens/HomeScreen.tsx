@@ -12,8 +12,8 @@ import {
   Animated,
   StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Circle } from 'react-native-maps';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TacticalMap } from '../components/TacticalMap';
 import * as Location from 'expo-location';
 import { authService } from '../services/auth';
 import { panicService, PanicState } from '../services/panicService';
@@ -32,7 +32,8 @@ const INITIAL_REGION = {
 };
 
 export default function HomeScreen() {
-  const mapRef = useRef<MapView>(null);
+  const insets = useSafeAreaInsets();
+  const mapRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const radarAnim = useRef(new Animated.Value(0)).current;
 
@@ -218,54 +219,21 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor="#0A0E17" />
 
-      {/* 🗺️ MAPA TÁCTICO OSCURO DE FONDO */}
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
+      {/* 🗺️ MAPA TÁCTICO OSCURO DE FONDO (Nativo en iOS/Android, Radar en Web) */}
+      <TacticalMap
+        mapRef={mapRef as any}
         initialRegion={INITIAL_REGION}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        showsCompass={false}
-        userInterfaceStyle="dark"
-        mapType="standard"
-      >
-        {/* Marcadores de Cámaras Ciudadanas Conectadas */}
-        {cameras.map((camera) => (
-          <Marker
-            key={camera.id}
-            coordinate={{
-              latitude: camera.location.latitude,
-              longitude: camera.location.longitude,
-            }}
-            title={camera.name}
-            description="Cámara de Seguridad Ciudadana Conectada"
-          >
-            <View style={styles.cameraMarker}>
-              <Text style={styles.cameraIcon}>📹</Text>
-            </View>
-          </Marker>
-        ))}
-
-        {/* Zona de Cobertura de Pánico y Respaldo Perimetral */}
-        {isAlertActive && (currentLocation || userLocation) && (
-          <Circle
-            center={{
-              latitude: currentLocation?.lat || userLocation!.latitude,
-              longitude: currentLocation?.lng || userLocation!.longitude,
-            }}
-            radius={200}
-            strokeWidth={2}
-            strokeColor="rgba(239, 68, 68, 0.9)"
-            fillColor="rgba(239, 68, 68, 0.25)"
-          />
-        )}
-      </MapView>
+        userLocation={userLocation}
+        currentLocation={currentLocation}
+        cameras={cameras}
+        isAlertActive={isAlertActive}
+      />
 
       {/* Capa de Oscurecimiento Táctico sobre el mapa */}
       <View style={styles.darkBackdrop} pointerEvents="none" />
 
       {/* 🛡️ HEADER MINIMALISTA OSCURO */}
-      <View style={styles.header}>
+      <View style={[styles.header, { top: Math.max(insets.top + 6, 16) }]}>
         <View style={styles.brandRow}>
           <Text style={styles.brandShield}>🛡️</Text>
           <View>
@@ -285,7 +253,7 @@ export default function HomeScreen() {
       </View>
 
       {/* 📍 CARD DE TELEMETRÍA GPS MINIMALISTA */}
-      <View style={styles.telemetryCard}>
+      <View style={[styles.telemetryCard, { top: Math.max(insets.top + 6, 16) + 68 }]}>
         <View style={styles.telemetryHeader}>
           <View style={styles.gpsRow}>
             <View style={[styles.gpsDot, gpsReady && styles.gpsDotActive]} />
@@ -316,12 +284,15 @@ export default function HomeScreen() {
       </View>
 
       {/* 🧭 BOTÓN FLOTANTE PARA CENTRAR UBICACIÓN */}
-      <TouchableOpacity style={styles.centerMapBtn} onPress={centerOnUser}>
+      <TouchableOpacity
+        style={[styles.centerMapBtn, { bottom: Math.max(insets.bottom, 16) + 330 }]}
+        onPress={centerOnUser}
+      >
         <Text style={styles.centerIcon}>🎯</Text>
       </TouchableOpacity>
 
       {/* 🚨 ZONA DE ACCIÓN CENTRAL: BOTÓN DE PÁNICO MASIVO */}
-      <View style={styles.centerActionArea}>
+      <View style={[styles.centerActionArea, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         {/* Banner de Estado Dinámico */}
         <View
           style={[
@@ -428,7 +399,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A0E17',
   },
   darkBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(10, 14, 23, 0.45)',
   },
 
