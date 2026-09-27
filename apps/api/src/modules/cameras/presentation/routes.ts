@@ -29,24 +29,7 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), 
 
 router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
   try {
-    let cameras = await cameraService.getAllCameras();
-    
-    // --- MOCK SIMULADOR DE CÁMARAS ---
-    if (cameras.length === 0) {
-      cameras = Array.from({ length: 5 }).map((_, i) => ({
-        id: `mock-cam-${i}`,
-        name: `Cámara Vigilancia P0${i + 1}`,
-        location: {
-          latitude: 4.6097 + (Math.random() - 0.5) * 0.05,
-          longitude: -74.0817 + (Math.random() - 0.5) * 0.05,
-          address: `Poste de Luz ${Math.floor(Math.random() * 1000)}`
-        },
-        // Un video dummy público para que el iframe del frontend muestre movimiento
-        streamUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', 
-        status: 'active',
-      })) as any;
-    }
-    // ---------------------------------
+    const cameras = await cameraService.getAllCameras();
 
     return res.json({
       success: true,

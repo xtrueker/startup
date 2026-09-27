@@ -141,32 +141,8 @@ export const TacticalMap: React.FC = () => {
     ];
   }, [systemCameras, setSelectedCamera]);
 
-  // --- POLICE TRACKING SIMULATOR ---
-  const [policeUnits, setPoliceUnits] = useState<any[]>([]);
-
-  useEffect(() => {
-    // Inicializar 3 patrullas cerca del centro
-    const initialUnits = Array.from({ length: 3 }).map((_, i) => ({
-      id: `police-${i}`,
-      lat: 4.6097 + (Math.random() - 0.5) * 0.03,
-      lng: -74.0817 + (Math.random() - 0.5) * 0.03,
-      name: `Patrulla P-${i + 1}`
-    }));
-    setPoliceUnits(initialUnits);
-
-    const interval = setInterval(() => {
-      setPoliceUnits(prev => prev.map(unit => {
-        // Mover lentamente hacia una dirección aleatoria (simulando patrullaje)
-        return {
-          ...unit,
-          lat: unit.lat + (Math.random() - 0.5) * 0.001,
-          lng: unit.lng + (Math.random() - 0.5) * 0.001
-        };
-      }));
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Police units are tracked via real-time socket events (ghost:live_tracking)
+  const [policeUnits] = useState<any[]>([]);
 
   const policeLayer = useMemo(() => {
     if (policeUnits.length === 0) return [];
@@ -175,7 +151,6 @@ export const TacticalMap: React.FC = () => {
         id: 'police-units-layer',
         data: policeUnits,
         pickable: true,
-        // Un ícono SVG de escudo azul para la policía
         iconAtlas: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="%231e3a8a" stroke="%2360a5fa" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
         iconMapping: {
           shield: { x: 0, y: 0, width: 24, height: 24, mask: false }
@@ -189,16 +164,17 @@ export const TacticalMap: React.FC = () => {
         transitions: {
           getPosition: {
             duration: 3000,
-            easing: (t: number) => t // linear
+            easing: (t: number) => t
           }
         },
         updateTriggers: {
-          getPosition: [policeUnits] // Crucial para la animación fluida en DeckGL
+          getPosition: [policeUnits]
         }
       })
     ];
   }, [policeUnits]);
-  // ---------------------------------
+
+
 
   // --- POST-EVENT TRAINING DRAWING LOGIC ---
   const isDrawingRoute = useCommandStore(state => state.isDrawingRoute);

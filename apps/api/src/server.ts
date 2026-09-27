@@ -114,59 +114,8 @@ function startServer() {
       // y reintente la conexión internamente si es necesario.
     });
 
-  // --- MOCK SIMULADOR DE ALERTAS ---
-  const { emitToOperators } = require('./shared/utils/socket');
-  
-  const dispararAlertasSimuladas = () => {
-    logger.info('🎯 Disparando 3 Alertas de Pánico Simuladas con Cámaras Cercanas...');
-    for (let i = 0; i < 3; i++) {
-      const alertLat = 4.6097 + (Math.random() - 0.5) * 0.05;
-      const alertLng = -74.0817 + (Math.random() - 0.5) * 0.05;
-      
-      const mockAlert = {
-        id: `mock-alert-${Date.now()}-${i}`,
-        createdAt: new Date().toISOString(),
-        location: {
-          latitude: alertLat,
-          longitude: alertLng,
-          address: `Simulación Barrio ${Math.floor(Math.random() * 100)}`
-        },
-        status: 'pending',
-        userId: 'citizen_simulated',
-        type: Math.random() > 0.5 ? 'Robo a Mano Armada (Simulado)' : 'Pánico Disparado (Simulado)'
-      };
-      
-      emitToOperators('alert:new', mockAlert);
-
-      // Inyectar 2 cámaras en un radio menor a 50 metros (~0.00045 grados)
-      for (let j = 0; j < 2; j++) {
-        const camLat = alertLat + (Math.random() - 0.5) * 0.0008; // ~44 metros máx varianza
-        const camLng = alertLng + (Math.random() - 0.5) * 0.0008;
-        
-        const mockCam = {
-          id: `mock-cam-${Date.now()}-${i}-${j}`,
-          name: `Cámara Táctica C${i}${j}`,
-          location: {
-            latitude: camLat,
-            longitude: camLng,
-            address: `Poste Intersección ${j}`
-          },
-          streamUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-          status: 'active'
-        };
-        emitToOperators('camera:new', mockCam);
-      }
-    }
-  };
-
-  // Disparar la primera vez a los 10 segundos para dar tiempo a que los clientes se conecten
-  setTimeout(() => {
-    dispararAlertasSimuladas();
-    // Luego cada minuto
-    setInterval(dispararAlertasSimuladas, 60000);
-  }, 10000);
-  // ---------------------------------
 }
+
 
 // ✅ Lanzar inicio
 startServer();
