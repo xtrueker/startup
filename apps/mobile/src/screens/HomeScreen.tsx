@@ -44,6 +44,11 @@ export default function HomeScreen() {
   const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
   const [currentAddress, setCurrentAddress] = useState<string>('Obteniendo ubicación satelital...');
   const [gpsReady, setGpsReady] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    authService.getProfile().then(p => setProfile(p)).catch(() => {});
+  }, []);
 
   // Streaming de GPS continuo mientras la alerta esté activa
   const { currentLocation } = useLocationStreaming({ alertId: panicState.alertId });
@@ -243,6 +248,11 @@ export default function HomeScreen() {
               <Text style={styles.connectionText}>
                 {isAlertActive ? 'TRANSMITIENDO EMERGENCIA' : 'RED ACTIVA & ENLAZADA'}
               </Text>
+              {profile?.isVerified ? (
+                <Text style={{ color: '#4ADE80', fontSize: 10, fontWeight: 'bold', marginLeft: 6 }}>
+                  • 🛡️ KYC OK
+                </Text>
+              ) : null}
             </View>
           </View>
         </View>

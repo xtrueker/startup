@@ -7,7 +7,12 @@ export interface CreateUserDTO {
   email: string;
   password?: string;
   role?: string;
+  phone?: string;
+  idCardFront?: string;
+  idCardBack?: string;
+  selfiePhoto?: string;
   isVerified?: boolean;
+  facialVerificationStatus?: 'pending' | 'verified' | 'under_review' | 'rejected';
 }
 
 export class User {
@@ -33,14 +38,26 @@ export class User {
       passwordHash = await bcrypt.hash(passwordHash, 10);
     }
 
+    const isKycComplete = Boolean(data.idCardFront && data.selfiePhoto);
+    const defaultVerification = data.isVerified !== undefined 
+      ? data.isVerified 
+      : (isKycComplete ? true : false);
+
+    const defaultFacialStatus = data.facialVerificationStatus || 
+      (isKycComplete ? 'verified' : 'pending');
+
     const { data: inserted, error } = await sb.from('users').insert({
       full_name: data.fullName,
       cedula: data.cedula,
       email: data.email.toLowerCase(),
       password: passwordHash,
       role: data.role || 'citizen',
-      is_verified: data.isVerified || false,
-      facial_verification_status: 'pending'
+      phone: data.phone || null,
+      id_card_front: data.idCardFront || null,
+      id_card_back: data.idCardBack || null,
+      selfie_photo: data.selfiePhoto || null,
+      is_verified: defaultVerification,
+      facial_verification_status: defaultFacialStatus
     }).select().single();
 
     if (error) throw error;
