@@ -68,10 +68,25 @@ router.post('/panic', async (req: Request, res: Response) => {
 });
 
 // POST /api/mobile/location
-router.post('/location', requireAuth, async (req: Request, res: Response) => {
+router.post('/location', async (req: Request, res: Response) => {
   try {
     const { alertId, latitude, longitude, accuracy, speed, heading } = req.body;
-    const userId = (req as any).user?.userId || (req as any).user?.id;
+    let userId = (req as any).user?.userId || (req as any).user?.id;
+
+    if (!userId) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.split(' ')[1];
+          const payload = jwt.verify(token, env.JWT_SECRET) as any;
+          userId = payload?.userId || payload?.id;
+        } catch (_) {}
+      }
+    }
+
+    if (!userId) {
+      userId = '00000000-0000-0000-0000-000000000002'; // Anonymous fallback
+    }
 
     if (!alertId || !latitude || !longitude) {
       return res.status(400).json({ success: false, message: 'alertId, latitude y longitude son obligatorios' });

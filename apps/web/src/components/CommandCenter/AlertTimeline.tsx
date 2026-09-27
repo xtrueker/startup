@@ -43,7 +43,7 @@ export const AlertTimeline: React.FC<{ alertId: string }> = ({ alertId }) => {
                {ev.event_type === 'creada' ? <Clock size={10} className="text-indigo-400" /> : <FileText size={10} className="text-slate-400" />}
              </div>
              <div className="text-xs text-slate-300 p-2 bg-slate-800/40 rounded border border-slate-700/50 shadow-inner">
-               <span className="font-bold text-slate-200">{ev.new_status.toUpperCase()}</span> 
+               <span className="font-bold text-slate-200">{ev.new_status ? ev.new_status.toUpperCase() : ev.event_type.toUpperCase()}</span> 
                <span className="text-slate-500"> - hace unos minutos: </span>
                <span className="italic text-indigo-300">'{ev.notes}'</span>
              </div>
