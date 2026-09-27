@@ -4,7 +4,8 @@ import { useCommandStore } from '../../stores/useCommandStore';
 import { TacticalMap } from '../../components/CommandCenter/TacticalMap';
 import { AudioStreamer } from '../../components/CommandCenter/AudioStreamer';
 import { AlertWizardSidebar } from '../../components/CommandCenter/AlertWizardSidebar';
-import { Activity, Layers, ShieldAlert, Filter, Clock, Play, Pause, AlertTriangle, BarChart2, Users, MapPin, X } from 'lucide-react';
+import { Activity, Layers, ShieldAlert, Filter, Clock, Play, Pause, AlertTriangle, X, LogOut, ChevronDown, Crosshair, Skull, Car, Bomb, LayoutList, MapPin } from 'lucide-react';
+import { authService } from '../../services/auth';
 
 import { cameraService } from '../../services/cameras';
 import { alertService } from '../../services/alerts';
@@ -27,7 +28,7 @@ const CommandCenter: React.FC = () => {
   // Zustand actions & state
   const { 
     activeAlerts, injectAlert, resolveAlert, toggleHeatmap, heatmapEnabled, 
-    pushAudioChunk, setFilters, filterSeverity, filterType,
+    pushAudioChunk, setFilters, filterType,
     isReplayMode, setReplayMode,
     focusedAlertId, focusMapOnAlert, updateAlertStatus,
     ghostVictims, predictiveCameras, selectedCamera, setSelectedCamera,
@@ -35,7 +36,7 @@ const CommandCenter: React.FC = () => {
   } = useCommandStore();
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isSupervisorMode, setIsSupervisorMode] = useState(false);
+  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
 
   // ── Fetch Initial State ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -157,23 +158,46 @@ const CommandCenter: React.FC = () => {
   const activeCount = Object.keys(activeAlerts).length;
   const avgResponseTime = activeCount > 0 ? '1.2m' : '--';
 
-  // Sort alerts by Priority SLA (Emergency/Robo first, then by waiting time)
-  const sortedAlerts = Object.values(activeAlerts).sort((a, b) => {
-     let scoreA = 0;
-     let scoreB = 0;
-     
-     // Base weight by type
-     if (a.description?.toLowerCase().includes('robo') || a.description?.toLowerCase().includes('emergencia')) scoreA += 50;
-     if (b.description?.toLowerCase().includes('robo') || b.description?.toLowerCase().includes('emergencia')) scoreB += 50;
-     
-     // Time weight (+2 pts per minute waiting)
-     const minsA = (Date.now() - new Date(a.timestamp).getTime()) / 60000;
-     const minsB = (Date.now() - new Date(b.timestamp).getTime()) / 60000;
-     scoreA += minsA * 2;
-     scoreB += minsB * 2;
-     
-     return scoreB - scoreA; // Descending
-  });
+  // Normalize alert type from description field
+  const getAlertType = (alert: { description?: string; type?: string }): string => {
+    const raw = (alert.description || alert.type || '').toLowerCase();
+    if (raw.includes('homicidio') || raw.includes('asesinato') || raw.includes('muerte')) return 'homicidio';
+    if (raw.includes('atentado') || raw.includes('explosivo') || raw.includes('bomba') || raw.includes('terrorismo')) return 'atentado';
+    if (raw.includes('accidente') || raw.includes('choque') || raw.includes('colision') || raw.includes('colisión')) return 'accidente';
+    if (raw.includes('robo') || raw.includes('hurto') || raw.includes('asalto')) return 'robo';
+    return 'robo'; // default
+  };
+
+  // Priority weight per type
+  const TYPE_PRIORITY: Record<string, number> = { atentado: 100, homicidio: 80, robo: 50, accidente: 30 };
+
+  // Format address: show readable coords when no real address is available
+  const GENERIC_ADDRESSES = ['coordenadas provistas', 'ubicación gps', 'ubicacion gps', 'gps', ''];
+  const formatAddress = (loc: { address?: string; lat: number; lng: number }): string => {
+    const addr = (loc.address || '').trim();
+    if (GENERIC_ADDRESSES.includes(addr.toLowerCase())) {
+      if (loc.lat === 0 && loc.lng === 0) return 'Sin ubicación';
+      return `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`;
+    }
+    return addr;
+  };
+  const isRealAddress = (loc: { address?: string }) => {
+    const addr = (loc.address || '').trim();
+    return addr.length > 0 && !GENERIC_ADDRESSES.includes(addr.toLowerCase());
+  };
+
+  // Sort alerts by Priority SLA
+  const sortedAlerts = Object.values(activeAlerts)
+    .filter(alert => filterType === 'all' || getAlertType(alert) === filterType)
+    .sort((a, b) => {
+      let scoreA = TYPE_PRIORITY[getAlertType(a)] ?? 0;
+      let scoreB = TYPE_PRIORITY[getAlertType(b)] ?? 0;
+      const minsA = (Date.now() - new Date(a.timestamp).getTime()) / 60000;
+      const minsB = (Date.now() - new Date(b.timestamp).getTime()) / 60000;
+      scoreA += minsA * 2;
+      scoreB += minsB * 2;
+      return scoreB - scoreA;
+    });
 
   const nearbyCameras = useMemo(() => {
     if (!focusedAlertId || !activeAlerts[focusedAlertId] || !systemCameras) return [];
@@ -191,6 +215,31 @@ const CommandCenter: React.FC = () => {
       
       {/* ── Sidebar Izquierdo: Controles Críticos ─────────────────────── */}
       <aside className="w-80 bg-slate-900 border-r border-slate-800 flex flex-col z-20 shadow-2xl">
+        {/* User Info + Logout */}
+        <div className="px-4 py-3 border-b border-slate-800 bg-slate-950 flex items-center gap-3">
+          {/* Avatar */}
+          <div className="relative flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-black text-white text-sm shadow-lg shadow-indigo-500/30 ring-2 ring-indigo-500/40">
+              {(authService.getRole() || 'A').charAt(0).toUpperCase()}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-slate-950 shadow"></span>
+          </div>
+          {/* Name & Role */}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-bold text-white truncate">Operador Táctico</div>
+            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">{authService.getRole() || 'ADMIN'}</div>
+          </div>
+          {/* Logout Button */}
+          <button
+            onClick={() => { authService.logout(); window.location.href = '/'; }}
+            title="Cerrar Sesión"
+            className="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 hover:border-rose-500/60 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 flex-shrink-0"
+          >
+            <LogOut size={13} />
+            <span>Salir</span>
+          </button>
+        </div>
+
         {/* Header */}
         <div className="p-5 border-b border-slate-800/80 bg-slate-900/40 backdrop-blur flex flex-col gap-2">
           <div className="flex items-center gap-2 text-rose-500 font-black uppercase tracking-widest text-sm">
@@ -202,32 +251,56 @@ const CommandCenter: React.FC = () => {
           </div>
         </div>
 
-        {/* Filtros Tácticos */}
-        <div className="px-5 py-4 bg-slate-900/40 backdrop-blur border-b border-slate-800/80 flex flex-col gap-3">
-           <h3 className="text-xs uppercase text-slate-400 font-bold flex items-center gap-2">
-             <Filter size={14} className="text-indigo-400" /> Filtros Tácticos
-           </h3>
-           <div className="flex gap-3 text-xs">
-             <select 
-               value={filterSeverity} 
-               onChange={e => setFilters({ severity: e.target.value })}
-               className="bg-slate-800/80 border border-slate-700 rounded-md px-3 py-2 flex-1 text-slate-200 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer shadow-inner appearance-none"
-             >
-               <option value="all">Todas Gravedades</option>
-               <option value="critical">Críticas</option>
-               <option value="high">Altas</option>
-             </select>
-             <select 
-               value={filterType}
-               onChange={e => setFilters({ type: e.target.value })}
-               className="bg-slate-800/80 border border-slate-700 rounded-md px-3 py-2 flex-1 text-slate-200 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer shadow-inner appearance-none"
-             >
-               <option value="all">Todos Tipos</option>
-               <option value="robo">Robos</option>
-               <option value="emergency">Emergencias</option>
-             </select>
-           </div>
-        </div>
+        {/* Filtro por Tipo */}
+        {(() => {
+          const TYPE_OPTIONS = [
+            { key: 'all',       label: 'Todos los Tipos', Icon: LayoutList,   iconColor: 'text-slate-400' },
+            { key: 'robo',      label: 'Robo',            Icon: Crosshair,    iconColor: 'text-amber-400' },
+            { key: 'homicidio', label: 'Homicidio',       Icon: Skull,        iconColor: 'text-rose-400'  },
+            { key: 'accidente', label: 'Accidente',       Icon: Car,          iconColor: 'text-orange-400'},
+            { key: 'atentado',  label: 'Atentado',        Icon: Bomb,         iconColor: 'text-red-400'   },
+          ] as const;
+          const selected = TYPE_OPTIONS.find(o => o.key === filterType) ?? TYPE_OPTIONS[0];
+          return (
+            <div className="px-4 py-3 bg-slate-900/40 backdrop-blur border-b border-slate-800/80 flex flex-col gap-2">
+              <h3 className="text-[10px] uppercase text-slate-500 font-bold flex items-center gap-1.5 tracking-wider">
+                <Filter size={11} className="text-indigo-400" /> Filtrar por Tipo
+              </h3>
+              <div className="relative">
+                {/* Trigger */}
+                <button
+                  onClick={() => setTypeDropdownOpen(v => !v)}
+                  className="w-full flex items-center gap-2 bg-slate-800 border border-slate-700 hover:border-slate-500 focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-slate-200 transition-all duration-150 outline-none"
+                >
+                  <selected.Icon size={14} className={selected.iconColor} />
+                  <span className="flex-1 text-left text-[13px] font-medium">{selected.label}</span>
+                  <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${typeDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown panel */}
+                {typeDropdownOpen && (
+                  <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden">
+                    {TYPE_OPTIONS.map(({ key, label, Icon, iconColor }) => (
+                      <button
+                        key={key}
+                        onClick={() => { setFilters({ type: key }); setTypeDropdownOpen(false); }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors ${
+                          filterType === key
+                            ? 'bg-indigo-600/20 text-white'
+                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        <Icon size={14} className={filterType === key ? iconColor : 'text-slate-500'} />
+                        <span className="font-medium">{label}</span>
+                        {filterType === key && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Lista de Eventos Virtualizada */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar">
@@ -238,24 +311,84 @@ const CommandCenter: React.FC = () => {
            {sortedAlerts.map(alert => {
              const minsWaiting = Math.floor((Date.now() - new Date(alert.timestamp).getTime()) / 60000);
              const isOverdue = minsWaiting > 5;
+             const alertType = getAlertType(alert);
+             const TYPE_META = {
+               robo:      { Icon: Crosshair, label: 'Robo',      color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
+               homicidio: { Icon: Skull,     label: 'Homicidio', color: 'text-rose-400 bg-rose-500/10 border-rose-500/30' },
+               accidente: { Icon: Car,       label: 'Accidente', color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
+               atentado:  { Icon: Bomb,      label: 'Atentado',  color: 'text-red-400 bg-red-600/10 border-red-500/30' },
+             } as const;
+             const meta = TYPE_META[alertType as keyof typeof TYPE_META] ?? TYPE_META.robo;
+             const TypeIcon = meta.Icon;
+             const isFocused = focusedAlertId === alert.id;
 
              return (
-             <div 
-               key={alert.id} 
-               onClick={() => focusMapOnAlert(alert.id)}
-               className={`rounded-lg p-3 border flex flex-col gap-2 cursor-pointer transition-colors ${focusedAlertId === alert.id ? 'bg-indigo-900/40 border-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)]' : 'bg-slate-800 border-slate-700/50 hover:border-slate-500'} ${isOverdue ? 'border-l-4 border-l-rose-500' : ''}`}
+             <div
+               key={alert.id}
+               onClick={() => focusMapOnAlert(isFocused ? null : alert.id)}
+               className={`rounded-lg border flex flex-col cursor-pointer transition-all duration-200 overflow-hidden
+                 ${isFocused
+                   ? 'bg-indigo-950/60 border-indigo-500 shadow-[0_0_18px_rgba(79,70,229,0.35)]'
+                   : 'bg-slate-800/80 border-slate-700/50 hover:border-slate-500 hover:bg-slate-800'}
+                 ${isOverdue ? 'border-l-[3px] border-l-rose-500' : ''}`}
              >
-               <div className="flex justify-between items-start">
-                 <div className="text-sm font-semibold text-rose-400">{alert.description}</div>
-                 {isOverdue && <span className="text-[10px] bg-rose-500/20 text-rose-400 px-1 rounded animate-pulse">SLA VENCIDO</span>}
+               {/* ── Always visible: minimal info ─────────────── */}
+               <div className="px-3 py-2.5 flex flex-col gap-1.5">
+                 {/* Row 1: type badge + SLA */}
+                 <div className="flex items-center justify-between gap-2">
+                   <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${meta.color}`}>
+                     <TypeIcon size={10} /> {meta.label}
+                   </span>
+                   {isOverdue && (
+                     <span className="text-[9px] bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded font-bold animate-pulse flex-shrink-0">
+                       SLA VENCIDO
+                     </span>
+                   )}
+                 </div>
+                 {/* Row 2: address */}
+                 <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                   <MapPin size={9} className="flex-shrink-0 text-slate-500" />
+                   <span className="truncate">{formatAddress(alert.sourceLocation)}</span>
+                 </div>
+                 {/* Row 3: time + status */}
+                 <div className="flex items-center justify-between">
+                   <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                     <Clock size={9} />
+                     {minsWaiting < 60
+                       ? `${minsWaiting}m`
+                       : `${Math.floor(minsWaiting / 60)}h ${minsWaiting % 60}m`}
+                   </span>
+                   <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                     alert.status === 'pending'   ? 'text-rose-400 bg-rose-500/10' :
+                     alert.status === 'reviewing' ? 'text-amber-400 bg-amber-500/10' :
+                     alert.status === 'verified'  ? 'text-blue-400 bg-blue-500/10' :
+                     alert.status === 'resolved'  ? 'text-emerald-400 bg-emerald-500/10' :
+                     'text-slate-400 bg-slate-700'
+                   }`}>{alert.status}</span>
+                 </div>
                </div>
-               <div className="text-xs text-slate-400">{alert.sourceLocation.address}</div>
-               <div className="text-[10px] text-slate-500 flex justify-between">
-                 <span>Espera: {minsWaiting}m</span>
-                 <span className="uppercase text-amber-500">{alert.status}</span>
-               </div>
-               
-               <AudioStreamer alertId={alert.id} />
+
+               {/* ── Expanded: full details (only when focused) ─ */}
+               {isFocused && (
+                 <div className="px-3 pb-3 flex flex-col gap-2 border-t border-indigo-500/20 pt-2.5 animate-in slide-in-from-top-1 duration-150">
+                   {/* Description */}
+                   <div className="text-xs text-slate-200 font-medium leading-snug">{alert.description}</div>
+                   {/* Alert ID */}
+                   <div className="text-[10px] font-mono text-slate-500">ID: {alert.id.split('-')[0]}...</div>
+                   {/* User */}
+                   <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                     <span className="text-slate-600">Ciudadano:</span> {alert.userId}
+                   </div>
+                   {/* Timestamp */}
+                   <div className="text-[10px] text-slate-500">
+                     {new Date(alert.timestamp).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
+                   </div>
+                   {/* Audio evidence */}
+                   <div className="mt-1">
+                     <AudioStreamer alertId={alert.id} />
+                   </div>
+                 </div>
+               )}
              </div>
            )})}
            
@@ -438,16 +571,7 @@ const CommandCenter: React.FC = () => {
           </div>
         )}
 
-        {/* Top Floating Dashboard Toggle for Supervisors */}
-        <div className="absolute top-4 left-80 right-0 flex justify-center z-20 pointer-events-none">
-           <button 
-             onClick={() => setIsSupervisorMode(!isSupervisorMode)}
-             className={`pointer-events-auto px-6 py-2 rounded-full font-bold shadow-xl border flex items-center gap-2 transition-all ${isSupervisorMode ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-900/80 backdrop-blur border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'}`}
-           >
-             <BarChart2 size={18} />
-             {isSupervisorMode ? 'Ocultar Panel Gerencial' : 'Panel de Supervisor'}
-           </button>
-        </div>
+
 
         {/* ─── GHOST MODE UI: INTERCEPTION BANNER & CAMERA GRID ─── */}
         {Object.keys(ghostVictims || {}).length > 0 && (
@@ -507,74 +631,7 @@ const CommandCenter: React.FC = () => {
           </div>
         )}
 
-        {/* Supervisor Managerial Overlay */}
-        {isSupervisorMode && (
-          <div className="absolute top-20 left-80 right-96 bottom-8 z-30 bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-700 p-8 overflow-y-auto shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in-95">
-             <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
-               <div>
-                 <h2 className="text-3xl font-black text-white flex items-center gap-3"><BarChart2 className="text-indigo-500" size={32} /> Visión Táctica (Supervisión)</h2>
-                 <p className="text-slate-400 mt-1">Métricas operativas de la última hora en tiempo real.</p>
-               </div>
-               <div className="flex gap-4 text-center">
-                 <div className="bg-slate-800 rounded-lg p-3 px-6 border border-slate-700">
-                    <div className="text-3xl font-black text-emerald-400">92%</div>
-                    <div className="text-xs text-slate-400 uppercase tracking-widest mt-1">Cumplimiento SLA</div>
-                 </div>
-                 <div className="bg-slate-800 rounded-lg p-3 px-6 border border-slate-700">
-                    <div className="text-3xl font-black text-rose-500">2</div>
-                    <div className="text-xs text-slate-400 uppercase tracking-widest mt-1">Alertas Vencidas</div>
-                 </div>
-               </div>
-             </div>
 
-             <div className="grid grid-cols-2 gap-8">
-                {/* Zonas Calientes */}
-                <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-                   <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2"><MapPin className="text-rose-500" /> Top 3 Barrios Críticos</h3>
-                   <div className="flex flex-col gap-3">
-                     {[
-                       { name: 'Centro Histórico', incidents: 12, trend: '+3' },
-                       { name: 'Distrito Financiero', incidents: 8, trend: '-1' },
-                       { name: 'Zona Industrial Sur', incidents: 5, trend: '+5' }
-                     ].map((zone, i) => (
-                       <div key={zone.name} className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-800">
-                         <div className="flex items-center gap-3">
-                           <div className="bg-rose-500/20 text-rose-500 font-black h-8 w-8 flex items-center justify-center rounded-full">{i + 1}</div>
-                           <span className="font-semibold text-slate-300">{zone.name}</span>
-                         </div>
-                         <div className="flex items-center gap-4">
-                           <span className="text-sm text-slate-400">{zone.incidents} incidentes</span>
-                           <span className={`text-xs font-bold px-2 py-1 rounded ${zone.trend.startsWith('+') ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{zone.trend} hoy</span>
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                </div>
-
-                {/* Carga Operativa */}
-                <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-                   <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2"><Users className="text-blue-500" /> Carga Operativa (Turno Actual)</h3>
-                   <div className="flex flex-col gap-3">
-                     {[
-                       { op: 'Op. Alpha', active: 4, resolved: 15, status: 'Sobrecargado' },
-                       { op: 'Op. Bravo', active: 1, resolved: 8, status: 'Óptimo' },
-                       { op: 'Op. Charlie', active: 0, resolved: 2, status: 'Disponible' }
-                     ].map((op) => (
-                       <div key={op.op} className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-800">
-                         <div>
-                           <div className="font-semibold text-slate-300">{op.op}</div>
-                           <div className="text-[10px] text-slate-500 uppercase mt-1">Activas: {op.active} | Resueltas/hora: {op.resolved}</div>
-                         </div>
-                         <div className={`text-xs font-bold px-2 py-1 rounded border ${op.status === 'Sobrecargado' ? 'border-rose-500/50 text-rose-400 bg-rose-500/10' : op.status === 'Disponible' ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-blue-500/50 text-blue-400 bg-blue-500/10'}`}>
-                           {op.status}
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                </div>
-             </div>
-          </div>
-        )}
 
         {/* Wizard Sidebar (Right) */}
         {focusedAlertId && activeAlerts[focusedAlertId] && (
