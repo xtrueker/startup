@@ -86,9 +86,14 @@ function Login({ onLogin }: { onLogin: () => void }) {
           </button>
         </form>
 
-        <p className="register-link">
-          ¿No tienes cuenta? <a href="/register">Regístrate aquí</a>
-        </p>
+        <div style={{ marginTop: '1.5rem', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+            Terminal exclusiva para personal policial y operadores.
+          </p>
+          <p style={{ color: '#38bdf8', fontSize: '0.85rem' }}>
+            ¿Eres ciudadano? <a href="/register" style={{ color: '#38bdf8', fontWeight: 'bold', textDecoration: 'underline' }}>Información de registro móvil</a>
+          </p>
+        </div>
       </div>
     </div>
   );

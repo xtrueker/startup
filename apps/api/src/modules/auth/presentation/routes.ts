@@ -29,7 +29,7 @@ router.post('/register', async (req: Request, res: Response) => {
       email,
       password,
       phone,
-      role: role || 'citizen',
+      role: 'citizen', // La autoregistración pública siempre asigna rol citizen para prevenir escalado de privilegios
       idCardFront,
       idCardBack,
       selfiePhoto
