@@ -7,7 +7,7 @@ const router = Router();
 
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { fullName, cedula, email, password, role } = req.body;
+    const { fullName, cedula, email, password, phone, role, idCardFront, idCardBack, selfiePhoto } = req.body;
 
     if (!fullName || !cedula || !email || !password) {
       return res.status(400).json({ success: false, message: 'Faltan datos obligatorios' });
@@ -23,7 +23,17 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(409).json({ success: false, message: 'Ya existe un usuario con ese email' });
     }
 
-    const user = await User.create({ fullName, cedula, email, password, role: role || 'citizen' });
+    const user = await User.create({
+      fullName,
+      cedula,
+      email,
+      password,
+      phone,
+      role: role || 'citizen',
+      idCardFront,
+      idCardBack,
+      selfiePhoto
+    });
 
     const token = jwt.sign(
       { userId: user.id, role: user.role, cedula: user.cedula },

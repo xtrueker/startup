@@ -57,8 +57,21 @@ api.interceptors.request.use(async (req) => {
   return req;
 });
 
-export interface LoginData { email: string; password: string; }
-export interface RegisterData { fullName: string; cedula: string; email: string; password: string; }
+export interface LoginData {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  fullName: string;
+  cedula: string;
+  email: string;
+  password: string;
+  phone?: string;
+  idCardFront?: string;
+  idCardBack?: string;
+  selfiePhoto?: string;
+}
 
 export const authService = {
   login: async (data: LoginData) => {
