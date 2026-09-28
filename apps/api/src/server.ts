@@ -2,12 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 
 import http from 'http';
 import { env } from './config/env';
 import { dbConnection } from './infrastructure/database/connection';
 import { logger } from './shared/utils/logger';
 import { startCameraMonitor } from './jobs/updateCameraConfig';
+import { swaggerSpec } from './config/swagger';
 
 // Importar rutas
 import { authRouter } from './modules/auth/presentation/routes';
@@ -17,6 +19,7 @@ import { initSocket } from './shared/utils/socket';
 import { scannerRouter } from './modules/cameras/presentation/scannerRoutes';
 import { analysisRouter } from './modules/analysis/presentation/routes';
 import { mobileRouter } from './modules/mobile/presentation/routes';
+import { usersRouter } from './modules/users/presentation/routes';
 
 const app = express();
 const server = http.createServer(app);
@@ -73,8 +76,17 @@ app.use('/api/cameras', cameraRouter);
 app.use('/api/cameras', scannerRouter);
 app.use('/api/analysis', analysisRouter);
 app.use('/api/mobile', mobileRouter);
+app.use('/api/users', usersRouter);
+
+// SWAGGER DOCS
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Red Ciudadana API Docs',
+  customCss: '.swagger-ui .topbar { background-color: #0f172a; } .swagger-ui .topbar-wrapper img { display: none; }',
+}));
+app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
 
 logger.info(`📱 Mobile API: /api/mobile (panic, location, alerts/me)`);
+logger.info(`📚 Swagger Docs: http://localhost:3001/api/docs`);
 
 // Ruta no encontrada
 app.use((_req, res) => {

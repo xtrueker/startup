@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 const IS_PRODUCTION = false; // Cambia a TRUE cuando despliegues a la nube
-const LAN_URL = 'http://192.168.0.19:3001';
+const LAN_URL = 'http://192.168.0.21:3001';
 const LOCAL_URL = 'http://localhost:3001';
 const PROD_URL = 'https://api.tudominio.com'; // Sustituir por tu dominio real con SSL
 
