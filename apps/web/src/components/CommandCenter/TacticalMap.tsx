@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
-import { Map as MapGL, Popup } from 'react-map-gl/maplibre';
+import { Map as MapGL } from 'react-map-gl/maplibre';
 import { ScatterplotLayer, IconLayer, PathLayer } from '@deck.gl/layers';
 import { useCommandStore } from '../../stores/useCommandStore';
-import { AlertTriangle, MapPin } from 'lucide-react';
+
 import { useTacticalHeatmapLayer } from './TacticalHeatmapLayer';
 import { routingService } from '../../services/routingService';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -18,7 +18,6 @@ const INITIAL_VIEW_STATE = {
 
 export const TacticalMap: React.FC = () => {
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
-  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
 
   const activeAlerts = useCommandStore(state => state.activeAlerts);
   const focusedAlertId = useCommandStore(s => s.focusedAlertId);
@@ -40,7 +39,6 @@ export const TacticalMap: React.FC = () => {
         pitch: mapMode === 'operator' ? 55 : 0,
         transitionDuration: 1500
       }));
-      setSelectedAlertId(focusedAlertId);
     }
   }, [focusedAlertId, activeAlerts, mapMode]);
 
@@ -59,32 +57,29 @@ export const TacticalMap: React.FC = () => {
   const alertsLayer = useMemo(() => {
     if (alertsList.length === 0) return [];
     return [
-      new ScatterplotLayer({
+      new IconLayer({
         id: 'tactical-alerts-layer',
         data: alertsList,
         pickable: true,
-        opacity: 0.9,
-        stroked: true,
-        filled: true,
-        radiusScale: 1,
-        radiusMinPixels: 12,
-        radiusMaxPixels: 40,
-        lineWidthMinPixels: 3,
+        // Lucide AlertTriangle icon paths (stroke-based, round caps)
+        iconAtlas: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23450a0a" stroke="%23f43f5e" stroke-width="2"/><g transform="translate(16,14) scale(1.33)" stroke="%23fda4af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></g></svg>`,
+        iconMapping: {
+          alert: { x: 0, y: 0, width: 64, height: 64, mask: false }
+        },
+        getIcon: () => 'alert',
         getPosition: (d: any) => [d.sourceLocation.lng, d.sourceLocation.lat],
-        getRadius: 20,
-        getFillColor: [244, 63, 94, 210],
-        getLineColor: [255, 255, 255, 200],
+        getSize: () => 38,
+        sizeScale: 1,
         onClick: ({ object }: any) => {
           if (object) {
-            setSelectedAlertId(object.id);
-            focusMapOnAlert(object.id); // Directamente abre la barra lateral
+            focusMapOnAlert(object.id);
           }
         },
         autoHighlight: true,
-        highlightColor: [255, 200, 200, 200]
+        highlightColor: [255, 180, 180, 220]
       })
     ];
-  }, [alertsList]);
+  }, [alertsList, focusMapOnAlert]);
 
   const ghostVictimsDict = useCommandStore(state => state.ghostVictims);
   const ghostVictims = useMemo(() => Object.values(ghostVictimsDict), [ghostVictimsDict]);
@@ -119,16 +114,17 @@ export const TacticalMap: React.FC = () => {
         id: 'system-cameras-layer',
         data: systemCameras,
         pickable: true,
-        iconAtlas: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" fill="%23181818" stroke="%233a3a3a" stroke-width="1.5"/><path d="M10 13h10l6-4.5v15l-6-4.5H10a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z" fill="%23efede3"/><circle cx="14" cy="17.5" r="2" fill="%23181818"/><circle cx="10" cy="10" r="1.5" fill="%2310b981"/></svg>',
+        // Lucide Video icon paths (stroke-based, round caps) — darker blue palette
+        iconAtlas: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%230a1628" stroke="%231e40af" stroke-width="2"/><g transform="translate(10,10) scale(1.85)" stroke="%2393c5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="m22 8-6 4 6 4V8z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></g></svg>`,
         iconMapping: {
-          camera: { x: 0, y: 0, width: 36, height: 36, mask: false }
+          camera: { x: 0, y: 0, width: 64, height: 64, mask: false }
         },
         getIcon: () => 'camera',
         getPosition: (d: any) => [d.lng, d.lat],
-        getSize: () => 32,
+        getSize: () => 40,
         sizeScale: 1,
         autoHighlight: true,
-        highlightColor: [200, 220, 255, 220],
+        highlightColor: [56, 189, 248, 220],
         onClick: ({ object }: any) => {
           if (object) {
             setSelectedCamera(object);
@@ -222,7 +218,6 @@ export const TacticalMap: React.FC = () => {
 
   const layers = [...heatmapLayers, ...camerasLayer, ...alertsLayer, ...ghostLayer, ...policeLayer, ...trainingRouteLayer];
 
-  const selectedAlert = selectedAlertId ? activeAlerts[selectedAlertId] : null;
 
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative', background: mapMode === 'operator' ? '#0a0a0a' : '#171717' }}>
@@ -252,37 +247,9 @@ export const TacticalMap: React.FC = () => {
         getCursor={({ isHovering }) => (isDrawingRoute ? 'crosshair' : (isHovering ? 'pointer' : 'default'))}
       >
         <MapGL 
-          mapStyle={mapMode === 'operator' ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"} 
+          mapStyle={mapMode === 'operator' ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"} 
           reuseMaps
         >
-          {selectedAlert && (
-            <Popup
-              longitude={selectedAlert.sourceLocation.lng}
-              latitude={selectedAlert.sourceLocation.lat}
-              closeOnClick={false}
-              onClose={() => setSelectedAlertId(null)}
-              anchor="bottom"
-              style={{ zIndex: 100 }}
-            >
-              <div className="flex flex-col gap-2" style={{ minWidth: 210 }}>
-                <div className="flex items-center justify-between gap-3 border-b border-[#2a2a2a] pb-1.5 pr-4">
-                  <span className="flex items-center gap-1 text-[11px] font-bold text-[#fb7185]">
-                    <AlertTriangle size={13} className="text-[#fb7185]" /> SLA: Crítico
-                  </span>
-                  <span className="bg-[#881337]/40 text-[#fda4af] px-1.5 py-0.5 rounded text-[9px] uppercase font-mono font-bold border border-[#e11d48]/30">
-                    {selectedAlert.status}
-                  </span>
-                </div>
-                <p className="text-xs font-semibold text-[#efede3] leading-snug">
-                  {selectedAlert.description || 'Emergencia reportada'}
-                </p>
-                <div className="text-[11px] text-[#a3a3a3] flex items-center gap-1.5 font-mono">
-                  <MapPin size={11} className="text-[#737373] flex-shrink-0" />
-                  <span className="truncate">{selectedAlert.sourceLocation.address || `${selectedAlert.sourceLocation.lat.toFixed(5)}, ${selectedAlert.sourceLocation.lng.toFixed(5)}`}</span>
-                </div>
-              </div>
-            </Popup>
-          )}
         </MapGL>
       </DeckGL>
     </div>
