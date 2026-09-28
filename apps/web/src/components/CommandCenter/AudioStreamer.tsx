@@ -40,40 +40,40 @@ export const AudioStreamer: React.FC<{ alertId: string }> = ({ alertId }) => {
   }, [currentUrl]);
 
   return (
-    <div className="bg-slate-800 p-3 rounded-md flex flex-col gap-2 border border-slate-700">
-      <div className="flex justify-between items-center text-sm font-semibold text-slate-300">
+    <div className="bg-zinc-950 p-3 rounded-lg flex flex-col gap-2 border border-zinc-800 text-white">
+      <div className="flex justify-between items-center text-xs font-bold text-zinc-300">
         <div className="flex items-center gap-2">
           {isPlaying ? (
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
             </span>
           ) : (
-            <Mic size={14} className="text-slate-500" />
+            <Mic size={14} className="text-zinc-500" />
           )}
-          Evidencia de Audio "Black-Box"
+          <span>Evidencia de Audio "Black-Box"</span>
         </div>
-        <div className="text-xs px-2 py-0.5 bg-slate-700 rounded-full">
-          {queueLength} Chunks (Buffer)
+        <div className="text-[10px] font-mono px-2 py-0.5 bg-zinc-900 border border-zinc-700 rounded-full text-zinc-400">
+          {queueLength} Chunks
         </div>
       </div>
 
-      <div className="h-10 bg-slate-900 rounded flex items-center px-4">
+      <div className="h-9 bg-black rounded-md flex items-center px-3 border border-zinc-800/80">
         {isPlaying ? (
-          <div className="flex items-center gap-3 w-full">
-            <Volume2 size={16} className="text-emerald-400" />
-            <div className="text-xs text-slate-400 mt-0.5 animate-pulse">
+          <div className="flex items-center gap-2.5 w-full">
+            <Volume2 size={15} className="text-white" />
+            <div className="text-xs text-zinc-300 font-mono animate-pulse">
               Decodificando transmisión en vivo ({currentUrl?.substring(0, 20)}...)
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-slate-600 text-xs">
-             <Loader size={14} className="animate-spin" /> Esperando paquetes de evidencia...
+          <div className="flex items-center gap-2 text-zinc-500 text-xs font-mono">
+             <Loader size={13} className="animate-spin text-zinc-400" /> Esperando paquetes de audio...
           </div>
         )}
       </div>
 
-      {/* HTML5 Audio API - Elemento Oculto (Manejado lógicamente) */}
+      {/* HTML5 Audio API */}
       <audio 
         ref={audioRef} 
         onEnded={tryPlayNextChunk} 

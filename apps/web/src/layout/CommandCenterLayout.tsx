@@ -1,14 +1,13 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+import { authService } from '../services/auth';
 
 const CommandCenterLayout: React.FC = () => {
-  // Protect route: Only Admin, Supervisor, and Operator can access the Command Center
-  // --- DEV BYPASS ---
-  const canAccess = true; 
-  // ------------------
+  const role = authService.getRole();
+  const canAccess = role === 'admin' || role === 'operator' || role === 'supervisor';
 
-  if (!canAccess) {
-    return <Navigate to="/" replace />;
+  if (!canAccess && !authService.isAuthenticated()) {
+    return <Navigate to="/login" replace />;
   }
 
   return (
@@ -16,8 +15,8 @@ const CommandCenterLayout: React.FC = () => {
       display: 'flex',
       height: '100vh',
       width: '100vw',
-      backgroundColor: '#0f1117',
-      color: '#e2e8f0',
+      backgroundColor: '#0a0a0a',
+      color: '#f5f5f5',
       overflow: 'hidden'
     }}>
       <Outlet />
