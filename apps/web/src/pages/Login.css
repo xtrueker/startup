@@ -4,7 +4,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-image: linear-gradient(rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.8)), url('/bg-login.png');
+  background-color: #0a0a0a;
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
@@ -12,16 +12,16 @@
 }
 
 .login-box {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(18, 18, 18, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #262626;
   padding: 3rem 2.5rem;
   border-radius: 20px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.7);
   width: 100%;
   max-width: 440px;
-  color: white;
+  color: #f5f5f5;
   animation: fadeIn 0.6s ease-out;
 }
 
@@ -37,11 +37,10 @@
   text-align: center;
   margin-bottom: 0.5rem;
   letter-spacing: -0.02em;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .login-box h2 {
-  color: #94a3b8;
+  color: #a3a3a3;
   font-size: 1.1rem;
   text-align: center;
   margin-bottom: 2rem;
@@ -49,9 +48,9 @@
 }
 
 .error-message {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
+  background: rgba(136, 19, 55, 0.3);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fda4af;
   padding: 0.875rem;
   border-radius: 10px;
   margin-bottom: 1.5rem;
@@ -61,9 +60,9 @@
 }
 
 .success-message {
-  background: rgba(34, 197, 94, 0.15);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #86efac;
+  background: rgba(6, 78, 59, 0.3);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #a7f3d0;
   padding: 0.875rem;
   border-radius: 10px;
   margin-bottom: 1.5rem;
@@ -79,7 +78,7 @@
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #e2e8f0;
+  color: #d4d4d4;
   font-weight: 500;
   font-size: 0.9rem;
   letter-spacing: 0.01em;
@@ -89,9 +88,9 @@
 .form-group select {
   width: 100%;
   padding: 0.875rem 1rem;
-  background: rgba(15, 23, 42, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: white;
+  background: #0d0d0d;
+  border: 1px solid #262626;
+  color: #f5f5f5;
   border-radius: 10px;
   font-size: 1rem;
   transition: all 0.3s ease;
@@ -99,45 +98,52 @@
 }
 
 .form-group input::placeholder {
-  color: #64748b;
+  color: #525252;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
   border-color: #6366f1;
-  background: rgba(15, 23, 42, 0.6);
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+  background: #141414;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
 }
 
 .form-group select option {
-  background: #1e293b;
-  color: white;
+  background: #141414;
+  color: #f5f5f5;
 }
 
-button[type="submit"] {
+button[type="submit"],
+.login-submit-btn {
   width: 100%;
-  padding: 1rem;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 1.05rem;
-  font-weight: 600;
+  padding: 0.95rem 1rem;
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(99, 102, 241, 0.6) !important;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700 !important;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   margin-top: 0.5rem;
-  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.25) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-button[type="submit"]:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+button[type="submit"]:hover:not(:disabled),
+.login-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35) !important;
+  background: #4338ca !important;
 }
 
-button[type="submit"]:disabled {
-  background: #475569;
+button[type="submit"]:disabled,
+.login-submit-btn:disabled {
+  background: #262626 !important;
+  color: #737373 !important;
+  border-color: #333333 !important;
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
@@ -146,19 +152,19 @@ button[type="submit"]:disabled {
 .register-link {
   text-align: center;
   margin-top: 2rem;
-  color: #94a3b8;
+  color: #a3a3a3;
   font-size: 0.95rem;
 }
 
 .register-link a {
-  color: #818cf8;
-  text-decoration: none;
+  color: #d4d4d4;
+  text-decoration: underline;
+  text-underline-offset: 4px;
   font-weight: 600;
   margin-left: 0.25rem;
   transition: all 0.2s ease;
 }
 
 .register-link a:hover {
-  color: #a5b4fc;
-  text-shadow: 0 0 8px rgba(129, 140, 248, 0.5);
+  color: #ffffff;
 }

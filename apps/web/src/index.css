@@ -6,14 +6,16 @@
 
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --background: #0a0a0a;
+    --foreground: #efede3;
+    --secondary-color: #efede3;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 4%;
   }
 
   body {
-    @apply bg-background text-foreground;
+    background-color: #0a0a0a;
+    color: #efede3;
     font-family: 'Outfit', system-ui, Avenir, Helvetica, Arial, sans-serif;
     line-height: 1.5;
     font-weight: 400;
@@ -27,12 +29,93 @@
 
 @layer utilities {
   .glass-panel {
-    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 shadow-2xl;
+    background-color: rgba(18, 18, 18, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid #282828;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
   
   .glass-button {
-    @apply bg-slate-800/80 backdrop-blur hover:bg-slate-700 border border-slate-600/50 transition-all shadow-lg;
+    background-color: #171717;
+    backdrop-filter: blur(8px);
+    border: 1px solid #2a2a2a;
+    color: #efede3;
+    transition: all 0.2s ease;
   }
+  .glass-button:hover {
+    background-color: #242424;
+    border-color: #383838;
+    color: #ffffff;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #0a0a0a;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #262626;
+    border-radius: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #383838;
+  }
+}
+
+/* ── Custom Dark Theme for MapLibre Popups (Removes ugly white box) ── */
+.maplibregl-popup {
+  z-index: 100 !important;
+}
+
+.maplibregl-popup-content {
+  background: #141414 !important;
+  color: #efede3 !important;
+  border: 1px solid #303030 !important;
+  border-radius: 12px !important;
+  padding: 10px 14px !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.75) !important;
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: #141414 !important;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: #141414 !important;
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: #141414 !important;
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: #141414 !important;
+}
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip {
+  border-top-color: #141414 !important;
+}
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: #141414 !important;
+}
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip {
+  border-bottom-color: #141414 !important;
+}
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: #141414 !important;
+}
+
+.maplibregl-popup-close-button {
+  color: #8c8c8c !important;
+  font-size: 16px !important;
+  padding: 4px 8px !important;
+  right: 4px !important;
+  top: 4px !important;
+  outline: none !important;
+  transition: color 0.15s ease !important;
+}
+.maplibregl-popup-close-button:hover {
+  color: #efede3 !important;
+  background: transparent !important;
 }
 
 body {
@@ -41,22 +124,25 @@ body {
   width: 100vw;
   min-height: 100vh;
   overflow-x: hidden;
+  background-color: #0a0a0a;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+  background-color: #0a0a0a;
 }
 
 a {
   font-weight: 500;
-  color: #6366f1;
-  text-decoration: none;
+  color: #efede3;
+  text-decoration: underline;
+  text-underline-offset: 4px;
   transition: color 0.2s ease;
 }
 
 a:hover {
-  color: #4f46e5;
+  color: #ffffff;
 }
 
 button {
@@ -66,14 +152,8 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 * {
