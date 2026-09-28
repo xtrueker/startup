@@ -27,10 +27,10 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Token expirado o inválido
       localStorage.removeItem('token');
-      // --- DEV BYPASS ---
-      // window.location.href = '/login';
-      console.warn("401 Unauthorized pero ignorado por el DEV BYPASS");
-      // ------------------
+      localStorage.removeItem('userId');
+      localStorage.removeItem('userRole');
+      sessionStorage.removeItem('active_session');
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

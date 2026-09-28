@@ -14,49 +14,47 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const init = async () => {
-      let token = authService.getToken();
-      let role = authService.getRole();
-      if (!token && isDevBypass) {
-        try {
-          const res = await authService.login({ email: 'admin@redciudadana.org', password: 'password123' });
-          if (res.success && res.data) {
-            authService.setToken(res.data.token, res.data.user.id, res.data.user.role);
-            token = res.data.token;
-            role = res.data.user.role;
-          }
-        } catch (e) {
-          console.warn('Auto dev-bypass login failed:', e);
-        }
-      }
-      setIsAuthenticated(!!token);
-      setUserRole(role);
+    // Al abrir una nueva sesión/pestaña por primera vez, asegurar que se muestre el login
+    const hasActiveSession = sessionStorage.getItem('active_session');
+    if (!hasActiveSession) {
+      // Limpiar cualquier residuo de bypass previo
+      authService.logout();
+      sessionStorage.setItem('active_session', 'init');
+      setIsAuthenticated(false);
+      setUserRole(null);
       setLoading(false);
-    };
-    init();
+      return;
+    }
+
+    const token = authService.getToken();
+    const role = authService.getRole();
+    setIsAuthenticated(!!token);
+    setUserRole(role);
+    setLoading(false);
   }, []);
 
   const handleLogin = () => {
+    sessionStorage.setItem('active_session', 'logged_in');
     setIsAuthenticated(true);
     setUserRole(authService.getRole());
   };
 
   const handleLogout = () => {
+    sessionStorage.removeItem('active_session');
     authService.logout();
     setIsAuthenticated(false);
     setUserRole(null);
   };
 
-  // --- DEV BYPASS ---
-  // Forzamos la autenticación para no tener que iniciar sesión manualmente durante el desarrollo
-  const isDevBypass = true; 
-  const currentIsAuthenticated = isDevBypass ? true : isAuthenticated;
-  const currentRole = isDevBypass ? 'admin' : userRole;
-  const isAdministrative = currentRole === 'admin' || currentRole === 'operator' || currentRole === 'supervisor';
-  // ------------------
+  const isAdministrative = userRole === 'admin' || userRole === 'operator' || userRole === 'supervisor';
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando...</div>;
+    return (
+      <div className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3 font-mono text-sm">
+        <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"></div>
+        <span>Iniciando Terminal de Seguridad...</span>
+      </div>
+    );
   }
 
   return (
@@ -65,16 +63,16 @@ function App() {
         <Route 
           path="/login" 
           element={
-            currentIsAuthenticated ? 
-              <Navigate to={isAdministrative ? "/command-center" : "/access-denied"} /> : 
+            isAuthenticated ? 
+              <Navigate to={isAdministrative ? "/command-center" : "/access-denied"} replace /> : 
               <Login onLogin={handleLogin} />
           } 
         />
         <Route 
           path="/register" 
           element={
-            currentIsAuthenticated ? 
-              <Navigate to={isAdministrative ? "/command-center" : "/access-denied"} /> : 
+            isAuthenticated ? 
+              <Navigate to={isAdministrative ? "/command-center" : "/access-denied"} replace /> : 
               <Register />
           } 
         />
@@ -85,24 +83,24 @@ function App() {
         <Route 
           path="/access-denied" 
           element={
-            currentIsAuthenticated ? 
+            isAuthenticated ? 
               <AccessDenied onLogout={handleLogout} /> : 
-              <Navigate to="/login" />
+              <Navigate to="/login" replace />
           } 
         />
         <Route 
           path="/" 
           element={
-            <Navigate to={currentIsAuthenticated ? (isAdministrative ? "/command-center" : "/access-denied") : "/login"} />
+            <Navigate to={isAuthenticated ? (isAdministrative ? "/command-center" : "/access-denied") : "/login"} replace />
           } 
         />
         {/* Command Center Routes */}
         <Route 
           path="/command-center" 
           element={
-            currentIsAuthenticated && isAdministrative ? 
+            isAuthenticated && isAdministrative ? 
               <CommandCenterLayout /> : 
-              <Navigate to={currentIsAuthenticated ? "/access-denied" : "/login"} />
+              <Navigate to={isAuthenticated ? "/access-denied" : "/login"} replace />
           }
         >
           <Route index element={<CommandCenter />} />

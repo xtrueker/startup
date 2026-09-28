@@ -34,18 +34,18 @@ export const AlertTimeline: React.FC<{ alertId: string }> = ({ alertId }) => {
   }, [alertId]);
 
   return (
-    <div className="flex flex-col gap-3 mt-4 border-t border-slate-700/50 pt-4">
-      <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Línea de Tiempo</h3>
-      <div className="relative border-l border-slate-700 ml-2 pl-4 flex flex-col gap-4">
+    <div className="flex flex-col gap-3 mt-4 border-t border-zinc-800 pt-4">
+      <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-wider">Línea de Tiempo</h3>
+      <div className="relative border-l border-zinc-800 ml-2 pl-4 flex flex-col gap-4">
         {events.map((ev) => (
           <div key={ev.id} className="relative mb-2">
-             <div className="absolute -left-[21px] bg-slate-900 rounded-full p-1 border border-slate-600 shadow-md">
-               {ev.event_type === 'creada' ? <Clock size={10} className="text-indigo-400" /> : <FileText size={10} className="text-slate-400" />}
+             <div className="absolute -left-[21px] bg-black rounded-full p-1 border border-zinc-700 shadow-md">
+               {ev.event_type === 'creada' ? <Clock size={10} className="text-white" /> : <FileText size={10} className="text-zinc-400" />}
              </div>
-             <div className="text-xs text-slate-300 p-2 bg-slate-800/40 rounded border border-slate-700/50 shadow-inner">
-               <span className="font-bold text-slate-200">{ev.new_status ? ev.new_status.toUpperCase() : ev.event_type.toUpperCase()}</span> 
-               <span className="text-slate-500"> - hace unos minutos: </span>
-               <span className="italic text-indigo-300">'{ev.notes}'</span>
+             <div className="text-xs text-zinc-300 p-2 bg-zinc-950 rounded border border-zinc-800 shadow-inner">
+               <span className="font-bold text-white">{ev.new_status ? ev.new_status.toUpperCase() : ev.event_type.toUpperCase()}</span> 
+               <span className="text-zinc-500"> - hace unos minutos: </span>
+               <span className="italic text-zinc-300">'{ev.notes}'</span>
              </div>
           </div>
         ))}

@@ -156,7 +156,6 @@ const CommandCenter: React.FC = () => {
 
   // Derive KPIs & SLA Ordering
   const activeCount = Object.keys(activeAlerts).length;
-  const avgResponseTime = activeCount > 0 ? '1.2m' : '--';
 
   // Normalize alert type from description field
   const getAlertType = (alert: { description?: string; type?: string }): string => {
@@ -180,10 +179,6 @@ const CommandCenter: React.FC = () => {
       return `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`;
     }
     return addr;
-  };
-  const isRealAddress = (loc: { address?: string }) => {
-    const addr = (loc.address || '').trim();
-    return addr.length > 0 && !GENERIC_ADDRESSES.includes(addr.toLowerCase());
   };
 
   // Sort alerts by Priority SLA
@@ -211,29 +206,29 @@ const CommandCenter: React.FC = () => {
   }, [focusedAlertId, activeAlerts, systemCameras]);
 
   return (
-    <div className="flex h-full w-full bg-slate-900 overflow-hidden font-sans text-slate-200">
+    <div className="flex h-full w-full bg-[#0a0a0a] overflow-hidden font-sans text-[#f5f5f5]">
       
       {/* ── Sidebar Izquierdo: Controles Críticos ─────────────────────── */}
-      <aside className="w-80 bg-slate-900 border-r border-slate-800 flex flex-col z-20 shadow-2xl">
+      <aside className="w-80 bg-[#0a0a0a] border-r border-[#262626] flex flex-col z-20 shadow-2xl">
         {/* User Info + Logout */}
-        <div className="px-4 py-3 border-b border-slate-800 bg-slate-950 flex items-center gap-3">
+        <div className="px-4 py-3 border-b border-[#262626] bg-[#121212] flex items-center gap-3">
           {/* Avatar */}
           <div className="relative flex-shrink-0">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-black text-white text-sm shadow-lg shadow-indigo-500/30 ring-2 ring-indigo-500/40">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#262626] to-[#141414] flex items-center justify-center font-black text-white text-sm shadow-md border border-[#333333]">
               {(authService.getRole() || 'A').charAt(0).toUpperCase()}
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-slate-950 shadow"></span>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#10b981] border-2 border-[#121212] shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
           </div>
           {/* Name & Role */}
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold text-white truncate">Operador Táctico</div>
-            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">{authService.getRole() || 'ADMIN'}</div>
+            <div className="text-xs font-bold text-[#efede3] truncate">Operador Táctico</div>
+            <div className="text-[10px] text-[#a3a3a3] uppercase tracking-wider font-mono">{authService.getRole() || 'ADMIN'}</div>
           </div>
           {/* Logout Button */}
           <button
-            onClick={() => { authService.logout(); window.location.href = '/'; }}
+            onClick={() => { sessionStorage.removeItem('active_session'); authService.logout(); window.location.href = '/login'; }}
             title="Cerrar Sesión"
-            className="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 hover:border-rose-500/60 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 flex-shrink-0"
+            className="flex items-center gap-1.5 bg-[#4c0519]/25 hover:bg-[#881337]/35 text-[#fda4af] hover:text-white border border-[#881337]/40 hover:border-[#e11d48]/50 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 flex-shrink-0"
           >
             <LogOut size={13} />
             <span>Salir</span>
@@ -241,12 +236,12 @@ const CommandCenter: React.FC = () => {
         </div>
 
         {/* Header */}
-        <div className="p-5 border-b border-slate-800/80 bg-slate-900/40 backdrop-blur flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-rose-500 font-black uppercase tracking-widest text-sm">
+        <div className="p-5 border-b border-[#262626] bg-[#121212]/90 backdrop-blur flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-[#efede3] font-black uppercase tracking-widest text-sm">
             <ShieldAlert size={18} /> Central de Despacho
           </div>
-          <div className={`text-xs px-2.5 py-1.5 rounded-md font-bold inline-flex items-center gap-1.5 shadow-sm w-max ${connected ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20 animate-pulse'}`}>
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-rose-400 shadow-[0_0_8px_#fb7185]'}`}></span>
+          <div className={`text-xs px-2.5 py-1.5 rounded-md font-bold inline-flex items-center gap-1.5 shadow-sm w-max ${connected ? 'bg-[#064e3b]/30 text-[#6ee7b7] border border-[#065f46]/40' : 'bg-[#4c0519]/30 text-[#fda4af] border border-[#881337]/40 animate-pulse'}`}>
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-[#34d399] shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-[#f43f5e]'}`}></span>
             {connected ? 'En Vivo (0ms lag)' : 'Reconectando Canales...'}
           </div>
         </div>
@@ -255,22 +250,22 @@ const CommandCenter: React.FC = () => {
         {(() => {
           const TYPE_OPTIONS = [
             { key: 'all',       label: 'Todos los Tipos', Icon: LayoutList,   iconColor: 'text-slate-400' },
-            { key: 'robo',      label: 'Robo',            Icon: Crosshair,    iconColor: 'text-amber-400' },
-            { key: 'homicidio', label: 'Homicidio',       Icon: Skull,        iconColor: 'text-rose-400'  },
-            { key: 'accidente', label: 'Accidente',       Icon: Car,          iconColor: 'text-orange-400'},
-            { key: 'atentado',  label: 'Atentado',        Icon: Bomb,         iconColor: 'text-red-400'   },
+            { key: 'robo',      label: 'Robo',            Icon: Crosshair,    iconColor: 'text-zinc-300' },
+            { key: 'homicidio', label: 'Homicidio',       Icon: Skull,        iconColor: 'text-zinc-300'  },
+            { key: 'accidente', label: 'Accidente',       Icon: Car,          iconColor: 'text-zinc-300'},
+            { key: 'atentado',  label: 'Atentado',        Icon: Bomb,         iconColor: 'text-white'   },
           ] as const;
           const selected = TYPE_OPTIONS.find(o => o.key === filterType) ?? TYPE_OPTIONS[0];
           return (
-            <div className="px-4 py-3 bg-slate-900/40 backdrop-blur border-b border-slate-800/80 flex flex-col gap-2">
-              <h3 className="text-[10px] uppercase text-slate-500 font-bold flex items-center gap-1.5 tracking-wider">
-                <Filter size={11} className="text-indigo-400" /> Filtrar por Tipo
+            <div className="px-4 py-3 bg-[#121212]/50 backdrop-blur border-b border-[#262626] flex flex-col gap-2">
+              <h3 className="text-[10px] uppercase text-[#737373] font-bold flex items-center gap-1.5 tracking-wider">
+                <Filter size={11} className="text-[#818cf8]" /> Filtrar por Tipo
               </h3>
               <div className="relative">
                 {/* Trigger */}
                 <button
                   onClick={() => setTypeDropdownOpen(v => !v)}
-                  className="w-full flex items-center gap-2 bg-slate-800 border border-slate-700 hover:border-slate-500 focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-slate-200 transition-all duration-150 outline-none"
+                  className="w-full flex items-center gap-2 bg-[#141414] border border-[#262626] hover:border-[#383838] focus:border-[#6366f1] rounded-lg px-3 py-2 text-sm text-[#e5e5e5] transition-all duration-150 outline-none"
                 >
                   <selected.Icon size={14} className={selected.iconColor} />
                   <span className="flex-1 text-left text-[13px] font-medium">{selected.label}</span>
@@ -279,20 +274,20 @@ const CommandCenter: React.FC = () => {
 
                 {/* Dropdown panel */}
                 {typeDropdownOpen && (
-                  <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden">
-                    {TYPE_OPTIONS.map(({ key, label, Icon, iconColor }) => (
+                  <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-[#141414] border border-[#262626] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.8)] overflow-hidden">
+                    {TYPE_OPTIONS.map(({ key, label, Icon }) => (
                       <button
                         key={key}
                         onClick={() => { setFilters({ type: key }); setTypeDropdownOpen(false); }}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors ${
                           filterType === key
-                            ? 'bg-indigo-600/20 text-white'
-                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                            ? 'bg-[#202026] text-white font-bold border-l-2 border-[#6366f1]'
+                            : 'text-[#a3a3a3] hover:bg-[#1a1a1a] hover:text-white'
                         }`}
                       >
-                        <Icon size={14} className={filterType === key ? iconColor : 'text-slate-500'} />
+                        <Icon size={14} className={filterType === key ? 'text-white' : 'text-zinc-500'} />
                         <span className="font-medium">{label}</span>
-                        {filterType === key && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+                        {filterType === key && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#ffffff]" />}
                       </button>
                     ))}
                   </div>
@@ -304,8 +299,8 @@ const CommandCenter: React.FC = () => {
 
         {/* Lista de Eventos Virtualizada */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar">
-           <h3 className="text-xs uppercase text-slate-400 font-bold mb-2 flex items-center gap-2 tracking-wider">
-              <Activity size={14} className="text-indigo-400" /> {`Emergencias Activas (${activeCount})`}
+           <h3 className="text-xs uppercase text-[#efede3] font-bold mb-2 flex items-center gap-2 tracking-wider">
+              <Activity size={14} className="text-[#818cf8]" /> {`Emergencias Activas (${activeCount})`}
            </h3>
            
            {sortedAlerts.map(alert => {
@@ -313,10 +308,10 @@ const CommandCenter: React.FC = () => {
              const isOverdue = minsWaiting > 5;
              const alertType = getAlertType(alert);
              const TYPE_META = {
-               robo:      { Icon: Crosshair, label: 'Robo',      color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
-               homicidio: { Icon: Skull,     label: 'Homicidio', color: 'text-rose-400 bg-rose-500/10 border-rose-500/30' },
-               accidente: { Icon: Car,       label: 'Accidente', color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
-               atentado:  { Icon: Bomb,      label: 'Atentado',  color: 'text-red-400 bg-red-600/10 border-red-500/30' },
+               robo:      { Icon: Crosshair, label: 'Robo',      color: 'text-[#fcd34d] bg-[#78350f]/35 border-[#b45309]/45' },
+               homicidio: { Icon: Skull,     label: 'Homicidio', color: 'text-[#fca5a5] bg-[#7f1d1d]/35 border-[#b91c1c]/45 font-bold' },
+               accidente: { Icon: Car,       label: 'Accidente', color: 'text-[#fdba74] bg-[#7c2d12]/35 border-[#c2410c]/45' },
+               atentado:  { Icon: Bomb,      label: 'Atentado',  color: 'text-[#f87171] bg-[#450a0a]/55 border-[#991b1b]/55 font-black' },
              } as const;
              const meta = TYPE_META[alertType as keyof typeof TYPE_META] ?? TYPE_META.robo;
              const TypeIcon = meta.Icon;
@@ -327,10 +322,8 @@ const CommandCenter: React.FC = () => {
                key={alert.id}
                onClick={() => focusMapOnAlert(isFocused ? null : alert.id)}
                className={`rounded-lg border flex flex-col cursor-pointer transition-all duration-200 overflow-hidden
-                 ${isFocused
-                   ? 'bg-indigo-950/60 border-indigo-500 shadow-[0_0_18px_rgba(79,70,229,0.35)]'
-                   : 'bg-slate-800/80 border-slate-700/50 hover:border-slate-500 hover:bg-slate-800'}
-                 ${isOverdue ? 'border-l-[3px] border-l-rose-500' : ''}`}
+                 ${isFocused ? 'bg-[#171717] border-[#444444] ring-1 ring-[#efede3]/20 shadow-md' : 'bg-[#121212] border-[#222222] hover:border-[#303030] hover:bg-[#161616]'}
+                 ${isOverdue ? 'border-l-[3px] border-l-[#f43f5e]' : ''}`}
              >
                {/* ── Always visible: minimal info ─────────────── */}
                <div className="px-3 py-2.5 flex flex-col gap-1.5">
@@ -340,47 +333,47 @@ const CommandCenter: React.FC = () => {
                      <TypeIcon size={10} /> {meta.label}
                    </span>
                    {isOverdue && (
-                     <span className="text-[9px] bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded font-bold animate-pulse flex-shrink-0">
+                     <span className="text-[9px] bg-[#881337]/50 text-[#fda4af] border border-[#e11d48]/50 px-1.5 py-0.5 rounded font-bold flex-shrink-0">
                        SLA VENCIDO
                      </span>
                    )}
                  </div>
                  {/* Row 2: address */}
                  <div className="text-[11px] text-slate-400 flex items-center gap-1">
-                   <MapPin size={9} className="flex-shrink-0 text-slate-500" />
+                   <MapPin size={9} className="flex-shrink-0 text-[#737373]" />
                    <span className="truncate">{formatAddress(alert.sourceLocation)}</span>
                  </div>
                  {/* Row 3: time + status */}
                  <div className="flex items-center justify-between">
-                   <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                   <span className="text-[10px] text-[#737373] flex items-center gap-1">
                      <Clock size={9} />
                      {minsWaiting < 60
                        ? `${minsWaiting}m`
                        : `${Math.floor(minsWaiting / 60)}h ${minsWaiting % 60}m`}
                    </span>
                    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                     alert.status === 'pending'   ? 'text-rose-400 bg-rose-500/10' :
-                     alert.status === 'reviewing' ? 'text-amber-400 bg-amber-500/10' :
-                     alert.status === 'verified'  ? 'text-blue-400 bg-blue-500/10' :
-                     alert.status === 'resolved'  ? 'text-emerald-400 bg-emerald-500/10' :
-                     'text-slate-400 bg-slate-700'
+                     alert.status === 'pending'   ? 'text-white bg-zinc-800 border border-zinc-700' :
+                     alert.status === 'reviewing' ? 'text-zinc-300 bg-zinc-900 border border-zinc-800' :
+                     alert.status === 'verified'  ? 'text-zinc-200 bg-zinc-800 border border-zinc-700 font-semibold' :
+                     alert.status === 'resolved'  ? 'text-zinc-500 bg-black border border-zinc-800 line-through' :
+                     'text-[#818cf8] bg-zinc-800'
                    }`}>{alert.status}</span>
                  </div>
                </div>
 
                {/* ── Expanded: full details (only when focused) ─ */}
                {isFocused && (
-                 <div className="px-3 pb-3 flex flex-col gap-2 border-t border-indigo-500/20 pt-2.5 animate-in slide-in-from-top-1 duration-150">
+                 <div className="px-3 pb-3 flex flex-col gap-2 border-t border-zinc-700 pt-2.5 animate-in slide-in-from-top-1 duration-150">
                    {/* Description */}
-                   <div className="text-xs text-slate-200 font-medium leading-snug">{alert.description}</div>
+                   <div className="text-xs text-[#efede3] font-medium leading-snug">{alert.description}</div>
                    {/* Alert ID */}
-                   <div className="text-[10px] font-mono text-slate-500">ID: {alert.id.split('-')[0]}...</div>
+                   <div className="text-[10px] font-mono text-[#737373]">ID: {alert.id.split('-')[0]}...</div>
                    {/* User */}
-                   <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                   <div className="text-[10px] text-[#737373] flex items-center gap-1">
                      <span className="text-slate-600">Ciudadano:</span> {alert.userId}
                    </div>
                    {/* Timestamp */}
-                   <div className="text-[10px] text-slate-500">
+                   <div className="text-[10px] text-[#737373]">
                      {new Date(alert.timestamp).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
                    </div>
                    {/* Audio evidence */}
@@ -396,17 +389,17 @@ const CommandCenter: React.FC = () => {
              <div className="p-5 flex flex-col gap-4">
                 <div className="text-xs text-slate-400 font-mono bg-slate-950 p-3 rounded-lg border border-slate-800 shadow-inner flex flex-col gap-1">
                    <span className="text-emerald-400">{`> Zona Nacional Despejada`}</span>
-                   <span className="text-slate-500">{`> Escuchando frecuencia principal...`}</span>
+                   <span className="text-[#737373]">{`> Escuchando frecuencia principal...`}</span>
                 </div>
              </div>
            )}
         </div>
 
         {/* Tactical Toolbar */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950 flex flex-col gap-2">
+        <div className="p-4 border-t border-[#262626] bg-[#121212] flex flex-col gap-2">
            <button 
              onClick={toggleHeatmap}
-             className={`flex items-center justify-center gap-2 w-full py-2 rounded text-sm font-bold transition-all ${heatmapEnabled ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.5)]' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+             className={`flex items-center justify-center gap-2 w-full py-2 rounded text-sm font-bold transition-all ${heatmapEnabled ? 'bg-[#242424] text-[#efede3] font-bold border border-[#404040]' : 'bg-[#171717] text-[#d4d4d4] border border-[#262626] hover:bg-[#202020] hover:text-white'}`}
            >
              <Layers size={16} /> 
              {heatmapEnabled ? 'Modo Predictivo (ON)' : 'Análisis Heatmap'}
@@ -415,27 +408,19 @@ const CommandCenter: React.FC = () => {
       </aside>
 
       {/* ── Área Principal: Tactical Map ──────────────────────────────── */}
-      <main className="flex-1 relative bg-black" style={{ minHeight: 0 }}>
+      <main className="flex-1 relative bg-[#0a0a0a]" style={{ minHeight: 0 }}>
         {/* KPI Bar */}
         <div className="absolute top-6 left-6 right-6 z-10 flex gap-4 pointer-events-none">
            <div className="glass-panel p-4 rounded-xl flex items-center gap-4 pointer-events-auto">
-             <div className="bg-rose-500/20 p-2 rounded-lg">
-               <AlertTriangle className="text-rose-500" size={24} />
+             <div className="bg-[#881337]/30 border border-[#9f1239]/40 p-2 rounded-lg">
+               <AlertTriangle className="text-[#fb7185]" size={24} />
              </div>
              <div>
                <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Alertas Activas</div>
-               <div className="text-2xl font-black text-white tabular-nums drop-shadow-md">{activeCount ?? '0'}</div>
+               <div className="text-2xl font-black text-[#efede3] tabular-nums">{activeCount ?? '0'}</div>
              </div>
            </div>
-           <div className="glass-panel p-4 rounded-xl flex items-center gap-4 pointer-events-auto">
-             <div className="bg-emerald-500/20 p-2 rounded-lg">
-               <Clock className="text-emerald-500" size={24} />
-             </div>
-             <div>
-               <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Tiempo Prom. Resp.</div>
-               <div className="text-2xl font-black text-white tabular-nums drop-shadow-md">{avgResponseTime ?? '--'}</div>
-             </div>
-           </div>
+
         </div>
 
         <TacticalMap />
@@ -444,8 +429,8 @@ const CommandCenter: React.FC = () => {
         {focusedAlertId && activeAlerts[focusedAlertId] && (
           <div className="absolute bottom-6 left-6 right-[26rem] z-30 glass-panel p-4 rounded-xl flex flex-col gap-3 pointer-events-auto animate-in slide-in-from-bottom-4">
             <div className="flex justify-between items-center">
-              <div className="text-xs uppercase text-slate-300 font-black tracking-widest flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <div className="text-xs uppercase text-[#efede3] font-bold tracking-widest flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_#ffffff] animate-pulse"></span>
                 Cámaras de Seguridad Cercanas (Radio 100m)
               </div>
               <div className="text-[10px] text-slate-400 font-mono">
@@ -461,12 +446,12 @@ const CommandCenter: React.FC = () => {
                     <div 
                       key={cam.id} 
                       onClick={() => setSelectedCamera(cam)}
-                      className="min-w-[200px] max-w-[240px] aspect-video bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex flex-col relative group hover:border-blue-500/50 transition-colors cursor-pointer"
+                      className="min-w-[200px] max-w-[240px] aspect-video bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex flex-col relative group hover:border-white transition-colors cursor-pointer"
                     >
                       <div className="absolute top-1.5 right-1.5 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[8px] font-black uppercase text-slate-300 shadow z-10 flex items-center gap-1">
                         {streamUrl ? (
                           <>
-                            <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>
+                            <span className="w-1 h-1 bg-white rounded-full animate-pulse"></span>
                             LIVE
                           </>
                         ) : (
@@ -486,14 +471,14 @@ const CommandCenter: React.FC = () => {
                           />
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-slate-600 p-2 text-center select-none">
-                            <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Sin Señal</span>
+                            <span className="text-[9px] font-mono uppercase tracking-wider text-[#737373]">Sin Señal</span>
                             <span className="text-[8px] font-mono max-w-xs truncate">{cam.name}</span>
                           </div>
                         )}
                       </div>
                       <div className="p-1.5 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-[9px] text-slate-300">
                         <span className="font-bold truncate max-w-[120px]">{cam.name}</span>
-                        <span className="font-mono text-[8px] text-slate-500">
+                        <span className="font-mono text-[8px] text-[#737373]">
                           {getHaversineDistance(
                             activeAlerts[focusedAlertId].sourceLocation.lat,
                             activeAlerts[focusedAlertId].sourceLocation.lng,
@@ -507,16 +492,16 @@ const CommandCenter: React.FC = () => {
                           e.stopPropagation();
                           setSelectedCamera(cam);
                         }}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 font-bold transition-colors border-t border-blue-700"
+                        className="w-full bg-[#1c1c1c] hover:bg-[#262626] text-[#efede3] text-[10px] py-1 font-semibold transition-colors border-t border-[#2e2e2e]"
                       >
-                        📹 ABRIR VIDEO FEED
+                        ABRIR VIDEO FEED
                       </button>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="py-4 text-center text-xs text-slate-500 bg-slate-950/40 rounded-lg border border-slate-800/50">
+              <div className="py-4 text-center text-xs text-[#737373] bg-slate-950/40 rounded-lg border border-slate-800/50">
                 No se encontraron cámaras de seguridad en un radio de 100 metros.
               </div>
             )}
@@ -528,13 +513,13 @@ const CommandCenter: React.FC = () => {
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 w-full max-w-2xl pointer-events-auto">
             <div className="bg-slate-900/90 backdrop-blur border border-slate-700 p-4 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                  <Clock size={16} className="text-indigo-400" />
+                <div className="text-sm font-bold text-[#efede3] flex items-center gap-2">
+                  <Clock size={16} className="text-[#818cf8]" />
                   Máquina del Tiempo (Replay Histórico)
                 </div>
                 <button 
                   onClick={() => setReplayMode(!isReplayMode)}
-                  className={`text-xs px-3 py-1 rounded-full border transition-colors ${isReplayMode ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/50 hover:bg-indigo-600/30' : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'}`}
+                  className={`text-xs px-3 py-1 rounded-full border transition-colors ${isReplayMode ? 'bg-indigo-600/20 text-[#818cf8] border-indigo-500/50 hover:bg-indigo-600/30' : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'}`}
                 >
                   {isReplayMode ? 'Cerrar Replay' : 'Activar Replay'}
                 </button>
@@ -616,7 +601,7 @@ const CommandCenter: React.FC = () => {
                    <div className="flex-1 bg-black flex items-center justify-center relative">
                      {/* Placeholder for Video Feed */}
                      <div className="absolute inset-0 bg-slate-800 animate-pulse"></div>
-                     <span className="z-10 text-slate-500 font-mono text-xs">Conectando RTSP...<br/>{cam.rtspUrl}</span>
+                     <span className="z-10 text-[#737373] font-mono text-xs">Conectando RTSP...<br/>{cam.rtspUrl}</span>
                    </div>
                    <div className="p-3 bg-slate-950 border-t border-slate-800">
                      <div className="text-sm font-bold text-white truncate">{cam.name}</div>
@@ -675,7 +660,7 @@ const CommandCenter: React.FC = () => {
                     allowFullScreen
                   />
                 ) : (
-                  <div className="flex flex-col items-center gap-4 text-slate-500">
+                  <div className="flex flex-col items-center gap-4 text-[#737373]">
                     <span className="animate-pulse text-lg font-mono text-red-500">❌ SEÑAL PERDIDA / CONECTANDO RTSP...</span>
                     <span className="text-sm text-slate-600 font-mono">Stream URL: {selectedCamera.rtspUrl || 'N/A'}</span>
                   </div>
