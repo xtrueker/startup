@@ -77,7 +77,17 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(409).json({ success: false, message: 'Ya existe un usuario con ese email' });
     }
 
-    const user = await User.create({ fullName, cedula, email, password, role: role || 'citizen' });
+    const user = await User.create({
+      fullName,
+      cedula,
+      email,
+      password,
+      phone,
+      role: 'citizen', // La autoregistración pública siempre asigna rol citizen para prevenir escalado de privilegios
+      idCardFront,
+      idCardBack,
+      selfiePhoto
+    });
 
     const token = jwt.sign(
       { userId: user.id, role: user.role, cedula: user.cedula },
