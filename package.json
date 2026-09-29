@@ -6,7 +6,11 @@
     "dev:api": "npm run dev --prefix apps/api",
     "dev:mobile": "npm start --prefix apps/mobile",
     "build:web": "npm run build --prefix apps/web",
-    "build:api": "npm run build --prefix apps/api"
+    "build:api": "npm run build --prefix apps/api",
+    "install:api": "npm install --prefix apps/api",
+    "install:web": "npm install --prefix apps/web",
+    "install:mobile": "npm install --prefix apps/mobile",
+    "install:all": "npm install --prefix apps/api && npm install --prefix apps/web && npm install --prefix apps/mobile"
   },
   "dependencies": {
     "pg": "^8.21.0"

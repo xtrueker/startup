@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { authService } from '../services/auth';
-import { 
-  ShieldAlert, 
-  Lock, 
-  Mail, 
-  Eye, 
-  EyeOff, 
-  ArrowRight, 
-  Loader2, 
-  Sparkles, 
-  Radio, 
-  AlertCircle 
+import {
+  ShieldAlert,
+  Lock,
+  Mail,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Loader2,
+  Sparkles,
+  Radio,
+  AlertCircle
 } from 'lucide-react';
 import './Login.css';
 
@@ -37,7 +37,7 @@ export default function Login({ onLogin }: LoginProps) {
 
     try {
       const response = await authService.login({ email, password });
-      
+
       if (response.success && response.data) {
         authService.setToken(response.data.token, response.data.user.id, response.data.user.role);
         onLogin();
@@ -46,7 +46,7 @@ export default function Login({ onLogin }: LoginProps) {
       }
     } catch (err: any) {
       setError(
-        err.response?.data?.message || 
+        err.response?.data?.message ||
         'Credenciales inválidas o servidor no disponible'
       );
     } finally {
@@ -62,25 +62,25 @@ export default function Login({ onLogin }: LoginProps) {
 
   return (
     <div className="relative min-h-screen w-full bg-[#0a0a0a] flex items-center justify-center p-4 overflow-hidden select-none text-[#f5f5f5]">
-      
+
       {/* Background Grid */}
       <div className="absolute inset-0 bg-[radial-gradient(#262626_1px,transparent_1px)] [background-size:24px_24px] opacity-35 pointer-events-none" />
-      
+
       {/* Ambient Glow Orbs */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#1f2937]/30 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#18181b]/50 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Main Login Card */}
       <div className="relative w-full max-w-md z-10">
-        
+
         {/* Glow Border Container */}
         <div className="relative rounded-2xl bg-gradient-to-b from-[#262626] via-[#1a1a1a] to-[#0a0a0a] p-[1px] shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
-          
+
           <div className="rounded-2xl bg-[#121212] p-8 sm:p-10 flex flex-col gap-6 border border-[#262626]">
-            
+
             {/* Header: System Badge & Logo */}
             <div className="flex flex-col items-center text-center gap-3">
-              
+
               {/* Tactical Status Pill: Muted Sage */}
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#064e3b]/30 border border-[#065f46]/40 text-[#6ee7b7] text-[11px] font-mono font-bold tracking-wider">
                 <span className="relative flex h-2 w-2">
@@ -134,7 +134,7 @@ export default function Login({ onLogin }: LoginProps) {
 
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              
+
               {/* Field: Email */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-[#a3a3a3] flex items-center gap-1.5">
@@ -211,7 +211,7 @@ export default function Login({ onLogin }: LoginProps) {
                   Registrar Agente
                 </a>
               </p>
-              
+
               <div className="text-[10px] font-mono text-[#525252] uppercase tracking-widest">
                 AES-256 GCM • PROTOCOLO SEGURO EN VIVO
               </div>

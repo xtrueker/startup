@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
 import { calculateEscapeRoutes } from '../services/escapeRouting';
 import { getSocket, emitToOperators } from '../../../shared/utils/socket';
 import { AuditService } from '../../../shared/services/AuditService';
+import { supabase } from '../../../infrastructure/database/connection';
 
 const router = Router();
 
@@ -178,15 +179,17 @@ router.patch('/:id/status', requireAuth, requireRole(['admin', 'supervisor', 'op
 router.get('/:id/events', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const pool = require('../../../infrastructure/database/connection').getPgPool();
-    const result = await pool.query(`
-      SELECT id, event_type, previous_status, new_status, notes, created_at 
-      FROM alert_events 
-      WHERE alert_id = $1 
-      ORDER BY created_at ASC
-    `, [id]);
-    
-    res.json({ success: true, data: result.rows });
+    const { data, error } = await supabase()
+      .from('alert_events')
+      .select('id, event_type, previous_status, new_status, notes, created_at')
+      .eq('alert_id', id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ success: true, data: data || [] });
   } catch (error: any) {
     console.error('ERROR obteniendo eventos de alerta:', error.message);
     res.status(500).json({ success: false, message: 'Error interno', error: error.message });

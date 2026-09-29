@@ -1,7 +1,19 @@
 import { Platform } from 'react-native';
 
+import Constants from 'expo-constants';
+
 const IS_PRODUCTION = false; // Cambia a TRUE cuando despliegues a la nube
-const LAN_URL = 'http://192.168.0.21:3001';
+
+// Obtiene la IP local dinámicamente desde Expo (Metro) o usa la IP actual de la PC (192.168.0.16)
+const getDevHost = () => {
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    return hostUri.split(':')[0];
+  }
+  return '192.168.0.16';
+};
+
+const LAN_URL = `http://${getDevHost()}:3001`;
 const LOCAL_URL = 'http://localhost:3001';
 const PROD_URL = 'https://api.tudominio.com'; // Sustituir por tu dominio real con SSL
 
