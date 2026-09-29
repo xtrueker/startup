@@ -61,7 +61,7 @@ const router = Router();
  */
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { fullName, cedula, email, password, role } = req.body;
+    const { fullName, cedula, email, password, role, phone, idCardFront, idCardBack, selfiePhoto } = req.body;
 
     if (!fullName || !cedula || !email || !password) {
       return res.status(400).json({ success: false, message: 'Faltan datos obligatorios' });
