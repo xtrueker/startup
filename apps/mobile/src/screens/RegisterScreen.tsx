@@ -22,8 +22,8 @@ interface RegisterScreenProps {
 }
 
 export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreenProps) {
-  // Wizard Step: 1 = Datos, 2 = Cédula (Frente y Reverso), 3 = Biometría Facial (Selfie)
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // Wizard Step: 1 = Datos, 2 = Cédula, 3 = Biometría Facial, 4 = Confirmación y Envío
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Paso 1: Datos Personales
   const [fullName, setFullName] = useState('');
@@ -38,6 +38,31 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 
   // Paso 3: Prueba de Vida / Biometría Facial
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
+
+  // Paso 4: Confirmación y Declaración Jurada
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  // Liveness Challenge (Anti-suplantación)
+  const LIVENESS_CHALLENGES = [
+    { instruction: '😊 Sonríe naturalmente mirando a la cámara', icon: '😊' },
+    { instruction: '👉 Gira tu cabeza ligeramente a la derecha', icon: '👉' },
+    { instruction: '👈 Gira tu cabeza ligeramente a la izquierda', icon: '👈' },
+    { instruction: '😮 Abre la boca ligeramente', icon: '😮' },
+    { instruction: '😌 Cierra los ojos por un segundo y ábrelos', icon: '😌' },
+  ];
+  const [livenessChallenge, setLivenessChallenge] = useState<typeof LIVENESS_CHALLENGES[0] | null>(null);
+  const [livenessAccepted, setLivenessAccepted] = useState(false);
+
+  const startLivenessChallenge = () => {
+    const random = LIVENESS_CHALLENGES[Math.floor(Math.random() * LIVENESS_CHALLENGES.length)];
+    setLivenessChallenge(random);
+    setLivenessAccepted(false);
+  };
+
+  const confirmLivenessAndCapture = async () => {
+    setLivenessAccepted(true);
+    await handleCapturePhoto('selfie', true);
+  };
 
   const [loading, setLoading] = useState(false);
 
@@ -84,49 +109,62 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
       }
     } catch (err: any) {
       console.warn('Error al abrir la cámara:', err);
-      // Fallback a galería si la cámara falla (ej. en simuladores o web)
-      handlePickFromGallery(target);
-    }
-  };
-
-  const handlePickFromGallery = async (target: 'idFront' | 'idBack' | 'selfie') => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: true,
-        aspect: target === 'selfie' ? [1, 1] : [16, 10],
-        quality: 0.5,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const dataUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-
-        if (target === 'idFront') setIdCardFront(dataUri);
-        else if (target === 'idBack') setIdCardBack(dataUri);
-        else if (target === 'selfie') setSelfiePhoto(dataUri);
-      }
-    } catch (err: any) {
-      Alert.alert('Error', 'No se pudo seleccionar la imagen: ' + err.message);
+      Alert.alert(
+        'Cámara No Disponible',
+        'No se pudo acceder a la cámara. Verifica los permisos en la configuración de tu dispositivo.'
+      );
     }
   };
 
   // --- VALIDACIÓN DE PASOS ---
+  const validatePassword = (pass: string): string | null => {
+    if (pass.length < 8) return 'La contraseña debe tener al menos 8 caracteres.';
+    if (!/[A-Z]/.test(pass)) return 'Debe contener al menos una letra mayúscula.';
+    if (!/[a-z]/.test(pass)) return 'Debe contener al menos una letra minúscula.';
+    if (!/[0-9]/.test(pass)) return 'Debe contener al menos un número.';
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) return 'Debe contener al menos un carácter especial (!@#$%...).';
+    return null;
+  };
+
+  const getPasswordStrength = (pass: string): { level: number; label: string; color: string } => {
+    let score = 0;
+    if (pass.length >= 8) score++;
+    if (pass.length >= 12) score++;
+    if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) score++;
+    if (score <= 1) return { level: score, label: 'Muy Débil', color: '#EF4444' };
+    if (score <= 2) return { level: score, label: 'Débil', color: '#F97316' };
+    if (score <= 3) return { level: score, label: 'Aceptable', color: '#EAB308' };
+    if (score <= 4) return { level: score, label: 'Fuerte', color: '#22C55E' };
+    return { level: score, label: 'Muy Fuerte', color: '#10B981' };
+  };
+
   const handleNextStep1 = () => {
     if (!fullName.trim() || !cedula.trim() || !email.trim() || !password) {
       Alert.alert('Datos Incompletos', 'Todos los campos marcados son obligatorios.');
       return;
     }
-    if (cedula.trim().length < 6) {
-      Alert.alert('Cédula Inválida', 'Por favor ingresa un número de cédula válido.');
+    // Validación de cédula colombiana: solo números, entre 6 y 10 dígitos
+    if (!/^\d{6,10}$/.test(cedula.trim())) {
+      Alert.alert('Cédula Inválida', 'La cédula debe contener entre 6 y 10 dígitos numéricos, sin puntos ni letras.');
       return;
     }
-    if (!email.includes('@') || !email.includes('.')) {
-      Alert.alert('Email Inválido', 'Por favor ingresa un correo electrónico válido.');
+    // Validación robusta de email
+    const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Email Inválido', 'Por favor ingresa un correo electrónico válido (ej: nombre@dominio.com).');
       return;
     }
-    if (password.length < 6) {
-      Alert.alert('Contraseña Débil', 'La contraseña debe tener al menos 6 caracteres.');
+    // Validación de contraseña robusta
+    const passError = validatePassword(password);
+    if (passError) {
+      Alert.alert('Contraseña No Cumple Requisitos', passError);
+      return;
+    }
+    // Validación de teléfono si fue ingresado
+    if (phone.trim() && !/^\d{7,10}$/.test(phone.trim().replace(/[\s\-\+]/g, ''))) {
+      Alert.alert('Teléfono Inválido', 'El número de teléfono debe contener entre 7 y 10 dígitos.');
       return;
     }
     setStep(2);
@@ -136,18 +174,29 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
     if (!idCardFront || !idCardBack) {
       Alert.alert(
         'Verificación Obligatoria',
-        'Debes capturar tanto la foto frontal como la posterior de tu cédula para evitar cuentas de sabotaje.'
+        'Debes capturar tanto la foto frontal como la posterior de tu cédula. Solo se permite cámara en vivo para evitar fraude.'
       );
       return;
     }
     setStep(3);
   };
 
-  const handleFinalSubmit = async () => {
+  const handleNextStep3 = () => {
     if (!selfiePhoto) {
       Alert.alert(
         'Validación Facial Obligatoria',
-        'Debes tomar una foto de tu rostro para validar la prueba de vida bancaria.'
+        'Debes tomar una foto de tu rostro con la cámara frontal en vivo.'
+      );
+      return;
+    }
+    setStep(4);
+  };
+
+  const handleFinalSubmit = async () => {
+    if (!acceptedTerms) {
+      Alert.alert(
+        'Declaración Jurada Requerida',
+        'Debes aceptar la declaración jurada confirmando que los datos y documentos proporcionados son auténticos y te pertenecen.'
       );
       return;
     }
@@ -166,9 +215,9 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
       });
 
       Alert.alert(
-        '🛡️ Identidad Verificada',
-        'Tu registro y verificación biométrica han sido procesados exitosamente. Ahora formas parte de la Red Ciudadana Segura.',
-        [{ text: 'Ingresar al Sistema', onPress: onRegister }]
+        '📋 Solicitud Enviada',
+        'Tu solicitud de registro fue recibida exitosamente.\n\nNuestro equipo de seguridad validará tu identidad comparando tu selfie con la foto de tu cédula. Recibirás confirmación cuando tu cuenta sea aprobada.\n\nEste proceso puede tomar hasta 24-48 horas.',
+        [{ text: 'Entendido', onPress: onRegister }]
       );
     } catch (e: any) {
       console.error('Error de registro KYC:', e);
@@ -197,7 +246,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
             <Text style={styles.titleApp}>Red Ciudadana</Text>
             <Text style={styles.subtitleApp}>Validación de Identidad Anti-Sabotaje</Text>
 
-            {/* Barra de progreso de 3 pasos */}
+            {/* Barra de progreso de 4 pasos */}
             <View style={styles.progressBarContainer}>
               <View style={[styles.progressStep, step >= 1 && styles.progressStepActive]}>
                 <Text style={styles.progressStepText}>1</Text>
@@ -210,12 +259,17 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
               <View style={[styles.progressStep, step >= 3 && styles.progressStepActive]}>
                 <Text style={styles.progressStepText}>3</Text>
               </View>
+              <View style={[styles.progressLine, step >= 4 && styles.progressLineActive]} />
+              <View style={[styles.progressStep, step >= 4 && styles.progressStepActive]}>
+                <Text style={styles.progressStepText}>4</Text>
+              </View>
             </View>
 
             <View style={styles.stepLabelsRow}>
               <Text style={[styles.stepLabelText, step === 1 && styles.stepLabelTextActive]}>Datos</Text>
               <Text style={[styles.stepLabelText, step === 2 && styles.stepLabelTextActive]}>Cédula</Text>
               <Text style={[styles.stepLabelText, step === 3 && styles.stepLabelTextActive]}>Biometría</Text>
+              <Text style={[styles.stepLabelText, step === 4 && styles.stepLabelTextActive]}>Confirmar</Text>
             </View>
           </View>
 
@@ -270,15 +324,25 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                 autoCapitalize="none"
               />
 
-              <Text style={styles.label}>Contraseña Segura *</Text>
+              <Text style={styles.label}>Contraseña Segura * (Mín. 8 chars, mayúscula, número, especial)</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Ej: MiClave#2026"
                 placeholderTextColor="#64748B"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
               />
+              {password.length > 0 && (
+                <View style={{ marginTop: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flex: 1, height: 4, backgroundColor: '#1E293B', borderRadius: 2, overflow: 'hidden' }}>
+                      <View style={{ width: `${(getPasswordStrength(password).level / 5) * 100}%`, height: '100%', backgroundColor: getPasswordStrength(password).color, borderRadius: 2 }} />
+                    </View>
+                    <Text style={{ color: getPasswordStrength(password).color, fontSize: 10, fontWeight: 'bold' }}>{getPasswordStrength(password).label}</Text>
+                  </View>
+                </View>
+              )}
 
               <TouchableOpacity style={styles.primaryBtn} onPress={handleNextStep1}>
                 <Text style={styles.primaryBtnText}>Continuar a Documento ➔</Text>
@@ -301,6 +365,10 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
               <Text style={styles.cardDesc}>
                 Captura ambos lados de tu documento oficial. Asegúrate de encuadrarlo bien y que los textos sean legibles.
               </Text>
+
+              <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: '#EF4444', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 14 }}>
+                <Text style={{ color: '#FCA5A5', fontSize: 10, fontWeight: 'bold' }}>🔒 MEDIDA ANTI-FRAUDE: Solo se permiten fotos en vivo con la cámara. No se aceptan imágenes de galería para evitar suplantación de identidad.</Text>
+              </View>
 
               {/* Foto Frontal */}
               <View style={styles.documentBox}>
@@ -328,13 +396,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         style={styles.cameraBtn}
                         onPress={() => handleCapturePhoto('idFront')}
                       >
-                        <Text style={styles.cameraBtnText}>📸 Tomar Foto</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.galleryBtn}
-                        onPress={() => handlePickFromGallery('idFront')}
-                      >
-                        <Text style={styles.galleryBtnText}>Galería</Text>
+                        <Text style={styles.cameraBtnText}>📸 Tomar Foto con Cámara</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -367,13 +429,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         style={styles.cameraBtn}
                         onPress={() => handleCapturePhoto('idBack')}
                       >
-                        <Text style={styles.cameraBtnText}>📸 Tomar Foto</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.galleryBtn}
-                        onPress={() => handlePickFromGallery('idBack')}
-                      >
-                        <Text style={styles.galleryBtnText}>Galería</Text>
+                        <Text style={styles.cameraBtnText}>📸 Tomar Foto con Cámara</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -416,7 +472,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                 <Text style={styles.securityTipItem}>👤 Rostro centrado dentro del círculo</Text>
               </View>
 
-              {/* Óvalo Biométrico */}
+              {/* Óvalo Biométrico con Liveness Challenge */}
               <View style={styles.biometricArea}>
                 {selfiePhoto ? (
                   <View style={styles.selfiePreviewContainer}>
@@ -426,9 +482,29 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                     </View>
                     <TouchableOpacity
                       style={[styles.retakeBtn, { marginTop: 16 }]}
-                      onPress={() => handleCapturePhoto('selfie', true)}
+                      onPress={() => { setSelfiePhoto(null); setLivenessChallenge(null); setLivenessAccepted(false); }}
                     >
                       <Text style={styles.retakeBtnText}>🔄 Repetir Selfie</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : livenessChallenge ? (
+                  <View style={styles.biometricCirclePlaceholder}>
+                    <Text style={{ fontSize: 48, marginBottom: 8 }}>{livenessChallenge.icon}</Text>
+                    <Text style={{ color: '#FDE68A', fontSize: 13, fontWeight: 'bold', textAlign: 'center', marginBottom: 4 }}>PRUEBA DE VIDA</Text>
+                    <Text style={{ color: '#E2E8F0', fontSize: 12, textAlign: 'center', lineHeight: 18, marginBottom: 12, paddingHorizontal: 8 }}>
+                      {livenessChallenge.instruction}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.selfieActionBtn}
+                      onPress={confirmLivenessAndCapture}
+                    >
+                      <Text style={styles.selfieActionBtnText}>📸 Listo, Tomar Foto</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ marginTop: 8 }}
+                      onPress={startLivenessChallenge}
+                    >
+                      <Text style={{ color: '#64748B', fontSize: 10 }}>🔄 Otro desafío</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -437,15 +513,9 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                     <Text style={styles.biometricPrompt}>Encuadra tu rostro aquí</Text>
                     <TouchableOpacity
                       style={styles.selfieActionBtn}
-                      onPress={() => handleCapturePhoto('selfie', true)}
+                      onPress={startLivenessChallenge}
                     >
-                      <Text style={styles.selfieActionBtnText}>🤳 Tomar Selfie Facial</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ marginTop: 8 }}
-                      onPress={() => handlePickFromGallery('selfie')}
-                    >
-                      <Text style={styles.gallerySubLink}>O subir desde galería</Text>
+                      <Text style={styles.selfieActionBtnText}>🤳 Iniciar Prueba de Vida</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -459,17 +529,103 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                 <TouchableOpacity
                   style={[
                     styles.primaryBtn,
+                    { flex: 1, marginLeft: 10, marginTop: 0 },
+                    !selfiePhoto && styles.btnDisabled,
+                  ]}
+                  onPress={handleNextStep3}
+                  disabled={!selfiePhoto}
+                >
+                  <Text style={styles.primaryBtnText}>Revisar y Confirmar ➔</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* ========================================================================= */}
+          {/* PASO 4: CONFIRMACIÓN, DECLARACIÓN JURADA Y ENVÍO                          */}
+          {/* ========================================================================= */}
+          {step === 4 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Paso 4: Confirmar y Enviar</Text>
+              <Text style={styles.cardDesc}>
+                Revisa que toda la información sea correcta antes de enviar tu solicitud de registro.
+              </Text>
+
+              {/* Resumen de Datos */}
+              <View style={styles.securityTipsBox}>
+                <Text style={{ color: '#BAE6FD', fontSize: 12, fontWeight: 'bold', marginBottom: 6 }}>📋 Resumen de tu Solicitud:</Text>
+                <Text style={{ color: '#E2E8F0', fontSize: 12, marginVertical: 2 }}>👤 Nombre: {fullName}</Text>
+                <Text style={{ color: '#E2E8F0', fontSize: 12, marginVertical: 2 }}>🪪 Cédula: {cedula}</Text>
+                <Text style={{ color: '#E2E8F0', fontSize: 12, marginVertical: 2 }}>📧 Email: {email.toLowerCase()}</Text>
+                {phone.trim() ? <Text style={{ color: '#E2E8F0', fontSize: 12, marginVertical: 2 }}>📱 Teléfono: {phone}</Text> : null}
+                <Text style={{ color: '#4ADE80', fontSize: 12, marginVertical: 2 }}>✅ Cédula Frontal: Capturada</Text>
+                <Text style={{ color: '#4ADE80', fontSize: 12, marginVertical: 2 }}>✅ Cédula Reverso: Capturada</Text>
+                <Text style={{ color: '#4ADE80', fontSize: 12, marginVertical: 2 }}>✅ Selfie Biométrica: Capturada</Text>
+              </View>
+
+              {/* Miniaturas */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, gap: 8 }}>
+                {idCardFront && <Image source={{ uri: idCardFront }} style={{ flex: 1, height: 70, borderRadius: 8, borderWidth: 1, borderColor: '#38BDF8' }} resizeMode="cover" />}
+                {idCardBack && <Image source={{ uri: idCardBack }} style={{ flex: 1, height: 70, borderRadius: 8, borderWidth: 1, borderColor: '#38BDF8' }} resizeMode="cover" />}
+                {selfiePhoto && <Image source={{ uri: selfiePhoto }} style={{ width: 70, height: 70, borderRadius: 35, borderWidth: 2, borderColor: '#10B981' }} resizeMode="cover" />}
+              </View>
+
+              {/* Declaración Jurada */}
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  backgroundColor: acceptedTerms ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                  borderColor: acceptedTerms ? '#10B981' : '#475569',
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 14,
+                  marginBottom: 16,
+                  gap: 10,
+                }}
+                onPress={() => setAcceptedTerms(!acceptedTerms)}
+                activeOpacity={0.7}
+              >
+                <View style={{
+                  width: 24, height: 24, borderRadius: 6,
+                  borderWidth: 2, borderColor: acceptedTerms ? '#10B981' : '#64748B',
+                  backgroundColor: acceptedTerms ? '#10B981' : 'transparent',
+                  justifyContent: 'center', alignItems: 'center', marginTop: 2,
+                }}>
+                  {acceptedTerms && <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>✓</Text>}
+                </View>
+                <Text style={{ flex: 1, color: '#CBD5E1', fontSize: 11, lineHeight: 17 }}>
+                  <Text style={{ fontWeight: 'bold', color: '#F59E0B' }}>DECLARACIÓN JURADA: </Text>
+                  Declaro bajo gravedad de juramento que los datos personales, documentos de identidad y fotografía biométrica proporcionados son auténticos, verídicos y me pertenecen. Entiendo que proporcionar información falsa constituye un delito y puede derivar en acciones legales conforme a la ley colombiana.
+                </Text>
+              </TouchableOpacity>
+
+              {/* Aviso de Revisión */}
+              <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                <Text style={{ color: '#FDE68A', fontSize: 11, lineHeight: 16 }}>
+                  ⏳ Tu solicitud será revisada por nuestro equipo de seguridad. La aprobación puede tomar entre 24 y 48 horas. Te notificaremos cuando tu cuenta esté activa.
+                </Text>
+              </View>
+
+              <View style={styles.navButtonsRow}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => setStep(3)}>
+                  <Text style={styles.backBtnText}>⬅️ Volver</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.primaryBtn,
                     styles.finishBtn,
                     { flex: 1, marginLeft: 10, marginTop: 0 },
-                    (!selfiePhoto || loading) && styles.btnDisabled,
+                    (!acceptedTerms || loading) && styles.btnDisabled,
                   ]}
                   onPress={handleFinalSubmit}
-                  disabled={!selfiePhoto || loading}
+                  disabled={!acceptedTerms || loading}
                 >
                   {loading ? (
                     <ActivityIndicator color="white" />
                   ) : (
-                    <Text style={styles.primaryBtnText}>🛡️ Finalizar y Registrar</Text>
+                    <Text style={styles.primaryBtnText}>📋 Enviar Solicitud de Registro</Text>
                   )}
                 </TouchableOpacity>
               </View>
