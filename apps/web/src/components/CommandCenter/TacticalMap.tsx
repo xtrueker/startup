@@ -239,7 +239,7 @@ export const TacticalMap: React.FC = () => {
       </div>
 
       <DeckGL
-        layers={mapMode === 'operator' ? layers : [...camerasLayer, ...alertsLayer, ...ghostLayer, ...policeLayer, ...trainingRouteLayer]}
+        layers={layers}
         viewState={viewState}
         onViewStateChange={e => setViewState(e.viewState as any)}
         controller={{ dragRotate: mapMode === 'operator' }}

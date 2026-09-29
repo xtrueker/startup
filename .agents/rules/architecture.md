@@ -1,71 +1,66 @@
-# Protocolo de Arquitectura, Roles y Contratos de API
+# PROTOCOLO DE CONVIVENCIA Y TRABAJO EN EQUIPO (MONOREPO)
 
-Este repositorio es un Monorepo colaborativo para el sistema de seguridad ciudadana en tiempo real. Todos los agentes de Antigravity deben cumplir estrictamente estas directrices.
-
----
-
-## 1. Distribución de Roles y Territorios de Código
-
-Cada miembro del equipo tiene la custodia exclusiva de su componente:
-- **`apps/mobile/` — Frente Móvil (Andrés)**: App del Ciudadano (React Native / Expo). Botón de pánico, modo fantasma, audio en vivo, onboarding KYC bancario.
-- **`apps/web/` — Frente Web (Nyck)**: Centro de Mando Policial y Despacho Operativo (React / Vite). Mosaico de cámaras HLS/RTSP, despacho de patrullas, mapa táctico.
-- **`apps/api/` — Frente Backend y Datos (Joan)**: Servidor Express, base de datos Supabase / PostgreSQL, WebSockets y documentación Swagger.
-
-> **Regla de No Invasión**: Ningún agente debe modificar archivos de otra carpeta sin un requerimiento de contrato explícito.
+Este proyecto está desarrollado por un equipo de 3 personas trabajando simultáneamente con Antigravity.
+Para evitar colisiones, sobreescrituras y conflictos de Git, TODO agente de Antigravity debe obedecer estrictamente este reglamento.
 
 ---
 
-## 2. Prohibición de Redundancia y Fuente Única de la Verdad
+## 1. ZONAS EXCLUSIVAS (TERRITORIOS SAGRADOS)
 
-1. **La Base de Datos es ÚNICA**: Está centralizada en PostgreSQL / Supabase y gestionada exclusivamente a través de `apps/api`.
-2. **Prohibición de Persistencia Local Falsa**:
-   - `apps/mobile` y `apps/web` son **clientes consumidores**.
-   - Está **estrictamente prohibido** que un agente cree bases de datos locales redundantes (SQLite, Realm, WatermelonDB, JSONs locales simulados) o instancie clientes independientes de Supabase dentro de `apps/mobile` o `apps/web` para almacenar datos de negocio.
-3. **Consumo Centralizado**:
-   - Todo flujo de datos (usuarios, alertas, incidentes, cámaras, reportes) se envía y consulta a través de `http://localhost:3001/api` y los sockets correspondientes.
+El repositorio está dividido en 3 carpetas independientes. Cada desarrollador es el dueño absoluto de su carpeta:
 
----
+| Integrante | Carpeta Exclusiva | Rol y Responsabilidad |
+| :--- | :--- | :--- |
+| 📱 **Andrés** | `apps/mobile/` | App del Ciudadano: Botón de pánico, modo fantasma, KYC, mapas móviles. |
+| 🖥️ **Nyck** | `apps/web/` | Centro de Mando: Pantallas de operadores policiales, mosaico de cámaras, despacho. |
+| ⚙️ **Joan** | `apps/api/` + DB | Servidor Central: Endpoints REST, WebSockets, Supabase/PostgreSQL y Swagger. |
 
-## 3. Protocolo de Contratos de API (Handshake Frontend ↔ Backend)
-
-Cuando el agente de **Andrés (Móvil)** o **Nyck (Web)** requiera una funcionalidad o dato que **aún no exista** en el backend:
-
-### A. Lo que debe hacer el Agente de Frontend (Móvil o Web):
-1. **NO inventar bases de datos locales** ni datos mock permanentes.
-2. Definir en el servicio de su app la interfaz TypeScript del contrato (DTO de entrada y DTO de respuesta).
-3. **Generar el Bloque de Especificación para Joan (Backend)**: Debe entregar al usuario un bloque listo para copiar y pegar para Joan con el siguiente formato exacto:
-
-```markdown
-### 📋 Solicitud de Endpoint para Joan (Backend)
-- **Método y Ruta**: `[GET | POST | PUT | DELETE] /api/[módulo]/[ruta]`
-- **Propósito**: Breve explicación de para qué lo necesita el frontend.
-- **Ubicación sugerida en backend**: `apps/api/src/modules/[módulo]/presentation/routes.ts`
-- **Autenticación requerida**: Sí (Bearer Token JWT) / No (Pública)
-- **Payload / Body Esperado (JSON)**:
-\`\`\`json
-{
-  "campo": "tipo y descripción"
-}
-\`\`\`
-- **Respuesta Esperada (JSON)**:
-\`\`\`json
-{
-  "success": true,
-  "data": { ... }
-}
-\`\`\`
-- **Lógica / Tablas involucradas**: Indicación de qué tablas de Supabase (`alerts`, `users`, `cameras`, etc.) debe consultar o actualizar.
-```
-
-### B. Lo que debe hacer el Agente de Joan (Backend):
-1. Tomar la especificación generada por el frontend e implementarla en `apps/api`.
-2. Mantener la respuesta exacta del contrato acordado.
-3. Añadir la anotación Swagger OpenAPI correspondiente para mantener la documentación al día.
-4. Notificar a su usuario cuando el endpoint esté listo y desplegado en local.
+### ⛔ PROHIBICIONES ESTRICTAS DE INVASIÓN:
+1. El Antigravity de **Andrés** tiene PROHIBIDO editar archivos en `apps/web/` y `apps/api/`.
+2. El Antigravity de **Nyck** tiene PROHIBIDO editar archivos en `apps/mobile/` y `apps/api/`.
+3. El Antigravity de **Joan** tiene PROHIBIDO editar archivos en `apps/mobile/` y `apps/web/`.
+4. **Archivos de la Raíz (Zona Neutral)**: Ningún agente puede modificar archivos de la raíz (`package.json`, `.gitignore`, scripts globales) sin consenso previo del equipo.
 
 ---
 
-## 4. Control de Cambios y Git
+## 2. PROHIBICIÓN DE REDUNDANCIA Y BASES DE DATOS LOCALES
 
-1. Cada desarrollador trabaja en su rama propia (`andres`, `Nyck`, `notbread` o su rama designada).
-2. Los merges hacia `main` se realizan verificando que no existan conflictos en los archivos de configuración compartidos (`package.json`, `.env`).
+1. **La Base de Datos es ÚNICA**: Está en Supabase (PostgreSQL) y su único administrador es el backend de Joan (`apps/api`).
+2. **Andrés (Móvil) y Nyck (Web) son CLIENTES CONSUMIDORES**:
+   - Está **TERMINANTEMENTE PROHIBIDO** que el agente de Andrés o el de Nyck cree bases de datos locales (SQLite, Realm, JSONs locales de persistencia de negocio, mocks permanentes) para simular almacenamiento.
+   - Está prohibido que el Móvil o la Web instancien clientes directos de Supabase para saltarse la API.
+3. Todo dato (alertas, usuarios, incidentes, cámaras, reportes) se envía y se consulta a través de la API central (`http://localhost:3001/api`) y los WebSockets del backend.
+
+---
+
+## 3. PROTOCOLO DE COMUNICACIÓN: CÓMO PEDIR ENDPOINTS A JOAN
+
+Si **Andrés** (en el Móvil) o **Nyck** (en la Web) necesitan una pantalla o función que requiere datos que la API todavía no tiene:
+
+### Lo que hace el agente de Frontend (Andrés o Nyck):
+1. Diseña la interfaz visual en su carpeta correspondiente.
+2. Define la interfaz TypeScript del contrato (qué datos necesita enviar y qué espera recibir).
+3. **Genera la "Ficha Técnica para Joan"**: Un bloque exacto y formateado para entregarle a Joan, con:
+   - Método y Ruta (`GET /api/...`, `POST /api/...`).
+   - Ubicación exacta del archivo en `apps/api/src/modules/...` donde Joan debe colocarlo.
+   - Parámetros / Body esperados.
+   - Estructura JSON de respuesta.
+   - Consulta a la tabla de Supabase requerida.
+   - Código backend sugerido listo para que el Antigravity de Joan solo lo pegue y ejecute.
+
+### Lo que hace el agente de Joan (Backend):
+1. Recibe la Ficha Técnica, crea el endpoint en `apps/api/` y realiza la consulta en Supabase.
+2. Añade la documentación en Swagger (`/api/docs`).
+3. Avisa a Andrés o Nyck: *"Endpoint listo y verificado, ya lo pueden consumir"*.
+
+---
+
+## 4. GESTIÓN DE RAMAS Y GIT (CERO CONFLICTOS)
+
+1. Cada uno trabaja en su propia rama:
+   - Andrés trabaja en: `andres`
+   - Nyck trabaja en: `Nyck`
+   - Joan trabaja en: `notbread` (o `joan`)
+2. Al iniciar la jornada: Ejecutar `git pull origin main` para tener lo último.
+3. Al finalizar una tarea: Hacer commit y push exclusivamente a su propia rama remota.
+4. Como nadie toca los archivos de los demás, los `merge` hacia `main` se integran automáticamente sin conflictos de código.

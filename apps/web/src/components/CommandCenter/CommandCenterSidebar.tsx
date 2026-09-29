@@ -6,6 +6,7 @@ import { authService } from '../../services/auth';
 import { AdminMenu } from './AdminMenu';
 import { AudioStreamer } from './AudioStreamer';
 import {
+  Map,
   ShieldAlert,
   ShieldCheck,
   Activity,
@@ -122,7 +123,7 @@ export const CommandCenterSidebar: React.FC = () => {
 
           <div className="w-8 h-px bg-[#262626] my-0.5" />
 
-          {/* Central de Despacho (Mapa Principal) */}
+          {/* Central de Despacho (Icono de Mapa) */}
           <button
             onClick={handleDispatchClick}
             title="Central de Despacho (Mapa Táctico)"
@@ -132,8 +133,23 @@ export const CommandCenterSidebar: React.FC = () => {
                 : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#1a1a1a] border border-transparent hover:border-[#262626]'
             }`}
           >
-            <ShieldAlert size={18} />
+            <Map size={18} />
           </button>
+
+          {/* Botón de Heatmap (Inmediatamente abajo de Central de Despacho) */}
+          <button
+            onClick={toggleHeatmap}
+            title={heatmapEnabled ? 'Heatmap: ACTIVADO' : 'Activar Heatmap'}
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors p-0 ${
+              heatmapEnabled
+                ? 'bg-[#222222] border border-[#4f46e5]/70 text-[#818cf8] shadow-[0_0_8px_rgba(99,102,241,0.3)]'
+                : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#1a1a1a] border border-transparent hover:border-[#262626]'
+            }`}
+          >
+            <Layers size={18} />
+          </button>
+
+          <div className="w-8 h-px bg-[#262626] my-0.5" />
 
           {/* 1. Módulo Operadores */}
           <button
@@ -161,7 +177,7 @@ export const CommandCenterSidebar: React.FC = () => {
             <Cctv size={18} />
           </button>
 
-          {/* 3. Módulo Usuarios */}
+          {/* 3. Módulo Usuarios / Equipos */}
           <button
             onClick={() => navigate('/command-center/teams')}
             title="Módulo: Equipos"
@@ -187,7 +203,7 @@ export const CommandCenterSidebar: React.FC = () => {
             <ShieldCheck size={18} />
           </button>
 
-          {/* 4. Módulo Emergencias */}
+          {/* 5. Módulo Emergencias */}
           <button
             onClick={() => navigate('/command-center/emergencies')}
             title={`Módulo: Emergencias (${activeCount} activas)`}
@@ -205,7 +221,7 @@ export const CommandCenterSidebar: React.FC = () => {
             )}
           </button>
 
-          {/* 5. Módulo KPI */}
+          {/* 6. Módulo KPI */}
           <button
             onClick={() => navigate('/command-center/kpi')}
             title="Módulo: KPI & Reportes"
@@ -216,21 +232,6 @@ export const CommandCenterSidebar: React.FC = () => {
             }`}
           >
             <BarChart3 size={18} />
-          </button>
-
-          <div className="w-8 h-px bg-[#262626] my-0.5" />
-
-          {/* Heatmap Toggle */}
-          <button
-            onClick={toggleHeatmap}
-            title={heatmapEnabled ? 'Heatmap: ACTIVADO' : 'Activar Heatmap'}
-            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors p-0 ${
-              heatmapEnabled
-                ? 'bg-[#222222] border border-[#383838] text-[#efede3]'
-                : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#1a1a1a] border border-transparent hover:border-[#262626]'
-            }`}
-          >
-            <Layers size={18} />
           </button>
 
           {/* Espaciador flexible */}
@@ -283,20 +284,30 @@ export const CommandCenterSidebar: React.FC = () => {
             </button>
           </div>
 
-          {/* Header */}
-          <div className="p-5 border-b border-[#262626] bg-[#121212]/90 backdrop-blur flex flex-col gap-2">
-            <button
-              onClick={handleDispatchClick}
-              className="flex items-center gap-2 text-[#efede3] hover:text-white font-black uppercase tracking-widest text-sm text-left transition-colors"
-            >
-              <ShieldAlert size={18} /> Central de Despacho
-            </button>
-            <div className={`text-xs px-2.5 py-1.5 rounded-md font-bold inline-flex items-center gap-1.5 shadow-sm w-max ${
-              connected ? 'bg-[#064e3b]/30 text-[#6ee7b7] border border-[#065f46]/40' : 'bg-[#4c0519]/30 text-[#fda4af] border border-[#881337]/40 animate-pulse'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${connected ? 'bg-[#34d399] shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-[#f43f5e]'}`}></span>
-              {connected ? 'En Vivo (0ms lag)' : 'Reconectando Canales...'}
+          {/* Header con Central de Despacho y Heatmap directamente abajo */}
+          <div className="p-4 border-b border-[#262626] bg-[#121212]/90 backdrop-blur flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={handleDispatchClick}
+                className="flex items-center gap-2 text-[#efede3] hover:text-white font-black uppercase tracking-widest text-sm text-left transition-colors"
+              >
+                <Map size={18} className="text-[#818cf8]" /> Central de Despacho
+              </button>
+              
             </div>
+
+            {/* Botón de Heatmap abajo del botón de Central de Despacho */}
+            <button
+              onClick={toggleHeatmap}
+              className={`flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                heatmapEnabled
+                  ? 'bg-[#1e1b4b] text-[#c7d2fe] border border-[#4f46e5]/70 shadow-[0_0_12px_rgba(99,102,241,0.25)]'
+                  : 'bg-[#171717] text-[#a3a3a3] border border-[#262626] hover:bg-[#202020] hover:text-white'
+              }`}
+            >
+              <Layers size={14} className={heatmapEnabled ? 'text-[#818cf8]' : 'text-[#737373]'} />
+              <span>{heatmapEnabled ? 'Heatmap: Activado' : 'Activar Análisis Heatmap'}</span>
+            </button>
           </div>
 
           {/* Filtro por Tipo */}
@@ -449,21 +460,6 @@ export const CommandCenterSidebar: React.FC = () => {
 
           {/* Admin Navigation Menu */}
           <AdminMenu />
-
-          {/* Tactical Toolbar */}
-          <div className="p-4 border-t border-[#262626] bg-[#121212] flex flex-col gap-2">
-            <button
-              onClick={toggleHeatmap}
-              className={`flex items-center justify-center gap-2 w-full py-2 rounded text-sm font-bold transition-all ${
-                heatmapEnabled
-                  ? 'bg-[#242424] text-[#efede3] font-bold border border-[#404040]'
-                  : 'bg-[#171717] text-[#d4d4d4] border border-[#262626] hover:bg-[#202020] hover:text-white'
-              }`}
-            >
-              <Layers size={16} />
-              {heatmapEnabled ? 'Modo Predictivo (ON)' : 'Análisis Heatmap'}
-            </button>
-          </div>
         </div>
       )}
     </aside>
