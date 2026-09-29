@@ -7,6 +7,12 @@ import CommandCenterLayout from './layout/CommandCenterLayout';
 import CommandCenter from './pages/CommandCenter';
 import CitizenTracker from './pages/CitizenTracker';
 import { authService } from './services/auth';
+import AdminOperators from './pages/Admin/Operators';
+import AdminCameras from './pages/Admin/Cameras';
+import AdminUsers from './pages/Admin/Teams';
+import AdminEmergencies from './pages/Admin/Emergencies';
+import AdminKPI from './pages/Admin/KPI';
+import AdminRoles from './pages/Admin/Roles';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -104,6 +110,12 @@ function App() {
           }
         >
           <Route index element={<CommandCenter />} />
+          <Route path="operators" element={<AdminOperators />} />
+          <Route path="cameras" element={<AdminCameras />} />
+          <Route path="teams" element={<AdminUsers />} />
+          <Route path="emergencies" element={<AdminEmergencies />} />
+          <Route path="kpi" element={<AdminKPI />} />
+          <Route path="roles" element={<AdminRoles />} />
         </Route>
       </Routes>
     </Router>

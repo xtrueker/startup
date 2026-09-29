@@ -12,7 +12,12 @@ const router = Router();
 // 2. Controladores Ligeros (Solo gestionan HTTP y respuestas)
 router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
   try {
-    const newCamera = await cameraService.createCamera(req.body);
+    const authReq = req as any;
+    const body = {
+      ...req.body,
+      authorityId: req.body.authorityId || authReq.user?.userId || authReq.user?.id || '00000000-0000-0000-0000-000000000000'
+    };
+    const newCamera = await cameraService.createCamera(body);
     return res.status(201).json({
       success: true,
       message: 'Cámara creada exitosamente',

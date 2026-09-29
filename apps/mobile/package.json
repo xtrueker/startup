@@ -39,6 +39,7 @@
     "react-native-screens": "~4.26.0",
     "react-native-volume-manager": "^2.0.8",
     "react-native-web": "^0.21.2",
+    "red-ciudadana-core": "file:../..",
     "socket.io-client": "^4.8.0"
   },
   "devDependencies": {

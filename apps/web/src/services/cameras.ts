@@ -22,7 +22,9 @@ export interface CreateCameraData {
   streamUrl: string;
   coverageRadius?: number;
   isPublic?: boolean;
-  authorityId: string;
+  authorityId?: string;
+  protocol?: 'rtsp' | 'webrtc' | 'hls' | 'http';
+  model?: string;
 }
 
 export const cameraService = {
@@ -49,4 +51,16 @@ export const cameraService = {
     const response = await api.delete(`/cameras/${id}`);
     return response.data;
   },
+
+  // Descubrir cámara automáticamente en red local
+  discoverCamera: async (force: boolean = false) => {
+    const response = await api.get(`/cameras/discover${force ? '?force=true' : ''}`);
+    return response.data;
+  },
+
+  // Estado del escáner de red
+  getCameraScannerStatus: async () => {
+    const response = await api.get('/cameras/status');
+    return response.data;
+  }
 };
