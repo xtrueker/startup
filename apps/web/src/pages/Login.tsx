@@ -256,7 +256,7 @@ export default function Login({ onLogin }: LoginProps) {
               <div className="flex flex-col gap-1.5 text-left">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-[#9ca3af] flex items-center gap-1.5">
                   <Lock size={12} className="text-[#9ca3af]" />
-                  Contraseña Táctica
+                  Contraseña
                 </label>
                 <div className="relative">
                   <input
@@ -346,10 +346,6 @@ export default function Login({ onLogin }: LoginProps) {
                   Registrar Agente
                 </a>
               </p>
-
-              <div className="text-[10px] font-mono text-[#525252] uppercase tracking-widest">
-                AES-256 GCM • PROTOCOLO SEGURO EN VIVO
-              </div>
             </div>
 
           </div>
