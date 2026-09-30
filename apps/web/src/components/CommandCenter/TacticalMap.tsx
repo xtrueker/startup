@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { ScatterplotLayer, IconLayer, PathLayer } from '@deck.gl/layers';
-import { MapPin } from 'lucide-react';
+import { MapPin, Satellite, MapPinned, Waypoints } from 'lucide-react';
 import { useCommandStore } from '../../stores/useCommandStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { authService } from '../../services/auth';
@@ -12,10 +12,78 @@ import { useTacticalHeatmapLayer } from './TacticalHeatmapLayer';
 import { routingService } from '../../services/routingService';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
+const TACTICAL_DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+
+// 1. Pure Clean Satellite Style (Ultra-HD Google Earth: ZERO restaurants, ZERO locales, ZERO commercial clutter)
+const SATELLITE_CLEAN_STYLE: any = {
+  version: 8,
+  sources: {
+    'google-satellite': {
+      type: 'raster',
+      tiles: [
+        'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        'https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        'https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+      ],
+      tileSize: 256,
+      maxzoom: 22,
+      attribution: '© Google Earth'
+    }
+  },
+  layers: [
+    {
+      id: 'google-satellite-layer',
+      type: 'raster',
+      source: 'google-satellite',
+      minzoom: 0,
+      maxzoom: 22,
+      paint: {
+        'raster-opacity': 1,
+        'raster-resampling': 'linear',
+        'raster-fade-duration': 100
+      }
+    }
+  ]
+};
+
+// 2. Clean Satellite with Road Names overlay (Zero POIs/businesses, only official Calle/Carrera street names)
+const SATELLITE_WITH_ROADS_STYLE: any = {
+  version: 8,
+  sources: {
+    'google-satellite': SATELLITE_CLEAN_STYLE.sources['google-satellite'],
+    'clean-roads': {
+      type: 'raster',
+      tiles: [
+        'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'
+      ],
+      tileSize: 256,
+      maxzoom: 19
+    }
+  },
+  layers: [
+    SATELLITE_CLEAN_STYLE.layers[0],
+    {
+      id: 'clean-roads-layer',
+      type: 'raster',
+      source: 'clean-roads',
+      minzoom: 0,
+      maxzoom: 22,
+      paint: {
+        'raster-opacity': 0.85
+      }
+    }
+  ]
+};
+
 export const TacticalMap: React.FC = () => {
   const user = useAuthStore(state => state.user);
   const userCiudad = user?.ciudad || authService.getCiudad();
   const cityConfig = useMemo(() => getCityCoordinates(userCiudad), [userCiudad]);
+
+  const [mapType, setMapType] = useState<'tactical' | 'satellite'>('tactical');
+  const [showCleanRoads, setShowCleanRoads] = useState(false);
+  const [viewPerspective, setViewPerspective] = useState<'3d' | '2d'>('3d');
 
   const [viewState, setViewState] = useState(() => ({
     longitude: cityConfig.lng,
@@ -28,8 +96,6 @@ export const TacticalMap: React.FC = () => {
   const activeAlerts = useCommandStore(state => state.activeAlerts);
   const focusedAlertId = useCommandStore(s => s.focusedAlertId);
   const focusMapOnAlert = useCommandStore(s => s.focusMapOnAlert);
-
-  const [mapMode, setMapMode] = useState<'operator' | 'citizen'>('operator');
 
   const alertsList = useMemo(() => Object.values(activeAlerts), [activeAlerts]);
 
@@ -55,19 +121,19 @@ export const TacticalMap: React.FC = () => {
         longitude: loc.lng,
         latitude: loc.lat,
         zoom: 16,
-        pitch: mapMode === 'operator' ? 55 : 0,
+        pitch: viewPerspective === '3d' ? 55 : 0,
         transitionDuration: 1500
       }));
     }
-  }, [focusedAlertId, activeAlerts, mapMode]);
+  }, [focusedAlertId, activeAlerts, viewPerspective]);
 
-  const toggleMapMode = () => {
-    const newMode = mapMode === 'operator' ? 'citizen' : 'operator';
-    setMapMode(newMode);
+  const handlePerspectiveChange = (perspective: '3d' | '2d') => {
+    setViewPerspective(perspective);
     setViewState(prev => ({
       ...prev,
-      pitch: newMode === 'operator' ? 55 : 0,
-      bearing: newMode === 'operator' ? 0 : 0
+      pitch: perspective === '3d' ? 55 : 0,
+      bearing: perspective === '3d' ? prev.bearing || 0 : 0,
+      transitionDuration: 800
     }));
   };
 
@@ -239,10 +305,10 @@ export const TacticalMap: React.FC = () => {
 
 
   return (
-    <div style={{ height: '100%', width: '100%', position: 'relative', background: mapMode === 'operator' ? '#0a0a0a' : '#171717' }}>
+    <div style={{ height: '100%', width: '100%', position: 'relative', background: mapType === 'satellite' ? '#030803' : (viewPerspective === '3d' ? '#0a0a0a' : '#171717') }}>
       
-      {/* Top Right Controls: Clickable Jurisdiction Card (Recenters on City) + Map Mode Toggle */}
-      <div className="absolute top-6 right-6 z-10 flex items-center gap-2.5 pointer-events-auto">
+      {/* Top Right Controls: Jurisdiction Card + Perspective (3D / 2D) */}
+      <div className="absolute top-4 right-5 z-10 flex items-center gap-2 pointer-events-auto">
         {/* City Jurisdiction Button (Re-centers on Click) */}
         <button
           onClick={() => {
@@ -251,58 +317,119 @@ export const TacticalMap: React.FC = () => {
               longitude: cityConfig.lng,
               latitude: cityConfig.lat,
               zoom: cityConfig.zoom,
-              pitch: mapMode === 'operator' ? 55 : 0,
+              pitch: viewPerspective === '3d' ? 55 : 0,
               bearing: 0,
               transitionDuration: 1000
             }));
           }}
           title={`Clic para re-centrar el mapa en ${cityConfig.name}`}
-          className="group glass-panel rounded-xl px-3.5 py-2 flex items-center gap-2.5 border border-[#333333] hover:border-emerald-500/50 bg-[#121212]/90 hover:bg-[#1a1a1a] backdrop-blur-md shadow-lg transition-all duration-200 cursor-pointer text-left active:scale-[0.98]"
+          className="group glass-panel rounded-lg px-2.5 py-1.5 flex items-center gap-2 border border-[#333333] hover:border-emerald-500/50 bg-[#121212]/90 hover:bg-[#1a1a1a] backdrop-blur-md shadow-md transition-all duration-200 cursor-pointer text-left active:scale-[0.98]"
         >
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 group-hover:border-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center text-emerald-400 transition-colors flex-shrink-0">
-            <MapPin size={15} className="group-hover:scale-110 transition-transform" />
+          <div className="w-5 h-5 rounded-md bg-emerald-500/10 border border-emerald-500/30 group-hover:border-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center text-emerald-400 transition-colors flex-shrink-0">
+            <MapPin size={12} className="group-hover:scale-110 transition-transform" />
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] uppercase font-mono text-[#8c8c8c] group-hover:text-emerald-400/90 tracking-wider font-semibold transition-colors flex items-center gap-1">
-              Jurisdicción Operativa
+            <span className="text-[9px] uppercase font-mono text-[#8c8c8c] group-hover:text-emerald-400/90 tracking-wider font-semibold transition-colors flex items-center gap-1 leading-none mb-0.5">
+              Jurisdicción
             </span>
-            <span className="text-xs font-bold text-white group-hover:text-[#f0fdf4] tracking-wide flex items-center gap-1.5 transition-colors">
+            <span className="text-[11px] font-bold text-white group-hover:text-[#f0fdf4] tracking-wide flex items-center gap-1 transition-colors leading-none">
               {cityConfig.name}
-              <span className="text-[10px] font-normal text-[#a3a3a3] group-hover:text-slate-300">({cityConfig.department})</span>
+              <span className="text-[9px] font-normal text-[#a3a3a3] group-hover:text-slate-300">({cityConfig.department})</span>
             </span>
           </div>
         </button>
 
-        {/* View Mode Toggle */}
-        <div className="glass-panel rounded-xl p-1.5 flex gap-1 border border-[#333333] bg-[#121212]/90 backdrop-blur-md shadow-lg">
+        {/* Perspective: Operador (3D) vs Ciudadano (2D) */}
+        <div className="glass-panel rounded-lg p-[5px] flex gap-0.5 border border-[#333333] bg-[#121212]/90 backdrop-blur-md shadow-md">
           <button 
-            onClick={() => mapMode !== 'operator' && toggleMapMode()}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${mapMode === 'operator' ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'}`}
+            onClick={() => handlePerspectiveChange('3d')}
+            className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+              viewPerspective === '3d' 
+                ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' 
+                : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'
+            }`}
+            title="Vista tridimensional con ángulo de inclinación 3D"
           >
             Operador (3D)
           </button>
           <button 
-            onClick={() => mapMode !== 'citizen' && toggleMapMode()}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${mapMode === 'citizen' ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'}`}
+            onClick={() => handlePerspectiveChange('2d')}
+            className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+              viewPerspective === '2d' 
+                ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' 
+                : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'
+            }`}
+            title="Vista cenital plana 2D"
           >
             Ciudadano (2D)
           </button>
         </div>
       </div>
 
+      {/* ── BOTONES CIRCULARES LATERALES DERECHOS (Compactos) ── */}
+      <div className="absolute right-5 top-[7rem] z-10 flex flex-col gap-1.5 pointer-events-auto items-center">
+        {/* Botón Circular 1: Alternar Modo Satelital / Táctico */}
+        <button
+          onClick={() => setMapType(mapType === 'satellite' ? 'tactical' : 'satellite')}
+          className={`w-[35px] h-[35px] rounded-full flex items-center justify-center transition-all duration-200 shadow-md border cursor-pointer group relative ${
+            mapType === 'satellite'
+              ? 'bg-[#0e1c62] border-[#3865f6] text-white shadow-[0_0_10px_rgba(56,101,246,0.5)] scale-105'
+              : 'bg-[#121212]/90 border-[#333333] hover:border-[#3865f6]/50 text-[#a3a3a3] hover:text-white backdrop-blur-md hover:bg-[#1a1a1a]'
+          }`}
+          title={mapType === 'satellite' ? 'Cambiar a Mapa Táctico' : 'Cambiar a Satélite (Real)'}
+        >
+          {mapType === 'satellite' ? (
+            <Satellite size={15} className="text-blue-300" />
+          ) : (
+            <MapPinned size={15} className="group-hover:text-[#3865f6] transition-colors" />
+          )}
+
+          {/* Tooltip flotante hacia la izquierda */}
+          <span className="absolute right-9 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-150 bg-[#121212]/95 border border-[#333333] text-white text-[10px] font-semibold py-0.5 px-2 rounded-md whitespace-nowrap shadow-xl">
+            {mapType === 'satellite' ? 'Satélite Activo (Clic: Táctico)' : 'Activar Satélite (Real)'}
+          </span>
+        </button>
+
+        {/* Botón Circular 2: Alternar Calles (ÚNICAMENTE si el mapa Satelital está activo) */}
+        {mapType === 'satellite' && (
+          <button
+            onClick={() => setShowCleanRoads(!showCleanRoads)}
+            className={`w-[35px] h-[35px] rounded-full flex items-center justify-center transition-all duration-200 shadow-md border cursor-pointer group relative animate-in fade-in zoom-in-95 duration-150 ${
+              showCleanRoads
+                ? 'bg-[#1e3a8a] border-[#60a5fa] text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]'
+                : 'bg-[#121212]/90 border-[#333333] hover:border-[#3865f6]/50 text-[#a3a3a3] hover:text-white backdrop-blur-md hover:bg-[#1a1a1a]'
+            }`}
+            title={showCleanRoads ? 'Modo 100% Limpio (Ocultar calles)' : 'Mostrar nombres de calles'}
+          >
+            <Waypoints 
+              size={15} 
+              className={showCleanRoads ? 'text-blue-200' : 'group-hover:text-blue-300 transition-colors'} 
+            />
+
+            {/* Tooltip flotante hacia la izquierda */}
+            <span className="absolute right-9 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-150 bg-[#121212]/95 border border-[#333333] text-white text-[10px] font-semibold py-0.5 px-2 rounded-md whitespace-nowrap shadow-xl">
+              {showCleanRoads ? 'Calles Activas (Clic: Limpio)' : 'Ver Calles'}
+            </span>
+          </button>
+        )}
+      </div>
+
       <DeckGL
         layers={layers}
         viewState={viewState}
         onViewStateChange={e => setViewState(e.viewState as any)}
-        controller={{ dragRotate: mapMode === 'operator' }}
+        controller={{ dragRotate: viewPerspective === '3d' }}
         onClick={handleMapClick}
         getCursor={({ isHovering }) => (isDrawingRoute ? 'crosshair' : (isHovering ? 'pointer' : 'default'))}
       >
         <MapGL 
-          mapStyle={mapMode === 'operator' ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"} 
+          mapStyle={
+            mapType === 'satellite'
+              ? (showCleanRoads ? SATELLITE_WITH_ROADS_STYLE : SATELLITE_CLEAN_STYLE)
+              : TACTICAL_DARK_STYLE
+          } 
           reuseMaps
-        >
-        </MapGL>
+        />
       </DeckGL>
     </div>
   );
