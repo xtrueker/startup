@@ -268,10 +268,18 @@ export const CommandCenterSidebar: React.FC = () => {
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#10b981] border-2 border-[#121212] shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
             </div>
-            {/* Name & Role */}
+            {/* Name & Role & City */}
             <div className="flex-1 min-w-0">
               <div className="text-xs font-bold text-[#efede3] truncate">{userName}</div>
-              <div className="text-[10px] text-[#a3a3a3] uppercase tracking-wider font-mono">{userRole}</div>
+              <div className="text-[10px] text-[#a3a3a3] uppercase tracking-wider font-mono flex items-center gap-1 truncate">
+                <span>{userRole}</span>
+                {user?.ciudad && (
+                  <>
+                    <span className="text-[#555]">•</span>
+                    <span className="text-emerald-400 font-semibold truncate">{user.ciudad}</span>
+                  </>
+                )}
+              </div>
             </div>
             {/* Logout Button */}
             <button

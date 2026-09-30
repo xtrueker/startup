@@ -30,8 +30,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       const response = await authService.getMe();
       if (response.success && response.data) {
         set({ user: response.data, isAuthenticated: true });
-        // Ensure role is up to date in localStorage
-        authService.setToken(token, response.data.id, response.data.role);
+        // Ensure role and ciudad are up to date in localStorage
+        authService.setToken(token, response.data.id, response.data.role, response.data.ciudad);
       } else {
         throw new Error('Invalid token');
       }

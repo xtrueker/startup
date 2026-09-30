@@ -2,22 +2,28 @@ import React, { useEffect, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { ScatterplotLayer, IconLayer, PathLayer } from '@deck.gl/layers';
+import { MapPin } from 'lucide-react';
 import { useCommandStore } from '../../stores/useCommandStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { authService } from '../../services/auth';
+import { getCityCoordinates } from '../../utils/colombiaCities';
 
 import { useTacticalHeatmapLayer } from './TacticalHeatmapLayer';
 import { routingService } from '../../services/routingService';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-const INITIAL_VIEW_STATE = {
-  longitude: -74.0817,
-  latitude: 4.6097,
-  zoom: 13,
-  pitch: 55,
-  bearing: 0
-};
-
 export const TacticalMap: React.FC = () => {
-  const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
+  const user = useAuthStore(state => state.user);
+  const userCiudad = user?.ciudad || authService.getCiudad();
+  const cityConfig = useMemo(() => getCityCoordinates(userCiudad), [userCiudad]);
+
+  const [viewState, setViewState] = useState(() => ({
+    longitude: cityConfig.lng,
+    latitude: cityConfig.lat,
+    zoom: cityConfig.zoom,
+    pitch: 55,
+    bearing: 0
+  }));
 
   const activeAlerts = useCommandStore(state => state.activeAlerts);
   const focusedAlertId = useCommandStore(s => s.focusedAlertId);
@@ -27,7 +33,20 @@ export const TacticalMap: React.FC = () => {
 
   const alertsList = useMemo(() => Object.values(activeAlerts), [activeAlerts]);
 
-  // Handle FlyTo
+  // Centrar en la ciudad del usuario al iniciar sesión o cambiar de ciudad
+  useEffect(() => {
+    if (!focusedAlertId) {
+      setViewState(prev => ({
+        ...prev,
+        longitude: cityConfig.lng,
+        latitude: cityConfig.lat,
+        zoom: cityConfig.zoom,
+        transitionDuration: 1200
+      }));
+    }
+  }, [cityConfig, focusedAlertId]);
+
+  // Handle FlyTo cuando se selecciona una alerta específica
   useEffect(() => {
     if (focusedAlertId && activeAlerts[focusedAlertId]) {
       const loc = activeAlerts[focusedAlertId].sourceLocation;
@@ -222,20 +241,53 @@ export const TacticalMap: React.FC = () => {
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative', background: mapMode === 'operator' ? '#0a0a0a' : '#171717' }}>
       
-      {/* View Mode Toggle */}
-      <div className="absolute top-6 right-6 z-10 glass-panel rounded-xl p-1.5 flex gap-1 pointer-events-auto">
-        <button 
-          onClick={() => mapMode !== 'operator' && toggleMapMode()}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${mapMode === 'operator' ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'}`}
+      {/* Top Right Controls: Clickable Jurisdiction Card (Recenters on City) + Map Mode Toggle */}
+      <div className="absolute top-6 right-6 z-10 flex items-center gap-2.5 pointer-events-auto">
+        {/* City Jurisdiction Button (Re-centers on Click) */}
+        <button
+          onClick={() => {
+            setViewState(prev => ({
+              ...prev,
+              longitude: cityConfig.lng,
+              latitude: cityConfig.lat,
+              zoom: cityConfig.zoom,
+              pitch: mapMode === 'operator' ? 55 : 0,
+              bearing: 0,
+              transitionDuration: 1000
+            }));
+          }}
+          title={`Clic para re-centrar el mapa en ${cityConfig.name}`}
+          className="group glass-panel rounded-xl px-3.5 py-2 flex items-center gap-2.5 border border-[#333333] hover:border-emerald-500/50 bg-[#121212]/90 hover:bg-[#1a1a1a] backdrop-blur-md shadow-lg transition-all duration-200 cursor-pointer text-left active:scale-[0.98]"
         >
-          Operador (3D)
+          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 group-hover:border-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center text-emerald-400 transition-colors flex-shrink-0">
+            <MapPin size={15} className="group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase font-mono text-[#8c8c8c] group-hover:text-emerald-400/90 tracking-wider font-semibold transition-colors flex items-center gap-1">
+              Jurisdicción Operativa
+            </span>
+            <span className="text-xs font-bold text-white group-hover:text-[#f0fdf4] tracking-wide flex items-center gap-1.5 transition-colors">
+              {cityConfig.name}
+              <span className="text-[10px] font-normal text-[#a3a3a3] group-hover:text-slate-300">({cityConfig.department})</span>
+            </span>
+          </div>
         </button>
-        <button 
-          onClick={() => mapMode !== 'citizen' && toggleMapMode()}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${mapMode === 'citizen' ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'}`}
-        >
-          Ciudadano (2D)
-        </button>
+
+        {/* View Mode Toggle */}
+        <div className="glass-panel rounded-xl p-1.5 flex gap-1 border border-[#333333] bg-[#121212]/90 backdrop-blur-md shadow-lg">
+          <button 
+            onClick={() => mapMode !== 'operator' && toggleMapMode()}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${mapMode === 'operator' ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'}`}
+          >
+            Operador (3D)
+          </button>
+          <button 
+            onClick={() => mapMode !== 'citizen' && toggleMapMode()}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${mapMode === 'citizen' ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'}`}
+          >
+            Ciudadano (2D)
+          </button>
+        </div>
       </div>
 
       <DeckGL

@@ -118,16 +118,16 @@ button[type="submit"],
 .login-submit-btn {
   width: 100%;
   padding: 0.95rem 1rem;
-  background: #4f46e5 !important;
+  background: #0e1c62 !important;
   color: #ffffff !important;
-  border: 1px solid rgba(99, 102, 241, 0.6) !important;
+  border: 1px solid #1a2f96 !important;
   border-radius: 12px;
   font-size: 0.95rem;
   font-weight: 700 !important;
   cursor: pointer;
   transition: all 0.2s ease;
   margin-top: 0.5rem;
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.25) !important;
+  box-shadow: 0 4px 18px rgba(14, 28, 98, 0.45) !important;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -135,8 +135,8 @@ button[type="submit"],
 button[type="submit"]:hover:not(:disabled),
 .login-submit-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35) !important;
-  background: #4338ca !important;
+  box-shadow: 0 6px 24px rgba(14, 28, 98, 0.65) !important;
+  background: #14288c !important;
 }
 
 button[type="submit"]:disabled,

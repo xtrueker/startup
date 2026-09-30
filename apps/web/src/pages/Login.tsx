@@ -1,15 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { authService } from '../services/auth';
 import {
   ShieldAlert,
+  ShieldCheck,
+  Bell,
+  Users,
   Lock,
   Mail,
   Eye,
   EyeOff,
   ArrowRight,
   Loader2,
-  Radio,
-  AlertCircle
+  AlertCircle,
+  Check,
+  KeyRound,
+  X
 } from 'lucide-react';
 import './Login.css';
 
@@ -21,8 +26,47 @@ export default function Login({ onLogin }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Password recovery modal state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+
+  // Load saved credentials on mount if user previously selected "Recordar contraseña"
+  useEffect(() => {
+    try {
+      const savedRemember = localStorage.getItem('central_remember_me') === 'true';
+      if (savedRemember) {
+        setRememberMe(true);
+        const savedEmail = localStorage.getItem('central_saved_email');
+        const savedPassword = localStorage.getItem('central_saved_password');
+        if (savedEmail) setEmail(savedEmail);
+        if (savedPassword) {
+          try {
+            setPassword(atob(savedPassword));
+          } catch {
+            setPassword(savedPassword);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading saved credentials:', e);
+    }
+  }, []);
+
+  const handleForgotSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+    setForgotLoading(true);
+    setTimeout(() => {
+      setForgotLoading(false);
+      setForgotSuccess(true);
+    }, 700);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +82,23 @@ export default function Login({ onLogin }: LoginProps) {
       const response = await authService.login({ email, password });
 
       if (response.success && response.data) {
-        authService.setToken(response.data.token, response.data.user.id, response.data.user.role);
+        // Handle Remember Password preference
+        if (rememberMe) {
+          localStorage.setItem('central_remember_me', 'true');
+          localStorage.setItem('central_saved_email', email);
+          localStorage.setItem('central_saved_password', btoa(password));
+        } else {
+          localStorage.removeItem('central_remember_me');
+          localStorage.removeItem('central_saved_email');
+          localStorage.removeItem('central_saved_password');
+        }
+
+        authService.setToken(
+          response.data.token,
+          response.data.user.id,
+          response.data.user.role,
+          response.data.user.ciudad
+        );
         onLogin();
       } else {
         setError(response.message || 'Error al iniciar sesión');
@@ -54,56 +114,116 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-[#0a0a0a] flex items-center justify-center p-4 overflow-hidden select-none text-[#f5f5f5]">
+    <div className="relative min-h-screen w-full bg-[#050505] overflow-hidden select-none text-[#f5f5f5]">
 
-      {/* Background Grid */}
-      <div className="absolute inset-0 bg-[radial-gradient(#262626_1px,transparent_1px)] [background-size:24px_24px] opacity-35 pointer-events-none" />
+      {/* Cinematic Background Image */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        style={{ backgroundImage: `url('/bg-login.png')` }}
+      />
 
-      {/* Ambient Glow Orbs */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#1f2937]/30 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#18181b]/50 rounded-full blur-[140px] pointer-events-none" />
+      {/* Very subtle ambient tint to keep full brightness and detail of camera & CCTV screens */}
+      <div className="absolute inset-0 bg-black/20 pointer-events-none" />
 
-      {/* Main Login Card */}
-      <div className="relative w-full max-w-md z-10">
+      {/* ── LEFT BRANDING SECTION: Anchored on the left under ceiling camera ── */}
+      <div className="hidden lg:flex flex-col gap-7 w-[350px] xl:w-[380px] absolute left-8 xl:left-16 2xl:left-24 top-1/2 -translate-y-1/2 z-10 text-left">
 
-        {/* Glow Border Container */}
-        <div className="relative rounded-2xl bg-gradient-to-b from-[#262626] via-[#1a1a1a] to-[#0a0a0a] p-[1px] shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
+        {/* Logo & Main Title */}
+        <div className="flex items-center gap-4">
+          {/* Official App Logo */}
+          <div className="flex-shrink-0">
+            <img 
+              src="/logo.png" 
+              alt="Logo Red Ciudadana" 
+              className="w-20 h-20 object-contain filter drop-shadow-[0_0_18px_rgba(56,101,246,0.5)]" 
+            />
+          </div>
 
-          <div className="rounded-2xl bg-[#121212] p-8 sm:p-10 flex flex-col gap-6 border border-[#262626]">
+          {/* Typography */}
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white uppercase leading-none font-sans">
+              Central de<br />Despacho
+            </h1>
+            <p className="text-xs sm:text-sm text-[#9ca3af] mt-1.5 font-medium leading-tight">
+              Red Ciudadana de Seguridad<br />& Control Operativo
+            </p>
+          </div>
+        </div>
 
-            {/* Header: System Badge & Logo */}
-            <div className="flex flex-col items-center text-center gap-3">
+        {/* Accent Line matching Form Palette */}
+        <div className="w-10 h-[2.5px] bg-[#3865f6] rounded-full shadow-[0_0_10px_rgba(56,101,246,0.6)]" />
 
-              {/* Tactical Status Pill: Muted Sage */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#064e3b]/30 border border-[#065f46]/40 text-[#6ee7b7] text-[11px] font-mono font-bold tracking-wider">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#34d399] opacity-60"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#10b981]"></span>
-                </span>
-                <Radio size={12} className="text-[#34d399]" />
-                CONEXIÓN SEGURA // NODO TÁCTICO
+        {/* 3 Pillars / Feature Highlights - Clean standalone icons matching reference */}
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-sm">
+          {/* Feature 1 */}
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="flex items-center justify-center text-[#3865f6] filter drop-shadow-[0_0_10px_rgba(56,101,246,0.4)]">
+              <ShieldCheck size={26} strokeWidth={2.2} />
+            </div>
+            <span className="text-[11px] text-[#cbd5e1] font-medium leading-tight">
+              Monitoreo<br />en tiempo real
+            </span>
+          </div>
+
+          {/* Feature 2 */}
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="flex items-center justify-center text-[#3865f6] filter drop-shadow-[0_0_10px_rgba(56,101,246,0.4)]">
+              <Bell size={26} strokeWidth={2.2} />
+            </div>
+            <span className="text-[11px] text-[#cbd5e1] font-medium leading-tight">
+              Respuesta<br />inmediata
+            </span>
+          </div>
+
+          {/* Feature 3 */}
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="flex items-center justify-center text-[#3865f6] filter drop-shadow-[0_0_10px_rgba(56,101,246,0.4)]">
+              <Users size={26} strokeWidth={2.2} />
+            </div>
+            <span className="text-[11px] text-[#cbd5e1] font-medium leading-tight">
+              Seguridad<br />para todos
+            </span>
+          </div>
+        </div>
+
+        {/* Bottom Tagline */}
+        <div className="flex items-center gap-3 pt-4 text-[10px] sm:text-[11px] tracking-[0.18em] font-mono text-[#9ca3af] uppercase">
+          <span className="w-8 h-[2px] bg-[#3865f6] rounded-full flex-shrink-0 shadow-[0_0_8px_rgba(56,101,246,0.6)]" />
+          <span className="leading-relaxed">
+            Vigilancia inteligente,<br /> comunidades más seguras
+          </span>
+        </div>
+
+      </div>
+
+      {/* ── CENTER LOGIN CARD: Dead-center of the entire viewport ── */}
+      <div className="relative min-h-screen w-full flex items-center justify-center p-4 z-20 pointer-events-auto">
+        <div className="w-full max-w-[430px]">
+
+          <div className="rounded-2xl bg-[#111112]/95 backdrop-blur-xl p-8 sm:p-9 flex flex-col gap-6 border border-[#262626] shadow-[0_25px_60px_rgba(0,0,0,0.85)]">
+
+            {/* Card Header: Emblem & Subtitle */}
+            <div className="flex flex-col items-center text-center gap-2.5">
+              {/* App Logo */}
+              <div className="w-26 h-36 rounded-2xl bg-[#141416]/90 border border-[#262626] flex items-center justify-center shadow-lg p-2.5 relative">
+                <img 
+                  src="/logo.png" 
+                  alt="Logo Red Ciudadana" 
+                  className="w-full h-full object-contain filter drop-shadow-[0_0_10px_rgba(56,101,246,0.4)]"
+                />
               </div>
 
-              {/* Icon Emblem */}
-              <div className="relative mt-2">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-b from-[#262626] to-[#141414] flex items-center justify-center shadow-lg border border-[#333333]">
-                  <ShieldAlert size={32} className="text-[#fb7185] drop-shadow-sm" />
-                </div>
-              </div>
-
-              {/* Title & Subtitle */}
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-white uppercase">
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase">
                   Central de Despacho
-                </h1>
-                <p className="text-xs text-[#a3a3a3] mt-1 font-medium">
+                </h2>
+                <p className="text-[11px] text-[#9ca3af] mt-0.5 font-medium">
                   Red Ciudadana de Seguridad & Control Operativo
                 </p>
               </div>
             </div>
 
-
-            {/* Error Message */}
+            {/* Error Banner */}
             {error && (
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-[#4c0519]/40 border border-[#881337]/50 text-[#fda4af] text-xs font-medium animate-in fade-in duration-200">
                 <AlertCircle size={16} className="text-[#f43f5e] flex-shrink-0" />
@@ -114,10 +234,10 @@ export default function Login({ onLogin }: LoginProps) {
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-              {/* Field: Email */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-[#a3a3a3] flex items-center gap-1.5">
-                  <Mail size={12} className="text-[#818cf8]" />
+              {/* Field: Correo Operativo */}
+              <div className="flex flex-col gap-1.5 text-left">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[#9ca3af] flex items-center gap-1.5">
+                  <Mail size={12} className="text-[#9ca3af]" />
                   Correo Operativo
                 </label>
                 <div className="relative">
@@ -127,15 +247,15 @@ export default function Login({ onLogin }: LoginProps) {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     placeholder="operador@redciudadana.org"
-                    className="w-full bg-[#0d0d0d] border border-[#262626] hover:border-[#3a3a3a] focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1]/20 rounded-xl px-4 py-3 text-sm text-[#f5f5f5] placeholder-[#525252] transition-all outline-none font-mono"
+                    className="w-full bg-[#181819] border border-[#2a2a2b] hover:border-[#38383a] focus:border-[#3865f6] focus:ring-1 focus:ring-[#3865f6]/25 rounded-xl px-4 py-3 text-sm text-[#f5f5f5] placeholder-[#525252] transition-all outline-none font-mono"
                   />
                 </div>
               </div>
 
-              {/* Field: Password */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-[#a3a3a3] flex items-center gap-1.5">
-                  <Lock size={12} className="text-[#818cf8]" />
+              {/* Field: Contraseña Táctica */}
+              <div className="flex flex-col gap-1.5 text-left">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[#9ca3af] flex items-center gap-1.5">
+                  <Lock size={12} className="text-[#9ca3af]" />
                   Contraseña Táctica
                 </label>
                 <div className="relative">
@@ -145,7 +265,7 @@ export default function Login({ onLogin }: LoginProps) {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     placeholder="••••••••••••"
-                    className="w-full bg-[#0d0d0d] border border-[#262626] hover:border-[#3a3a3a] focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1]/20 rounded-xl px-4 py-3 text-sm text-[#f5f5f5] placeholder-[#525252] transition-all outline-none pr-11 font-mono"
+                    className="w-full bg-[#181819] border border-[#2a2a2b] hover:border-[#38383a] focus:border-[#3865f6] focus:ring-1 focus:ring-[#3865f6]/25 rounded-xl px-4 py-3 text-sm text-[#f5f5f5] placeholder-[#525252] transition-all outline-none pr-11 font-mono"
                   />
                   <button
                     type="button"
@@ -159,11 +279,47 @@ export default function Login({ onLogin }: LoginProps) {
                 </div>
               </div>
 
-              {/* Submit Button */}
+              {/* Recordar Contraseña & Recuperar Contraseña */}
+              <div className="flex items-center justify-between text-xs py-0.5 select-none">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div className={`w-4 h-4 rounded border transition-all flex items-center justify-center ${
+                      rememberMe 
+                        ? 'bg-[#3865f6] border-[#3865f6] text-white shadow-[0_0_8px_rgba(56,101,246,0.5)]' 
+                        : 'bg-[#181819] border-[#2a2a2b] group-hover:border-[#3865f6]/50'
+                    }`}>
+                      {rememberMe && <Check size={12} strokeWidth={3} />}
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-[#9ca3af] group-hover:text-[#d1d5db] transition-colors font-medium">
+                    Recordar contraseña
+                  </span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotEmail(email);
+                    setShowForgotModal(true);
+                    setForgotSuccess(false);
+                  }}
+                  className="text-[11px] font-medium text-[#9ca3af] hover:text-[#3865f6] transition-colors"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+
+              {/* Submit Button: Strictly #0e1c62 */}
               <button
                 type="submit"
                 disabled={loading}
-                className="login-submit-btn mt-2 relative group w-full py-3.5 px-4 rounded-xl text-white font-bold text-sm shadow-[0_4px_18px_rgba(79,70,229,0.3)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer tracking-wider uppercase"
+                className="login-submit-btn mt-2 relative group w-full py-3.5 px-4 rounded-xl text-white font-bold text-sm bg-[#0e1c62] hover:bg-[#162a8c] border border-[#1d36a8] shadow-[0_4px_20px_rgba(14,28,98,0.55)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer tracking-wider uppercase"
               >
                 {loading ? (
                   <>
@@ -180,12 +336,12 @@ export default function Login({ onLogin }: LoginProps) {
             </form>
 
             {/* Footer Links */}
-            <div className="flex flex-col items-center gap-3 pt-2 border-t border-[#262626] text-center">
+            <div className="flex flex-col items-center gap-2.5 pt-2 border-t border-[#262626] text-center">
               <p className="text-xs text-[#a3a3a3]">
                 ¿Nuevo operador en el sistema?{' '}
                 <a
                   href="/register"
-                  className="font-semibold text-[#d4d4d4] hover:text-white transition-colors underline underline-offset-2"
+                  className="font-semibold text-white hover:text-[#5266d6] transition-colors underline underline-offset-2"
                 >
                   Registrar Agente
                 </a>
@@ -197,9 +353,103 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
 
           </div>
-        </div>
 
+        </div>
       </div>
+
+      {/* ── MODAL: RECUPERACIÓN DE CONTRASEÑA ── */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-2xl bg-[#111112] border border-[#262626] p-6 sm:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.9)] flex flex-col gap-5 text-left">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowForgotModal(false)}
+              className="absolute right-4 top-4 p-1.5 rounded-lg text-[#737373] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-[#141416] border border-[#2a2a2b] flex items-center justify-center p-2 shadow-md flex-shrink-0">
+                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white uppercase tracking-wide">
+                  Recuperar Contraseña
+                </h3>
+                <p className="text-[11px] text-[#9ca3af]">
+                  Restablecimiento de credencial operativa
+                </p>
+              </div>
+            </div>
+
+            {forgotSuccess ? (
+              <div className="flex flex-col gap-4 py-2">
+                <div className="p-4 rounded-xl bg-[#064e3b]/30 border border-emerald-500/40 text-emerald-300 text-xs leading-relaxed flex items-start gap-3">
+                  <Check size={18} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-emerald-200 text-sm">Solicitud registrada con éxito</p>
+                    <p className="text-[11px] text-emerald-400/90 mt-1">
+                      Si el correo <span className="text-white font-mono">{forgotEmail}</span> pertenece a un operador habilitado, el administrador de turno enviará las credenciales temporales o restablecerá el acceso a la central.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="w-full py-3 rounded-xl bg-[#181819] hover:bg-[#222225] border border-[#2a2a2b] text-white text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Regresar al Inicio de Sesión
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit} className="flex flex-col gap-4">
+                <p className="text-xs text-[#9ca3af] leading-relaxed">
+                  Ingrese el correo operativo con el que fue dado de alta en la central de seguridad para solicitar el restablecimiento de su clave.
+                </p>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[#9ca3af] flex items-center gap-1.5">
+                    <Mail size={12} className="text-[#3865f6]" />
+                    Correo Operativo
+                  </label>
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                    placeholder="operador@redciudadana.org"
+                    className="w-full bg-[#181819] border border-[#2a2a2b] hover:border-[#38383a] focus:border-[#3865f6] focus:ring-1 focus:ring-[#3865f6]/25 rounded-xl px-4 py-3 text-sm text-[#f5f5f5] placeholder-[#525252] transition-all outline-none font-mono"
+                  />
+                </div>
+
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotModal(false)}
+                    className="flex-1 py-3 rounded-xl bg-[#181819] hover:bg-[#222225] border border-[#2a2a2b] text-xs font-semibold text-[#a3a3a3] hover:text-white transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="flex-1 py-3 rounded-xl bg-[#0e1c62] hover:bg-[#162a8c] border border-[#1d36a8] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-[0_4px_16px_rgba(14,28,98,0.5)] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {forgotLoading ? (
+                      <Loader2 size={14} className="animate-spin text-white" />
+                    ) : (
+                      'Enviar Solicitud'
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

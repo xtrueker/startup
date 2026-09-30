@@ -7,6 +7,8 @@ export interface RegisterData {
   email: string;
   password: string;
   role?: 'citizen' | 'operator' | 'supervisor' | 'admin';
+  phone?: string;
+  ciudad?: string;
 }
 
 export interface LoginData {
@@ -24,6 +26,8 @@ export interface AuthResponse {
       cedula: string;
       email: string;
       role: string;
+      phone?: string;
+      ciudad?: string;
       isVerified: boolean;
       facialVerificationStatus: string;
     };
@@ -51,14 +55,19 @@ export const authService = {
     return response.data;
   },
 
-  // Guardar token, userId y role
-  setToken: (token: string, userId?: string, role?: string) => {
+  // Guardar token, userId, role y ciudad
+  setToken: (token: string, userId?: string, role?: string, ciudad?: string) => {
     localStorage.setItem('token', token);
     if (userId) {
       localStorage.setItem('userId', userId);
     }
     if (role) {
       localStorage.setItem('userRole', role);
+    }
+    if (ciudad) {
+      localStorage.setItem('userCiudad', ciudad);
+    } else {
+      localStorage.removeItem('userCiudad');
     }
   },
 
@@ -77,11 +86,17 @@ export const authService = {
     return localStorage.getItem('userRole');
   },
 
-  // Eliminar token, userId y role (logout)
+  // Obtener ciudad asignada
+  getCiudad: (): string | null => {
+    return localStorage.getItem('userCiudad');
+  },
+
+  // Eliminar token, userId, role y ciudad (logout)
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('userCiudad');
   },
 
   // Verificar si está autenticado
