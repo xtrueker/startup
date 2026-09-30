@@ -45,6 +45,12 @@ export const authService = {
     return response.data;
   },
 
+  // Obtener Perfil
+  getMe: async (): Promise<{ success: boolean; data: AuthResponse['data']['user'] }> => {
+    const response = await api.get('/auth/me');
+    return response.data;
+  },
+
   // Guardar token, userId y role
   setToken: (token: string, userId?: string, role?: string) => {
     localStorage.setItem('token', token);

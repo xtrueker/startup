@@ -1,0 +1,23 @@
+$kind: http-request
+name: 'Get Reachability'
+method: GET
+url: '{{baseUrl}}/api/analysis/reachability'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+queryParams:
+  - key: lat
+    value: '4.7110'
+    description: Latitude of the origin point
+  - key: lng
+    value: '-74.0721'
+    description: Longitude of the origin point
+  - key: mode
+    value: 'caminando'
+    description: 'Movement mode: caminando, bicicleta, motocicleta, vehiculo'
+  - key: minutes
+    value: '10'
+    description: Time in minutes to calculate reachable area

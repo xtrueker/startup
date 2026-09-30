@@ -1,0 +1,9 @@
+$kind: collection
+description: |-
+  API for the Red Ciudadana platform — a citizen security system with emergency alerts, camera management, mobile panic button, and spatial analysis tools.
+
+  Authentication: Most endpoints require a Bearer JWT token. Obtain it via POST /api/auth/login and store it as {{token}}.
+variables:
+  baseUrl: http://localhost:3001
+  token: ""
+  userId: ""

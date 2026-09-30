@@ -1,0 +1,25 @@
+$kind: http-request
+name: 'Create Alert'
+method: POST
+url: '{{baseUrl}}/api/alerts'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "userId": "{{userId}}",
+      "type": "emergency",
+      "latitude": 4.7110,
+      "longitude": -74.0721,
+      "address": "Calle 123 #45-67, Bogotá",
+      "description": "Emergencia reportada por operador",
+      "direction": "norte"
+    }

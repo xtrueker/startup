@@ -1,0 +1,18 @@
+$kind: http-request
+name: Register
+method: POST
+url: '{{baseUrl}}/api/auth/register'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fullName": "Juan Pérez",
+      "cedula": "1020304050",
+      "email": "juan@example.com",
+      "password": "MiClave123!",
+      "phone": "+573001234567"
+    }

@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get Hotspots'
+method: GET
+url: '{{baseUrl}}/api/analysis/hotspots'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

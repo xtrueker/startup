@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Camera Scan Status'
+method: GET
+url: '{{baseUrl}}/api/cameras/status'
+order: 6000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

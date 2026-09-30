@@ -1,0 +1,23 @@
+$kind: http-request
+name: 'Update User'
+method: PATCH
+url: '{{baseUrl}}/api/users/:id'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: id
+    value: '{{userId}}'
+body:
+  type: json
+  content: |-
+    {
+      "role": "operator",
+      "isVerified": true
+    }

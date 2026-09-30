@@ -1,0 +1,21 @@
+$kind: http-request
+name: 'Panic Button'
+method: POST
+url: '{{baseUrl}}/api/mobile/panic'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Authorization
+    value: 'Bearer {{token}}'
+    description: Optional — works without auth (anonymous fallback)
+body:
+  type: json
+  content: |-
+    {
+      "latitude": 4.7110,
+      "longitude": -74.0721,
+      "address": "Calle 123 #45-67, Bogotá",
+      "description": "Pánico activado desde aplicación móvil",
+      "type": "emergency"
+    }

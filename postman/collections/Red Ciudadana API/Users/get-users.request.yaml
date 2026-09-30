@@ -1,0 +1,21 @@
+$kind: http-request
+name: 'Get All Users'
+method: GET
+url: '{{baseUrl}}/api/users'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+queryParams:
+  - key: role
+    value: ''
+    description: 'Filter by role: citizen, operator, supervisor, admin'
+    disabled: true
+  - key: limit
+    value: '50'
+    description: Maximum number of results
+  - key: offset
+    value: '0'
+    description: Pagination offset

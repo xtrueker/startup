@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get All Cameras'
+method: GET
+url: '{{baseUrl}}/api/cameras'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

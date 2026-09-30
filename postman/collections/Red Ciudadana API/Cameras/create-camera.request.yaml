@@ -1,0 +1,24 @@
+$kind: http-request
+name: 'Create Camera'
+method: POST
+url: '{{baseUrl}}/api/cameras'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Cámara Centro",
+      "rtspUrl": "rtsp://192.168.1.100/stream",
+      "latitude": 4.7110,
+      "longitude": -74.0721,
+      "address": "Carrera 7 #32-16, Bogotá",
+      "status": "active"
+    }
