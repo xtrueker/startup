@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSocket } from '../../hooks/useSocket';
 import { useCommandStore } from '../../stores/useCommandStore';
-import { authService } from '../../services/auth';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { AdminMenu } from './AdminMenu';
 import { AudioStreamer } from './AudioStreamer';
 import {
@@ -37,6 +37,10 @@ export const CommandCenterSidebar: React.FC = () => {
   const location = useLocation();
 
   const { connected } = useSocket({ namespace: '/operators' });
+  const { user, logout } = useAuthStore();
+  const userRole = user?.role || 'ADMIN';
+  const userName = user?.fullName || 'Operador Táctico';
+  
   const {
     activeAlerts,
     toggleHeatmap,
@@ -114,9 +118,9 @@ export const CommandCenterSidebar: React.FC = () => {
       {!sidebarOpen && (
         <div className="w-[64px] h-full flex flex-col items-center py-3 gap-2 bg-[#0f0f0f] overflow-y-auto overflow-x-hidden custom-scrollbar select-none">
           {/* Avatar del Operador */}
-          <div className="relative flex-shrink-0 my-0.5" title={`Operador: ${authService.getRole() || 'ADMIN'}`}>
+          <div className="relative flex-shrink-0 my-0.5" title={`Operador: ${userRole}`}>
             <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#2a2a2a] to-[#181818] flex items-center justify-center font-black text-white text-sm border border-[#3a3a3a] shadow-md">
-              {(authService.getRole() || 'A').charAt(0).toUpperCase()}
+              {userName.charAt(0).toUpperCase()}
             </div>
             <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#10b981] border-2 border-[#0d0d0d] shadow-[0_0_6px_rgba(16,185,129,0.8)]"></span>
           </div>
@@ -241,8 +245,8 @@ export const CommandCenterSidebar: React.FC = () => {
           <button
             onClick={() => {
               sessionStorage.removeItem('active_session');
-              authService.logout();
-              window.location.href = '/login';
+              logout();
+              navigate('/login');
             }}
             title="Cerrar Sesión"
             className="w-9 h-9 rounded-lg flex items-center justify-center text-[#737373] hover:text-[#f87171] hover:bg-[#1a1a1a] border border-transparent hover:border-[#262626] transition-colors mb-2 p-0"
@@ -260,21 +264,21 @@ export const CommandCenterSidebar: React.FC = () => {
             {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#262626] to-[#141414] flex items-center justify-center font-black text-white text-sm shadow-md border border-[#333333]">
-                {(authService.getRole() || 'A').charAt(0).toUpperCase()}
+                {userName.charAt(0).toUpperCase()}
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#10b981] border-2 border-[#121212] shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
             </div>
             {/* Name & Role */}
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-[#efede3] truncate">Operador Táctico</div>
-              <div className="text-[10px] text-[#a3a3a3] uppercase tracking-wider font-mono">{authService.getRole() || 'ADMIN'}</div>
+              <div className="text-xs font-bold text-[#efede3] truncate">{userName}</div>
+              <div className="text-[10px] text-[#a3a3a3] uppercase tracking-wider font-mono">{userRole}</div>
             </div>
             {/* Logout Button */}
             <button
               onClick={() => {
                 sessionStorage.removeItem('active_session');
-                authService.logout();
-                window.location.href = '/login';
+                logout();
+                navigate('/login');
               }}
               title="Cerrar Sesión"
               className="flex items-center gap-1.5 bg-[#4c0519]/25 hover:bg-[#881337]/35 text-[#fda4af] hover:text-white border border-[#881337]/40 hover:border-[#e11d48]/50 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 flex-shrink-0"

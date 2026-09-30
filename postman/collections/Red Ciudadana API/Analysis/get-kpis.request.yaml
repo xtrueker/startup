@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get KPIs'
+method: GET
+url: '{{baseUrl}}/api/analysis/kpis'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

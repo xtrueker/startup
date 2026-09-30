@@ -1,0 +1,14 @@
+$kind: http-request
+name: 'Discover Camera'
+method: GET
+url: '{{baseUrl}}/api/cameras/discover'
+order: 5000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+queryParams:
+  - key: force
+    value: 'false'
+    description: 'Set to true to force a rescan of the network'

@@ -8,7 +8,6 @@ import {
   EyeOff,
   ArrowRight,
   Loader2,
-  Sparkles,
   Radio,
   AlertCircle
 } from 'lucide-react';
@@ -52,12 +51,6 @@ export default function Login({ onLogin }: LoginProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickFill = () => {
-    setEmail('admin@redciudadana.org');
-    setPassword('password123');
-    setError('');
   };
 
   return (
@@ -109,20 +102,6 @@ export default function Login({ onLogin }: LoginProps) {
               </div>
             </div>
 
-            {/* Quick Fill Demo Button */}
-            <button
-              type="button"
-              onClick={handleQuickFill}
-              className="group flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#171717] hover:bg-[#202020] border border-[#262626] hover:border-[#383838] text-[#d4d4d4] hover:text-white text-xs font-semibold transition-all duration-200 shadow-sm cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-[#818cf8] group-hover:rotate-12 transition-transform" />
-                <span>Cargar Credenciales (Operador Táctico)</span>
-              </div>
-              <span className="text-[10px] font-mono text-[#a5b4fc] bg-[#312e81]/40 border border-[#4338ca]/40 px-2 py-0.5 rounded font-bold">
-                1-CLICK
-              </span>
-            </button>
 
             {/* Error Message */}
             {error && (
