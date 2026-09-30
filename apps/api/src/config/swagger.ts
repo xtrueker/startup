@@ -54,6 +54,7 @@ Obtén el token haciendo \`POST /api/auth/login\`.
             email: { type: 'string', format: 'email', example: 'juan@example.com' },
             role: { type: 'string', enum: ['citizen', 'operator', 'supervisor', 'admin'] },
             phone: { type: 'string', example: '+573001234567', nullable: true },
+            ciudad: { type: 'string', example: 'Bogotá', nullable: true },
             isVerified: { type: 'boolean', example: false },
             facialVerificationStatus: {
               type: 'string',

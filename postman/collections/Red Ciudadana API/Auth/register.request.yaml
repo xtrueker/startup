@@ -14,5 +14,6 @@ body:
       "cedula": "1020304050",
       "email": "juan@example.com",
       "password": "MiClave123!",
-      "phone": "+573001234567"
+      "phone": "+573001234567",
+      "ciudad": "Bogotá"
     }

@@ -19,5 +19,6 @@ body:
   content: |-
     {
       "role": "operator",
+      "ciudad": "Medellín",
       "isVerified": true
     }

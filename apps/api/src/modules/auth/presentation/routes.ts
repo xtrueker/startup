@@ -49,6 +49,9 @@ const router = Router();
  *               phone:
  *                 type: string
  *                 example: "+573001234567"
+ *               ciudad:
+ *                 type: string
+ *                 example: "Bogotá"
  *     responses:
  *       201:
  *         description: Usuario registrado exitosamente
@@ -61,7 +64,7 @@ const router = Router();
  */
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { fullName, cedula, email, password, role, phone, idCardFront, idCardBack, selfiePhoto } = req.body;
+    const { fullName, cedula, email, password, role, phone, ciudad, idCardFront, idCardBack, selfiePhoto } = req.body;
 
     if (!fullName || !cedula || !email || !password) {
       return res.status(400).json({ success: false, message: 'Faltan datos obligatorios' });
@@ -83,6 +86,7 @@ router.post('/register', async (req: Request, res: Response) => {
       email,
       password,
       phone,
+      ciudad,
       role: 'citizen', // La autoregistración pública siempre asigna rol citizen para prevenir escalado de privilegios
       idCardFront,
       idCardBack,
@@ -101,7 +105,7 @@ router.post('/register', async (req: Request, res: Response) => {
       data: {
         user: {
           id: user.id, fullName: user.full_name, cedula: user.cedula,
-          email: user.email, role: user.role, isVerified: user.is_verified,
+          email: user.email, role: user.role, phone: user.phone, ciudad: user.ciudad, isVerified: user.is_verified,
           facialVerificationStatus: user.facial_verification_status,
         },
         token,
@@ -174,7 +178,7 @@ router.post('/login', async (req: Request, res: Response) => {
       data: {
         user: {
           id: user.id, fullName: user.full_name, cedula: user.cedula,
-          email: user.email, role: user.role, isVerified: user.is_verified,
+          email: user.email, role: user.role, phone: user.phone, ciudad: user.ciudad, isVerified: user.is_verified,
           facialVerificationStatus: user.facial_verification_status,
         },
         token,
@@ -227,6 +231,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
+        ciudad: user.ciudad,
         isVerified: user.is_verified,
         facialVerificationStatus: user.facial_verification_status,
         createdAt: user.created_at,

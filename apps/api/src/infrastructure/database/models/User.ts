@@ -8,6 +8,7 @@ export interface CreateUserDTO {
   password?: string;
   role?: string;
   phone?: string;
+  ciudad?: string;
   idCardFront?: string;
   idCardBack?: string;
   selfiePhoto?: string;
@@ -53,6 +54,7 @@ export class User {
       password: passwordHash,
       role: data.role || 'citizen',
       phone: data.phone || null,
+      ciudad: data.ciudad || null,
       id_card_front: data.idCardFront || null,
       id_card_back: data.idCardBack || null,
       selfie_photo: data.selfiePhoto || null,
@@ -73,7 +75,7 @@ export class User {
     const sb = supabase();
     const { data, error } = await sb
       .from('users')
-      .select('id, full_name, cedula, email, role, phone, is_verified, facial_verification_status, created_at')
+      .select('id, full_name, cedula, email, role, phone, ciudad, is_verified, facial_verification_status, created_at')
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
@@ -84,7 +86,7 @@ export class User {
     const sb = supabase();
     let query = sb
       .from('users')
-      .select('id, full_name, cedula, email, role, phone, is_verified, facial_verification_status, created_at', { count: 'exact' })
+      .select('id, full_name, cedula, email, role, phone, ciudad, is_verified, facial_verification_status, created_at', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -99,6 +101,7 @@ export class User {
     fullName: string;
     role: string;
     phone: string;
+    ciudad: string;
     isVerified: boolean;
     facialVerificationStatus: string;
   }>) {
@@ -107,6 +110,7 @@ export class User {
     if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
     if (updates.role !== undefined) dbUpdates.role = updates.role;
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+    if (updates.ciudad !== undefined) dbUpdates.ciudad = updates.ciudad;
     if (updates.isVerified !== undefined) dbUpdates.is_verified = updates.isVerified;
     if (updates.facialVerificationStatus !== undefined) dbUpdates.facial_verification_status = updates.facialVerificationStatus;
 
@@ -114,7 +118,7 @@ export class User {
       .from('users')
       .update(dbUpdates)
       .eq('id', id)
-      .select('id, full_name, cedula, email, role, phone, is_verified, facial_verification_status, created_at')
+      .select('id, full_name, cedula, email, role, phone, ciudad, is_verified, facial_verification_status, created_at')
       .single();
 
     if (error) throw error;

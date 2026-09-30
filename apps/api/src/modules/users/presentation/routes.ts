@@ -75,6 +75,7 @@ router.get('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: R
         email: u.email,
         role: u.role,
         phone: u.phone,
+        ciudad: u.ciudad,
         isVerified: u.is_verified,
         facialVerificationStatus: u.facial_verification_status,
         createdAt: u.created_at,
@@ -130,6 +131,7 @@ router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req
         email: user.email,
         role: user.role,
         phone: user.phone,
+        ciudad: user.ciudad,
         isVerified: user.is_verified,
         facialVerificationStatus: user.facial_verification_status,
         createdAt: user.created_at,
@@ -168,6 +170,9 @@ router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req
  *                 enum: [citizen, operator, supervisor, admin]
  *               phone:
  *                 type: string
+ *               ciudad:
+ *                 type: string
+ *                 example: "Bogotá"
  *               isVerified:
  *                 type: boolean
  *               facialVerificationStatus:
@@ -185,7 +190,7 @@ router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req
  */
 router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
   try {
-    const { fullName, role, phone, isVerified, facialVerificationStatus } = req.body;
+    const { fullName, role, phone, ciudad, isVerified, facialVerificationStatus } = req.body;
 
     const validRoles = ['citizen', 'operator', 'supervisor', 'admin'];
     if (role && !validRoles.includes(role)) {
@@ -204,7 +209,7 @@ router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (r
     }
 
     const updated = await User.update(req.params.id, {
-      fullName, role, phone, isVerified, facialVerificationStatus
+      fullName, role, phone, ciudad, isVerified, facialVerificationStatus
     });
 
     if (!updated) {
@@ -221,6 +226,7 @@ router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (r
         email: updated.email,
         role: updated.role,
         phone: updated.phone,
+        ciudad: updated.ciudad,
         isVerified: updated.is_verified,
         facialVerificationStatus: updated.facial_verification_status,
         createdAt: updated.created_at,
