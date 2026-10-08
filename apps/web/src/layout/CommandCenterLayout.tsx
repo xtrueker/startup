@@ -9,7 +9,8 @@ const CommandCenterLayout: React.FC = () => {
   if (isLoading) return null; // Let App.tsx handle the loading state screen
 
   const role = user?.role;
-  const canAccess = role === 'admin' || role === 'operator' || role === 'supervisor';
+  const canAccess = role === 'admin' || role === 'operator' || role === 'supervisor' || role === 'police';
+
 
   if (!canAccess || !isAuthenticated) {
     return <Navigate to="/login" replace />;

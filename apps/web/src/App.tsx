@@ -22,7 +22,7 @@ function App() {
   }, [checkAuth]);
 
   const userRole = user?.role;
-  const isAdministrative = userRole === 'admin' || userRole === 'operator' || userRole === 'supervisor';
+  const isAdministrative = userRole === 'admin' || userRole === 'operator' || userRole === 'supervisor' || userRole === 'police';
 
   if (isLoading) {
     return (

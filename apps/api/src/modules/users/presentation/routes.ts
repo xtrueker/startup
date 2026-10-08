@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { User } from '../../../infrastructure/database/models';
+import { User, Role } from '../../../infrastructure/database/models';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
 
 const router = Router();
@@ -188,13 +188,86 @@ router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req
  *       404:
  *         description: Usuario no encontrado
  */
+/**
+ * @swagger
+ * /api/users:
+ *   post:
+ *     summary: Crear un usuario manualmente (solo admin/supervisor)
+ *     tags: [Users]
+ */
+router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+  try {
+    const { fullName, cedula, email, password, role, phone, ciudad, isVerified } = req.body;
+
+    if (!fullName || !cedula || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Nombre, cédula, email y contraseña son obligatorios' });
+    }
+
+    const existingCedula = await User.findByCedula(cedula);
+    if (existingCedula) {
+      return res.status(409).json({ success: false, message: 'Ya existe un usuario con esa cédula' });
+    }
+
+    const existingEmail = await User.findByEmail(email);
+    if (existingEmail) {
+      return res.status(409).json({ success: false, message: 'Ya existe un usuario con ese email' });
+    }
+
+    const targetRole = role || 'citizen';
+    const dbRole = await Role.findById(targetRole);
+    const standardRoles = ['citizen', 'operator', 'supervisor', 'admin', 'police'];
+    if (!dbRole && !standardRoles.includes(targetRole)) {
+      return res.status(400).json({ success: false, message: `Rol '${targetRole}' no válido o no configurado` });
+    }
+
+    const actorRole = (req as any).user?.role;
+    if (['supervisor', 'admin'].includes(targetRole) && actorRole !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Solo un admin puede crear usuarios con rol supervisor o admin' });
+    }
+
+    const user = await User.create({
+      fullName,
+      cedula,
+      email,
+      password,
+      role: targetRole,
+      phone,
+      ciudad,
+      isVerified: isVerified !== undefined ? isVerified : true,
+      facialVerificationStatus: 'verified',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Usuario creado exitosamente',
+      data: {
+        id: user.id,
+        fullName: user.full_name,
+        cedula: user.cedula,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        ciudad: user.ciudad,
+        isVerified: user.is_verified,
+        createdAt: user.created_at,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error creando usuario:', error.message);
+    res.status(500).json({ success: false, message: error.message || 'Error interno del servidor' });
+  }
+});
+
 router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
   try {
     const { fullName, role, phone, ciudad, isVerified, facialVerificationStatus } = req.body;
 
-    const validRoles = ['citizen', 'operator', 'supervisor', 'admin'];
-    if (role && !validRoles.includes(role)) {
-      return res.status(400).json({ success: false, message: `Rol inválido. Permitidos: ${validRoles.join(', ')}` });
+    if (role) {
+      const dbRole = await Role.findById(role);
+      const standardRoles = ['citizen', 'operator', 'supervisor', 'admin', 'police'];
+      if (!dbRole && !standardRoles.includes(role)) {
+        return res.status(400).json({ success: false, message: `Rol '${role}' no válido o no existe en el sistema` });
+      }
     }
 
     const validFacialStatuses = ['pending', 'verified', 'under_review', 'rejected'];
