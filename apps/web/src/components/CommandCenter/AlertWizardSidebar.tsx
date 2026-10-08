@@ -103,12 +103,19 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
 
   const currentSelectedTeam = availableTeams.find(t => t.id === selectedTeamId) || availableTeams[0];
 
-  const handleDispatchTeam = () => {
+  const handleDispatchTeam = async () => {
     if (!currentSelectedTeam) return;
     setAssignedTeam(currentSelectedTeam);
     localStorage.setItem(`alert_team_${alert.id}`, JSON.stringify(currentSelectedTeam));
     if (alert.status === 'pending') {
       updateAlertStatus(alert.id, 'reviewing');
+    }
+    try {
+      await api.post(`/alerts/${alert.id}/dispatch`, {
+        notes: `🚨 Despacho táctico asignado: ${currentSelectedTeam.teamName}`
+      });
+    } catch (err) {
+      console.warn('Aviso: despacho emitido localmente:', err);
     }
   };
 

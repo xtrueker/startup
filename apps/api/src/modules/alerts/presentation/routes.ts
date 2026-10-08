@@ -2,9 +2,10 @@ import { Router, Request, Response } from 'express';
 import Alert from '../../../infrastructure/database/models/Alert';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
 import { calculateEscapeRoutes } from '../services/escapeRouting';
-import { getSocket, emitToOperators } from '../../../shared/utils/socket';
+import { getSocket, emitToOperators, dispatchTacticalAlert } from '../../../shared/utils/socket';
 import { AuditService } from '../../../shared/services/AuditService';
 import { supabase } from '../../../infrastructure/database/connection';
+import { User } from '../../../infrastructure/database/models';
 
 const router = Router();
 
@@ -171,6 +172,56 @@ router.patch('/:id/status', requireAuth, requireRole(['admin', 'supervisor', 'op
   } catch (error: any) {
     console.error('ERROR actualizando estado de alerta:', error.message);
     res.status(500).json({ success: false, message: 'Error interno', error: error.message });
+  }
+});
+
+// DESPACHO TÁCTICO DE ALERTA A PATRULLAS POLICIALES
+// POST /api/alerts/:id/dispatch
+router.post('/:id/dispatch', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { officerId, notes } = req.body;
+
+    const alert = await Alert.findById(id);
+    if (!alert) {
+      return res.status(404).json({ success: false, message: 'Alerta no encontrada' });
+    }
+
+    let citizenName = 'Ciudadano en Emergencia';
+    if (alert.userId || alert.user_id) {
+      try {
+        const citizen = await User.findById(alert.userId || alert.user_id);
+        if (citizen?.full_name) {
+          citizenName = citizen.full_name;
+        }
+      } catch (userErr) {
+        console.warn('No se pudo obtener nombre del ciudadano:', userErr);
+      }
+    }
+
+    dispatchTacticalAlert({
+      alertId: alert.id,
+      citizenName,
+      emergencyType: alert.type || 'emergency',
+      latitude: alert.latitude,
+      longitude: alert.longitude,
+      address: alert.address || '',
+      officerId,
+      notes: notes || '🚨 Despacho prioritario del Centro de Mando Web'
+    });
+
+    res.json({
+      success: true,
+      message: '🚨 Despacho táctico transmitido a patrullas policiales exitosamente',
+      data: {
+        alertId: alert.id,
+        citizenName,
+        dispatchedAt: new Date().toISOString()
+      }
+    });
+  } catch (error: any) {
+    console.error('ERROR en despacho táctico:', error.message);
+    res.status(500).json({ success: false, message: 'Error interno al despachar alerta', error: error.message });
   }
 });
 
