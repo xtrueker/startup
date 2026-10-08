@@ -16,7 +16,7 @@ import {
   AlertCircle,
   Sparkles
 } from 'lucide-react';
-import { rolesService, Role } from '../../services/rolesService';
+import { rolesService, type Role } from '../../services/rolesService';
 
 const AVAILABLE_PERMISSIONS = [
   { id: 'all_access', label: 'Acceso Total (Root)', desc: 'Control irrestricto de todo el sistema' },
