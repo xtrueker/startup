@@ -323,14 +323,14 @@ const AdminTeams: React.FC = () => {
   const totalMembersCount = teams.reduce((acc, t) => acc + t.members.length, 0);
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0a] text-[#f5f5f5] p-6 lg:p-8 gap-6 overflow-y-auto">
+    <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-6 lg:p-8 gap-6 overflow-y-auto custom-scrollbar theme-transition">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/command-center')}
             title="Volver al Centro de Mando"
-            className="w-9 h-9 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#262626] hover:border-[#404040] flex items-center justify-center text-[#a1a1aa] hover:text-white transition-all mr-1 p-0 shrink-0"
+            className="w-9 h-9 rounded-xl bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] border border-[var(--border-base)] hover:border-[var(--border-strong)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all mr-1 p-0 shrink-0"
           >
             <ArrowLeft size={17} />
           </button>
@@ -338,8 +338,8 @@ const AdminTeams: React.FC = () => {
             <Users size={20} className="text-[#34d399]" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-[#efede3] tracking-tight">Equipos y Unidades en Campo</h1>
-            <p className="text-xs text-[#737373] font-mono">
+            <h1 className="text-xl font-black text-[var(--text-primary)] tracking-tight">Equipos y Unidades en Campo</h1>
+            <p className="text-xs text-[var(--text-muted)] font-mono">
               Dotación de patrullas, vehículos, personal e identificaciones
             </p>
           </div>

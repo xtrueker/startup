@@ -1,4 +1,3 @@
-import type { Alert as ApiAlert } from '../../services/alerts';
 import type { Camera } from '../../services/cameras';
 
 export interface RouteCameraCoverage {

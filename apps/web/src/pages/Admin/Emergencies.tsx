@@ -6,7 +6,6 @@ import {
   Clock, 
   ArrowLeft,
   MapPin, 
-  ExternalLink, 
   RefreshCw, 
   Crosshair, 
   Skull, 
@@ -323,7 +322,7 @@ export const AdminEmergencies: React.FC = () => {
   }, [selectedAlert]);
 
   return (
-    <div className="flex flex-col h-full bg-[#0c0c0e] text-[#f5f5f5] p-5 lg:p-7 gap-5 overflow-hidden">
+    <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-5 lg:p-7 gap-5 overflow-hidden theme-transition">
       
       {/* Header Superior */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">

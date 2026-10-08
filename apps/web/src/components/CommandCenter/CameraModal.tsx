@@ -243,46 +243,46 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-[#111111] border border-[#262626] rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="bg-[var(--bg-surface)] rounded w-full max-w-3xl max-h-[90vh] flex flex-col shadow-xl dark:shadow-2xl overflow-hidden text-[var(--text-primary)] theme-transition">
         
         {/* Header */}
-        <div className="p-5 border-b border-[#1f1f1f] bg-[#141414] flex items-center justify-between">
+        <div className="p-5 bg-[var(--bg-elevated)] shadow-xs flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#0c1a2e] border border-[#1e40af]/40 flex items-center justify-center">
-              <Cctv size={22} className="text-[#38bdf8]" />
+            <div className="w-10 h-10 rounded bg-[var(--accent-bg)] shadow-xs flex items-center justify-center">
+              <Cctv size={22} className="text-[var(--accent)]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-[#efede3] tracking-tight">
+                <h2 className="text-lg font-black text-[var(--text-primary)] tracking-tight">
                   {cameraToEdit ? 'Editar Cámara de Seguridad' : 'Configurar Conexión de Cámara'}
                 </h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#1e293b] text-[#38bdf8] border border-[#38bdf8]/30 uppercase">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--brand)] shadow-xs uppercase font-bold">
                   MediaMTX / RTSP
                 </span>
               </div>
-              <p className="text-xs text-[#737373] font-mono">
+              <p className="text-xs text-[var(--text-secondary)] font-mono">
                 Integración de flujo de video y cobertura táctica en tiempo real
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-[#1a1a1a] hover:bg-[#262626] text-[#a3a3a3] hover:text-white flex items-center justify-center transition-colors border border-[#2a2a2a] p-0"
+            className="w-8 h-8 rounded bg-[var(--bg-surface)] hover:bg-[var(--bg-overlay)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-xs p-0 cursor-pointer"
           >
             <X size={17} />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-[#1f1f1f] bg-[#121212] px-5 pt-2 gap-2">
+        <div className="flex bg-[var(--bg-elevated)] px-5 pt-2 gap-2 shadow-xs">
           <button
             type="button"
             onClick={() => setActiveTab('stream')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all p-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t transition-all p-0 cursor-pointer ${
               activeTab === 'stream'
-                ? 'border-[#38bdf8] text-[#38bdf8] bg-[#38bdf8]/5'
-                : 'border-transparent text-[#737373] hover:text-[#d4d4d4]'
+                ? 'bg-[var(--bg-surface)] text-[var(--brand)] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
             <Video size={14} />
@@ -292,10 +292,10 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('location')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all p-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t transition-all p-0 cursor-pointer ${
               activeTab === 'location'
-                ? 'border-[#38bdf8] text-[#38bdf8] bg-[#38bdf8]/5'
-                : 'border-transparent text-[#737373] hover:text-[#d4d4d4]'
+                ? 'bg-[var(--bg-surface)] text-[var(--brand)] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
             <MapPin size={14} />
@@ -305,10 +305,10 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all p-0 ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t transition-all p-0 cursor-pointer ${
               activeTab === 'settings'
-                ? 'border-[#38bdf8] text-[#38bdf8] bg-[#38bdf8]/5'
-                : 'border-transparent text-[#737373] hover:text-[#d4d4d4]'
+                ? 'bg-[var(--bg-surface)] text-[var(--brand)] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
             <Sliders size={14} />

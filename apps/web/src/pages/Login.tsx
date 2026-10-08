@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { authService } from '../services/auth';
 import {
-  ShieldAlert,
   ShieldCheck,
   Bell,
   Users,
@@ -13,7 +12,6 @@ import {
   Loader2,
   AlertCircle,
   Check,
-  KeyRound,
   X
 } from 'lucide-react';
 import './Login.css';
@@ -114,7 +112,7 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-[#050505] overflow-hidden select-none text-[#f5f5f5]">
+    <div className="login-page-root relative min-h-screen w-full bg-[#050505] overflow-hidden select-none text-[#f5f5f5]">
 
       {/* Cinematic Background Image */}
       <div 
@@ -200,12 +198,12 @@ export default function Login({ onLogin }: LoginProps) {
       <div className="relative min-h-screen w-full flex items-center justify-center p-4 z-20 pointer-events-auto">
         <div className="w-full max-w-[430px]">
 
-          <div className="rounded-2xl bg-[#111112]/95 backdrop-blur-xl p-8 sm:p-9 flex flex-col gap-6 border border-[#262626] shadow-[0_25px_60px_rgba(0,0,0,0.85)]">
+          <div className="rounded-2xl bg-[#111112]/95 backdrop-blur-xl p-8 sm:p-9 flex flex-col gap-6 shadow-[0_25px_60px_rgba(0,0,0,0.85)]">
 
             {/* Card Header: Emblem & Subtitle */}
             <div className="flex flex-col items-center text-center gap-2.5">
               {/* App Logo */}
-              <div className="w-26 h-36 rounded-2xl bg-[#141416]/90 border border-[#262626] flex items-center justify-center shadow-lg p-2.5 relative">
+              <div className="w-26 h-36 rounded-2xl bg-[#141416]/90 flex items-center justify-center shadow-lg p-2.5 relative">
                 <img 
                   src="/logo.png" 
                   alt="Logo Red Ciudadana" 
@@ -336,7 +334,7 @@ export default function Login({ onLogin }: LoginProps) {
             </form>
 
             {/* Footer Links */}
-            <div className="flex flex-col items-center gap-2.5 pt-2 border-t border-[#262626] text-center">
+            <div className="flex flex-col items-center gap-2.5 pt-2 border-t border-white/10 text-center">
               <p className="text-xs text-[#a3a3a3]">
                 ¿Nuevo operador en el sistema?{' '}
                 <a
@@ -356,7 +354,7 @@ export default function Login({ onLogin }: LoginProps) {
       {/* ── MODAL: RECUPERACIÓN DE CONTRASEÑA ── */}
       {showForgotModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-2xl bg-[#111112] border border-[#262626] p-6 sm:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.9)] flex flex-col gap-5 text-left">
+          <div className="relative w-full max-w-md rounded-2xl bg-[#111112] p-6 sm:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.9)] flex flex-col gap-5 text-left">
             {/* Close Button */}
             <button
               onClick={() => setShowForgotModal(false)}
@@ -367,7 +365,7 @@ export default function Login({ onLogin }: LoginProps) {
 
             {/* Header */}
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-[#141416] border border-[#2a2a2b] flex items-center justify-center p-2 shadow-md flex-shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-[#141416] flex items-center justify-center p-2 shadow-md flex-shrink-0">
                 <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <div>

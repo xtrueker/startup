@@ -4,13 +4,131 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────
+   DESIGN TOKENS — Dark Theme (default)
+   Palette from image: #9E9890 / #C5C2BE / #DDDBD8 / #F2F0EE
+   ───────────────────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #efede3;
-    --secondary-color: #efede3;
-    --primary: 0 0% 96%;
-    --primary-foreground: 0 0% 4%;
+    /* ── Backgrounds ── */
+    --bg-app:        #0a0a0a;
+    --bg-surface:    #111112;
+    --bg-elevated:   #181819;
+    --bg-overlay:    #1c1c1e;
+    --bg-input:      #141415;
+    --bg-sidebar:    #111112;
+    --bg-sidebar-header: #181819;
+
+    /* ── Borders ── */
+    --border-base:   #262626;
+    --border-strong: #383838;
+    --border-subtle: #1e1e1e;
+
+    /* ── Text ── */
+    --text-primary:   #efede3;
+    --text-secondary: #a3a3a3;
+    --text-muted:     #737373;
+    --text-disabled:  #525252;
+
+    /* ── Brand (always the same in both themes) ── */
+    --brand:         #3865f6;
+    --brand-hover:   #162a8c;
+    --brand-border:  #1d36a8;
+    --brand-glow:    rgba(56,101,246,0.4);
+
+    /* ── Accent / Indigo nav ── */
+    --accent:        #818cf8;
+    --accent-bg:     #1e1b4b;
+    --accent-border: #4f46e5;
+
+    /* ── Scrollbar ── */
+    --scroll-track:  #0a0a0a;
+    --scroll-thumb:  #262626;
+    --scroll-hover:  #383838;
+
+    /* ── Glass panel ── */
+    --glass-bg:      rgba(18,18,18,0.92);
+    --glass-border:  #282828;
+    --glass-shadow:  rgba(0,0,0,0.5);
+
+    /* ── Map popup ── */
+    --popup-bg:      #141414;
+    --popup-border:  #303030;
+    --popup-text:    #efede3;
+    --popup-tip:     #141414;
+
+    /* ── Button glass ── */
+    --btn-glass-bg:    #171717;
+    --btn-glass-bd:    #2a2a2a;
+    --btn-glass-text:  #efede3;
+    --btn-glass-hover: #242424;
+    --btn-glass-hbd:   #383838;
+    --btn-glass-htxt:  #ffffff;
+
+    color-scheme: dark;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     LIGHT THEME — Warm taupe/bone palette
+     #9E9890 dark taupe | #C5C2BE medium gray | #DDDBD8 light gray | #F2F0EE bone
+     ─────────────────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    /* ── Backgrounds ── */
+    --bg-app:        #F2F0EE;
+    --bg-surface:    #ECEAE7;
+    --bg-elevated:   #DDDBD8;
+    --bg-overlay:    #D0CEC9;
+    --bg-input:      #F7F5F3;
+    --bg-sidebar:    #ffffff;
+    --bg-sidebar-header: #ffffff;
+
+    /* ── Borders (transparent for floating shadow effect) ── */
+    --border-base:   transparent;
+    --border-strong: rgba(0, 0, 0, 0.08);
+    --border-subtle: transparent;
+
+    /* ── High-Contrast Legible Text ── */
+    --text-primary:   #18181b;
+    --text-secondary: #3f3f46;
+    --text-muted:     #52525b;
+    --text-disabled:  #71717a;
+
+    /* ── Brand ── */
+    --brand:         #2952D9;
+    --brand-hover:   #1a3da8;
+    --brand-border:  #3865f6;
+    --brand-glow:    rgba(41,82,217,0.25);
+
+    /* ── Accent ── */
+    --accent:        #4f5ef5;
+    --accent-bg:     #e8eaff;
+    --accent-border: #8492f8;
+
+    /* ── Scrollbar ── */
+    --scroll-track:  #DDDBD8;
+    --scroll-thumb:  #C5C2BE;
+    --scroll-hover:  #9E9890;
+
+    /* ── Glass panel ── */
+    --glass-bg:      rgba(236,234,231,0.95);
+    --glass-border:  transparent;
+    --glass-shadow:  rgba(0,0,0,0.08);
+
+    /* ── Map popup ── */
+    --popup-bg:      #ECEAE7;
+    --popup-border:  transparent;
+    --popup-text:    #18181b;
+    --popup-tip:     #ECEAE7;
+
+    /* ── Button glass ── */
+    --btn-glass-bg:    #DDDBD8;
+    --btn-glass-bd:    transparent;
+    --btn-glass-text:  #18181b;
+    --btn-glass-hover: #D0CEC9;
+    --btn-glass-hbd:   transparent;
+    --btn-glass-htxt:  #09090b;
+
+    color-scheme: light;
   }
 
   *, *::before, *::after {
@@ -22,97 +140,119 @@
   }
 
   body {
-    background-color: #0a0a0a;
-    color: #efede3;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
     line-height: 1.5;
     font-weight: 400;
-    color-scheme: dark;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
 @layer utilities {
+  /* ── Theme-aware glass panel (Subtle surrounding floating shadow, no solid border) ── */
   .glass-panel {
-    background-color: rgba(18, 18, 18, 0.92);
+    background-color: var(--glass-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid #282828;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    border: none;
+    box-shadow: 0 0 12px var(--glass-shadow);
   }
-  
+
+  /* ── Theme-aware glass button (Subtle surrounding floating shadow) ── */
   .glass-button {
-    background-color: #171717;
+    background-color: var(--btn-glass-bg);
     backdrop-filter: blur(8px);
-    border: 1px solid #2a2a2a;
-    color: #efede3;
+    border: none;
+    box-shadow: 0 0 6px rgba(0,0,0,0.05);
+    color: var(--btn-glass-text);
     transition: all 0.2s ease;
   }
   .glass-button:hover {
-    background-color: #242424;
-    border-color: #383838;
-    color: #ffffff;
+    background-color: var(--btn-glass-hover);
+    box-shadow: 0 0 10px rgba(0,0,0,0.08);
+    color: var(--btn-glass-htxt);
   }
 
+  /* ── Theme-aware surface card (Subtle surrounding floating shadow) ── */
+  .surface-card {
+    background-color: var(--bg-surface);
+    border: none;
+    box-shadow: 0 0 10px rgba(0,0,0,0.06);
+    color: var(--text-primary);
+    transition: background-color 0.25s, box-shadow 0.25s, color 0.25s, transform 0.25s;
+  }
+  .surface-card:hover {
+    background-color: var(--bg-elevated);
+    box-shadow: 0 0 14px rgba(0,0,0,0.09);
+  }
+
+  /* ── Theme-aware input ── */
+  .theme-input {
+    background-color: var(--bg-input);
+    border: none;
+    box-shadow: 0 0 6px rgba(0,0,0,0.04);
+    color: var(--text-primary);
+    transition: box-shadow 0.2s, background-color 0.2s;
+  }
+  .theme-input:hover {
+    box-shadow: 0 0 8px rgba(0,0,0,0.06);
+  }
+  .theme-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--brand-glow), 0 0 10px rgba(41,82,217,0.18);
+  }
+
+  /* ── Custom scrollbar ── */
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
-    background: #0a0a0a;
+    background: var(--scroll-track);
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #262626;
+    background: var(--scroll-thumb);
     border-radius: 3px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #383838;
+    background: var(--scroll-hover);
+  }
+
+  /* ── Theme transition helper ── */
+  .theme-transition {
+    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
   }
 }
 
-/* ── Custom Dark Theme for MapLibre Popups (Removes ugly white box) ── */
+/* ── MapLibre Popup (theme-aware) ── */
 .maplibregl-popup {
   z-index: 100 !important;
 }
 
 .maplibregl-popup-content {
-  background: #141414 !important;
-  color: #efede3 !important;
-  border: 1px solid #303030 !important;
-  border-radius: 12px !important;
+  background: var(--popup-bg) !important;
+  color: var(--popup-text) !important;
+  border: 1px solid var(--popup-border) !important;
+  border-radius: 7px !important;
   padding: 10px 14px !important;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.75) !important;
+  box-shadow: 0 12px 28px var(--glass-shadow) !important;
 }
 
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
-  border-top-color: #141414 !important;
-}
-.maplibregl-popup-anchor-top .maplibregl-popup-tip {
-  border-bottom-color: #141414 !important;
-}
-.maplibregl-popup-anchor-left .maplibregl-popup-tip {
-  border-right-color: #141414 !important;
-}
-.maplibregl-popup-anchor-right .maplibregl-popup-tip {
-  border-left-color: #141414 !important;
-}
-.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip {
-  border-top-color: #141414 !important;
-}
-.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
-  border-top-color: #141414 !important;
-}
-.maplibregl-popup-anchor-top-left .maplibregl-popup-tip {
-  border-bottom-color: #141414 !important;
-}
-.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
-  border-bottom-color: #141414 !important;
-}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip  { border-top-color:    var(--popup-tip) !important; }
+.maplibregl-popup-anchor-top .maplibregl-popup-tip     { border-bottom-color: var(--popup-tip) !important; }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip    { border-right-color:  var(--popup-tip) !important; }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip   { border-left-color:   var(--popup-tip) !important; }
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip  { border-top-color: var(--popup-tip) !important; }
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: var(--popup-tip) !important; }
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip     { border-bottom-color: var(--popup-tip) !important; }
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip    { border-bottom-color: var(--popup-tip) !important; }
 
 .maplibregl-popup-close-button {
-  color: #8c8c8c !important;
+  color: var(--text-muted) !important;
   font-size: 16px !important;
   padding: 4px 8px !important;
   right: 4px !important;
@@ -121,35 +261,34 @@
   transition: color 0.15s ease !important;
 }
 .maplibregl-popup-close-button:hover {
-  color: #efede3 !important;
+  color: var(--text-primary) !important;
   background: transparent !important;
 }
 
+/* ── Base resets ── */
 body {
   margin: 0;
   padding: 0;
   width: 100vw;
   min-height: 100vh;
   overflow-x: hidden;
-  background-color: #0a0a0a;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
-  background-color: #0a0a0a;
+  background-color: var(--bg-app);
 }
 
 a {
   font-weight: 500;
-  color: #efede3;
+  color: var(--text-primary);
   text-decoration: underline;
   text-underline-offset: 4px;
   transition: color 0.2s ease;
 }
-
 a:hover {
-  color: #ffffff;
+  color: var(--brand);
 }
 
 button {
@@ -160,3 +299,248 @@ button {
 * {
   box-sizing: border-box;
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   GENERAL 7PX BORDER RADIUS
+   ───────────────────────────────────────────────────────────────── */
+button:not(.rounded-full):not([class*="rounded-full"]),
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea,
+.glass-panel,
+.surface-card,
+.maplibregl-popup-content,
+.maplibregl-ctrl-group {
+  border-radius: 7px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   LIGHT THEME — Exhaustive override block
+   Flips hardcoded dark Tailwind arbitrary classes to warm taupe/bone
+   #F2F0EE (bone) / #ECEAE7 (surface) / #DDDBD8 (elevated) /
+   #C5C2BE (border) / #9E9890 (strong) / #2C2A27 (text)
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Deep surface replacements (app background / root cards) ── */
+[data-theme="light"] .bg-\[\#050505\],
+[data-theme="light"] .bg-\[\#080808\],
+[data-theme="light"] .bg-\[\#0a0a0a\],
+[data-theme="light"] .bg-\[\#0a0a0c\],
+[data-theme="light"] .bg-\[\#0b0b0b\],
+[data-theme="light"] .bg-\[\#0c0c0e\],
+[data-theme="light"] .bg-\[\#0d0d0d\],
+[data-theme="light"] .bg-\[\#0d0d0f\],
+[data-theme="light"] .bg-\[\#0e0e10\],
+[data-theme="light"] .bg-zinc-950,
+[data-theme="light"] .bg-slate-950 { background-color: #F2F0EE !important; }
+
+/* ── Surface cards, sidebars, and panels ── */
+[data-theme="light"] .bg-\[\#0f0f0f\],
+[data-theme="light"] .bg-\[\#0f0f11\],
+[data-theme="light"] .bg-\[\#101010\],
+[data-theme="light"] .bg-\[\#111112\],
+[data-theme="light"] .bg-\[\#111113\],
+[data-theme="light"] .bg-\[\#111114\],
+[data-theme="light"] .bg-\[\#121212\],
+[data-theme="light"] .bg-\[\#121214\],
+[data-theme="light"] .bg-\[\#121215\],
+[data-theme="light"] .bg-\[\#131314\],
+[data-theme="light"] .bg-\[\#131316\],
+[data-theme="light"] .bg-zinc-900,
+[data-theme="light"] .bg-slate-900 { background-color: #ECEAE7 !important; }
+
+/* ── Elevated cards, inputs, dialogs ── */
+[data-theme="light"] .bg-\[\#141414\],
+[data-theme="light"] .bg-\[\#141415\],
+[data-theme="light"] .bg-\[\#141416\],
+[data-theme="light"] .bg-\[\#161616\],
+[data-theme="light"] .bg-\[\#161618\],
+[data-theme="light"] .bg-\[\#161619\],
+[data-theme="light"] .bg-\[\#16161a\],
+[data-theme="light"] .bg-\[\#171717\],
+[data-theme="light"] .bg-\[\#17171b\],
+[data-theme="light"] .bg-zinc-800,
+[data-theme="light"] .bg-slate-800 { background-color: #E5E2DF !important; }
+
+/* ── Hover states and active items ── */
+[data-theme="light"] .bg-\[\#181818\],
+[data-theme="light"] .bg-\[\#181819\],
+[data-theme="light"] .bg-\[\#18181b\],
+[data-theme="light"] .bg-\[\#18181c\],
+[data-theme="light"] .bg-\[\#1a1a1a\],
+[data-theme="light"] .bg-\[\#1a1a1f\],
+[data-theme="light"] .bg-\[\#1b1b1b\],
+[data-theme="light"] .bg-\[\#1c1c1c\],
+[data-theme="light"] .bg-\[\#1c1c1e\],
+[data-theme="light"] .bg-\[\#1c1c20\],
+[data-theme="light"] .bg-\[\#1f1f1f\],
+[data-theme="light"] .bg-\[\#1f1f23\],
+[data-theme="light"] .bg-zinc-700,
+[data-theme="light"] .bg-slate-700 { background-color: #DDDBD8 !important; }
+
+[data-theme="light"] .bg-\[\#202020\],
+[data-theme="light"] .bg-\[\#202024\],
+[data-theme="light"] .bg-\[\#202026\],
+[data-theme="light"] .bg-\[\#222222\],
+[data-theme="light"] .bg-\[\#222225\],
+[data-theme="light"] .bg-\[\#222228\],
+[data-theme="light"] .bg-\[\#242424\],
+[data-theme="light"] .bg-\[\#25252b\],
+[data-theme="light"] .bg-\[\#262626\],
+[data-theme="light"] .bg-\[\#282828\],
+[data-theme="light"] .bg-\[\#2a2a2a\],
+[data-theme="light"] .bg-\[\#2a2a2b\] { background-color: #D0CEC9 !important; }
+
+/* ── Hover modifiers ── */
+[data-theme="light"] .hover\:bg-\[\#181818\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1a1a1a\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1a1a1f\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1f1f1f\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1f1f23\]:hover,
+[data-theme="light"] .hover\:bg-\[\#202020\]:hover,
+[data-theme="light"] .hover\:bg-\[\#202026\]:hover,
+[data-theme="light"] .hover\:bg-\[\#222225\]:hover,
+[data-theme="light"] .hover\:bg-\[\#222228\]:hover,
+[data-theme="light"] .hover\:bg-\[\#25252b\]:hover,
+[data-theme="light"] .hover\:bg-\[\#262626\]:hover,
+[data-theme="light"] .hover\:bg-zinc-800\/20:hover,
+[data-theme="light"] .hover\:bg-zinc-700:hover { background-color: #DDDBD8 !important; }
+
+/* ── Borders ── */
+[data-theme="light"] .border-\[\#1a1a1a\],
+[data-theme="light"] .border-\[\#1e1e1e\],
+[data-theme="light"] .border-\[\#222222\],
+[data-theme="light"] .border-\[\#222226\],
+[data-theme="light"] .border-\[\#242424\],
+[data-theme="light"] .border-\[\#262626\],
+[data-theme="light"] .border-\[\#26262a\],
+[data-theme="light"] .border-\[\#26262b\],
+[data-theme="light"] .border-zinc-800,
+[data-theme="light"] .border-zinc-800\/70,
+[data-theme="light"] .border-zinc-800\/80,
+[data-theme="light"] .border-slate-800 { border-color: #C5C2BE !important; }
+
+[data-theme="light"] .border-\[\#282828\],
+[data-theme="light"] .border-\[\#2a2a2a\],
+[data-theme="light"] .border-\[\#2a2a2b\],
+[data-theme="light"] .border-\[\#2a2a30\],
+[data-theme="light"] .border-\[\#2b2b2b\],
+[data-theme="light"] .border-\[\#2e2e2e\],
+[data-theme="light"] .border-\[\#2e2e34\],
+[data-theme="light"] .border-\[\#303030\],
+[data-theme="light"] .border-\[\#303036\],
+[data-theme="light"] .border-zinc-700,
+[data-theme="light"] .border-slate-700 { border-color: #AEABA6 !important; }
+
+[data-theme="light"] .border-\[\#333333\],
+[data-theme="light"] .border-\[\#33333b\],
+[data-theme="light"] .border-\[\#383838\],
+[data-theme="light"] .border-\[\#38383a\],
+[data-theme="light"] .border-\[\#383840\],
+[data-theme="light"] .border-\[\#3a3a3a\],
+[data-theme="light"] .border-\[\#3f3f46\],
+[data-theme="light"] .border-\[\#404040\],
+[data-theme="light"] .border-zinc-600 { border-color: #9E9890 !important; }
+
+/* ── Primary text replacements ── */
+[data-theme="light"] .text-\[\#efede3\],
+[data-theme="light"] .text-\[\#f5f5f5\],
+[data-theme="light"] .text-\[\#e5e5e5\],
+[data-theme="light"] .text-\[\#e4e4e7\],
+[data-theme="light"] .text-\[\#d4d4d4\],
+[data-theme="light"] .text-\[\#cbd5e1\],
+[data-theme="light"] .text-zinc-100,
+[data-theme="light"] .text-zinc-200,
+[data-theme="light"] .text-zinc-300,
+[data-theme="light"] .text-slate-100,
+[data-theme="light"] .text-slate-200,
+[data-theme="light"] .text-slate-300 { color: #2C2A27 !important; }
+
+/* ── Secondary text replacements ── */
+[data-theme="light"] .text-\[\#a3a3a3\],
+[data-theme="light"] .text-\[\#a1a1aa\],
+[data-theme="light"] .text-\[\#9ca3af\],
+[data-theme="light"] .text-zinc-400,
+[data-theme="light"] .text-slate-400,
+[data-theme="light"] .text-slate-500 { color: #5C5A57 !important; }
+
+/* ── Muted text replacements ── */
+[data-theme="light"] .text-\[\#737373\],
+[data-theme="light"] .text-\[\#8c8c8c\],
+[data-theme="light"] .text-zinc-500,
+[data-theme="light"] .text-slate-600 { color: #7A7875 !important; }
+
+/* ── Disabled text replacements ── */
+[data-theme="light"] .text-\[\#525252\],
+[data-theme="light"] .text-\[\#6b7280\],
+[data-theme="light"] .text-zinc-600 { color: #A09E9A !important; }
+
+/* ── High-contrast button in light theme ── */
+[data-theme="light"] button.bg-\[\#efede3\],
+[data-theme="light"] .bg-\[\#efede3\]:is(button) {
+  background-color: #2C2A27 !important;
+  color: #F2F0EE !important;
+  border-color: #2C2A27 !important;
+}
+[data-theme="light"] button.bg-\[\#efede3\]:hover,
+[data-theme="light"] .bg-\[\#efede3\]:is(button):hover {
+  background-color: #1a1916 !important;
+}
+
+/* ── Accent / indigo bg (nav active pills) ── */
+[data-theme="light"] .bg-\[\#1a1a2e\],
+[data-theme="light"] .bg-\[\#1e1b4b\] { background-color: #E8EAFF !important; }
+
+/* ── Inputs / selects / textareas (light) ── */
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: #F7F5F3 !important;
+  border-color: #C5C2BE !important;
+  color: #2C2A27 !important;
+}
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder { color: #A09E9A !important; }
+
+/* ── Map controls in light ── */
+[data-theme="light"] .maplibregl-ctrl-group {
+  background-color: #ECEAE7 !important;
+  border-color: #C5C2BE !important;
+}
+[data-theme="light"] .maplibregl-ctrl-group button {
+  color: #2C2A27 !important;
+}
+
+/* ── Subtle surrounding shadow overrides ── */
+[data-theme="light"] [class*="shadow-\[-15px_0_40px"] {
+  box-shadow: 0 0 16px rgba(0,0,0,0.07) !important;
+}
+[data-theme="light"] [class*="shadow-\[0_25px_60px"] {
+  box-shadow: 0 0 20px rgba(0,0,0,0.09) !important;
+}
+
+/* ── Login page isolation: Never apply #C5C2BE or light theme overrides to login ── */
+.login-page-root {
+  color-scheme: dark !important;
+}
+[data-theme="light"] .login-page-root {
+  background-color: #050505 !important;
+  color: #f5f5f5 !important;
+}
+[data-theme="light"] .login-page-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+[data-theme="light"] .login-page-root select,
+[data-theme="light"] .login-page-root textarea {
+  background-color: #181819 !important;
+  border-color: #2a2a2b !important;
+  color: #f5f5f5 !important;
+}
+[data-theme="light"] .login-page-root * {
+  border-color: transparent;
+}
+[data-theme="light"] .login-page-root .border-\[\#2a2a2b\] {
+  border-color: #2a2a2b !important;
+}
+[data-theme="light"] .login-page-root .border-white\/10 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+

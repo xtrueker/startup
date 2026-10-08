@@ -20,6 +20,7 @@ import { scannerRouter } from './modules/cameras/presentation/scannerRoutes';
 import { analysisRouter } from './modules/analysis/presentation/routes';
 import { mobileRouter } from './modules/mobile/presentation/routes';
 import { usersRouter } from './modules/users/presentation/routes';
+import { rolesRouter } from './modules/roles/presentation/routes';
 
 const app = express();
 const server = http.createServer(app);
@@ -77,6 +78,7 @@ app.use('/api/cameras', scannerRouter);
 app.use('/api/analysis', analysisRouter);
 app.use('/api/mobile', mobileRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/roles', rolesRouter);
 
 // SWAGGER DOCS
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {

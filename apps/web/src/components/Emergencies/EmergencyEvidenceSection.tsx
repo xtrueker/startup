@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, Play, Pause, FileText, Radio, ShieldAlert } from 'lucide-react';
+import { Volume2, Play, Pause, FileText } from 'lucide-react';
 import type { Alert as ApiAlert } from '../../services/alerts';
 import type { AssignedOperatorInfo, AssignedTeamInfo } from './types';
 

@@ -6,7 +6,7 @@ export interface RegisterData {
   cedula: string;
   email: string;
   password: string;
-  role?: 'citizen' | 'operator' | 'supervisor' | 'admin';
+  role?: 'citizen' | 'operator' | 'supervisor' | 'admin' | 'police' | string;
   phone?: string;
   ciudad?: string;
 }

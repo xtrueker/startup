@@ -10,9 +10,11 @@ import { getCityCoordinates } from '../../utils/colombiaCities';
 
 import { useTacticalHeatmapLayer } from './TacticalHeatmapLayer';
 import { routingService } from '../../services/routingService';
+import { useThemeStore } from '../../stores/useThemeStore';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const TACTICAL_DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const TACTICAL_LIGHT_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
 // 1. Pure Clean Satellite Style (Ultra-HD Google Earth: ZERO restaurants, ZERO locales, ZERO commercial clutter)
 const SATELLITE_CLEAN_STYLE: any = {
@@ -77,6 +79,7 @@ const SATELLITE_WITH_ROADS_STYLE: any = {
 };
 
 export const TacticalMap: React.FC = () => {
+  const theme = useThemeStore(state => state.theme);
   const user = useAuthStore(state => state.user);
   const userCiudad = user?.ciudad || authService.getCiudad();
   const cityConfig = useMemo(() => getCityCoordinates(userCiudad), [userCiudad]);
@@ -160,8 +163,7 @@ export const TacticalMap: React.FC = () => {
             focusMapOnAlert(object.id);
           }
         },
-        autoHighlight: true,
-        highlightColor: [255, 180, 180, 220]
+        autoHighlight: false
       })
     ];
   }, [alertsList, focusMapOnAlert]);
@@ -208,8 +210,7 @@ export const TacticalMap: React.FC = () => {
         getPosition: (d: any) => [d.lng, d.lat],
         getSize: () => 40,
         sizeScale: 1,
-        autoHighlight: true,
-        highlightColor: [56, 189, 248, 220],
+        autoHighlight: false,
         onClick: ({ object }: any) => {
           if (object) {
             setSelectedCamera(object);
@@ -240,8 +241,7 @@ export const TacticalMap: React.FC = () => {
         getPosition: (d: any) => [d.lng, d.lat],
         getSize: () => 40,
         sizeScale: 1,
-        autoHighlight: true,
-        highlightColor: [200, 220, 255, 220],
+        autoHighlight: false,
         transitions: {
           getPosition: {
             duration: 3000,
@@ -323,30 +323,30 @@ export const TacticalMap: React.FC = () => {
             }));
           }}
           title={`Clic para re-centrar el mapa en ${cityConfig.name}`}
-          className="group glass-panel rounded-lg px-2.5 py-1.5 flex items-center gap-2 border border-[#333333] hover:border-emerald-500/50 bg-[#121212]/90 hover:bg-[#1a1a1a] backdrop-blur-md shadow-md transition-all duration-200 cursor-pointer text-left active:scale-[0.98]"
+          className="group bg-[var(--bg-surface)] rounded px-2.5 py-1.5 flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer text-left active:scale-[0.98]"
         >
-          <div className="w-5 h-5 rounded-md bg-emerald-500/10 border border-emerald-500/30 group-hover:border-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center text-emerald-400 transition-colors flex-shrink-0">
+          <div className="w-5 h-5 rounded bg-emerald-500/15 group-hover:bg-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 transition-colors flex-shrink-0 shadow-xs">
             <MapPin size={12} className="group-hover:scale-110 transition-transform" />
           </div>
           <div className="flex flex-col">
-            <span className="text-[9px] uppercase font-mono text-[#8c8c8c] group-hover:text-emerald-400/90 tracking-wider font-semibold transition-colors flex items-center gap-1 leading-none mb-0.5">
+            <span className="text-[9px] uppercase font-mono text-[var(--text-muted)] group-hover:text-emerald-600 dark:group-hover:text-emerald-400 tracking-wider font-bold transition-colors flex items-center gap-1 leading-none mb-0.5">
               Jurisdicción
             </span>
-            <span className="text-[11px] font-bold text-white group-hover:text-[#f0fdf4] tracking-wide flex items-center gap-1 transition-colors leading-none">
+            <span className="text-[11px] font-bold text-[var(--text-primary)] tracking-wide flex items-center gap-1 transition-colors leading-none">
               {cityConfig.name}
-              <span className="text-[9px] font-normal text-[#a3a3a3] group-hover:text-slate-300">({cityConfig.department})</span>
+              <span className="text-[9px] font-normal text-[var(--text-muted)]">({cityConfig.department})</span>
             </span>
           </div>
         </button>
 
         {/* Perspective: Operador (3D) vs Ciudadano (2D) */}
-        <div className="glass-panel rounded-lg p-[5px] flex gap-0.5 border border-[#333333] bg-[#121212]/90 backdrop-blur-md shadow-md">
+        <div className="bg-[var(--bg-surface)] p-[3px] rounded flex gap-1 shadow-md">
           <button 
             onClick={() => handlePerspectiveChange('3d')}
-            className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+            className={`px-2 py-1 text-[10px] font-bold transition-all cursor-pointer rounded ${
               viewPerspective === '3d' 
-                ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' 
-                : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-xs font-black' 
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]'
             }`}
             title="Vista tridimensional con ángulo de inclinación 3D"
           >
@@ -354,10 +354,10 @@ export const TacticalMap: React.FC = () => {
           </button>
           <button 
             onClick={() => handlePerspectiveChange('2d')}
-            className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+            className={`px-2 py-1 text-[10px] font-bold transition-all cursor-pointer rounded ${
               viewPerspective === '2d' 
-                ? 'bg-[#222222] text-[#efede3] font-bold border border-[#3a3a3a] shadow-sm' 
-                : 'text-[#8c8c8c] hover:text-[#efede3] hover:bg-[#181818]'
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-xs font-black' 
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             }`}
             title="Vista cenital plana 2D"
           >
@@ -371,21 +371,21 @@ export const TacticalMap: React.FC = () => {
         {/* Botón Circular 1: Alternar Modo Satelital / Táctico */}
         <button
           onClick={() => setMapType(mapType === 'satellite' ? 'tactical' : 'satellite')}
-          className={`w-[35px] h-[35px] rounded-full flex items-center justify-center transition-all duration-200 shadow-md border cursor-pointer group relative ${
+          className={`w-[35px] h-[35px] rounded-full flex items-center justify-center transition-all duration-200 shadow-md cursor-pointer group relative ${
             mapType === 'satellite'
-              ? 'bg-[#0e1c62] border-[#3865f6] text-white shadow-[0_0_10px_rgba(56,101,246,0.5)] scale-105'
-              : 'bg-[#121212]/90 border-[#333333] hover:border-[#3865f6]/50 text-[#a3a3a3] hover:text-white backdrop-blur-md hover:bg-[#1a1a1a]'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/40 scale-105'
+              : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] hover:shadow-lg'
           }`}
           title={mapType === 'satellite' ? 'Cambiar a Mapa Táctico' : 'Cambiar a Satélite (Real)'}
         >
           {mapType === 'satellite' ? (
-            <Satellite size={15} className="text-blue-300" />
+            <Satellite size={15} className="text-white" />
           ) : (
-            <MapPinned size={15} className="group-hover:text-[#3865f6] transition-colors" />
+            <MapPinned size={15} className="group-hover:text-[var(--brand)] transition-colors" />
           )}
 
           {/* Tooltip flotante hacia la izquierda */}
-          <span className="absolute right-9 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-150 bg-[#121212]/95 border border-[#333333] text-white text-[10px] font-semibold py-0.5 px-2 rounded-md whitespace-nowrap shadow-xl">
+          <span className="absolute right-9 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-150 bg-[var(--bg-surface)] text-[var(--text-primary)] text-[10px] font-semibold py-0.5 px-2 rounded shadow-xl whitespace-nowrap">
             {mapType === 'satellite' ? 'Satélite Activo (Clic: Táctico)' : 'Activar Satélite (Real)'}
           </span>
         </button>
@@ -394,20 +394,20 @@ export const TacticalMap: React.FC = () => {
         {mapType === 'satellite' && (
           <button
             onClick={() => setShowCleanRoads(!showCleanRoads)}
-            className={`w-[35px] h-[35px] rounded-full flex items-center justify-center transition-all duration-200 shadow-md border cursor-pointer group relative animate-in fade-in zoom-in-95 duration-150 ${
+            className={`w-[35px] h-[35px] rounded-full flex items-center justify-center transition-all duration-200 shadow-md cursor-pointer group relative animate-in fade-in zoom-in-95 duration-150 ${
               showCleanRoads
-                ? 'bg-[#1e3a8a] border-[#60a5fa] text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]'
-                : 'bg-[#121212]/90 border-[#333333] hover:border-[#3865f6]/50 text-[#a3a3a3] hover:text-white backdrop-blur-md hover:bg-[#1a1a1a]'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40'
+                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] hover:shadow-lg'
             }`}
             title={showCleanRoads ? 'Modo 100% Limpio (Ocultar calles)' : 'Mostrar nombres de calles'}
           >
             <Waypoints 
               size={15} 
-              className={showCleanRoads ? 'text-blue-200' : 'group-hover:text-blue-300 transition-colors'} 
+              className={showCleanRoads ? 'text-white' : 'group-hover:text-blue-500 transition-colors'} 
             />
 
             {/* Tooltip flotante hacia la izquierda */}
-            <span className="absolute right-9 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-150 bg-[#121212]/95 border border-[#333333] text-white text-[10px] font-semibold py-0.5 px-2 rounded-md whitespace-nowrap shadow-xl">
+            <span className="absolute right-9 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-150 bg-[var(--bg-surface)] text-[var(--text-primary)] text-[10px] font-semibold py-0.5 px-2 rounded shadow-xl whitespace-nowrap">
               {showCleanRoads ? 'Calles Activas (Clic: Limpio)' : 'Ver Calles'}
             </span>
           </button>
@@ -426,7 +426,7 @@ export const TacticalMap: React.FC = () => {
           mapStyle={
             mapType === 'satellite'
               ? (showCleanRoads ? SATELLITE_WITH_ROADS_STYLE : SATELLITE_CLEAN_STYLE)
-              : TACTICAL_DARK_STYLE
+              : (theme === 'light' ? TACTICAL_LIGHT_STYLE : TACTICAL_DARK_STYLE)
           } 
           reuseMaps
         />

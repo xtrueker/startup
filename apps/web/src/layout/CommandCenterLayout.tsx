@@ -9,14 +9,15 @@ const CommandCenterLayout: React.FC = () => {
   if (isLoading) return null; // Let App.tsx handle the loading state screen
 
   const role = user?.role;
-  const canAccess = role === 'admin' || role === 'operator' || role === 'supervisor';
+  const canAccess = role === 'admin' || role === 'operator' || role === 'supervisor' || role === 'police';
+
 
   if (!canAccess || !isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
   return (
-    <div className="flex h-screen w-screen bg-[#0a0a0a] text-[#f5f5f5] overflow-hidden font-sans">
+    <div className="flex h-screen w-screen bg-[var(--bg-app)] text-[var(--text-primary)] overflow-hidden font-sans theme-transition">
       <CommandCenterSidebar />
       <div className="flex-1 relative overflow-hidden flex flex-col min-w-0" style={{ minHeight: 0 }}>
         <Outlet />

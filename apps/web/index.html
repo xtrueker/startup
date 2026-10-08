@@ -1,6 +1,18 @@
 <!doctype html>
-<html lang="en" style="height: 100%;">
+<html lang="en" class="dark" style="height: 100%;">
   <head>
+    <script>
+      (function() {
+        var t = localStorage.getItem('rc_theme');
+        if (t === 'light') {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.setAttribute('data-theme', 'light');
+        } else {
+          document.documentElement.classList.add('dark');
+          document.documentElement.removeAttribute('data-theme');
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />

@@ -164,22 +164,22 @@ const CommandCenter: React.FC = () => {
   }, [focusedAlertId, activeAlerts, systemCameras]);
 
   return (
-    <div className="flex h-full w-full bg-[#0a0a0a] overflow-hidden font-sans text-[#f5f5f5]">
+    <div className="flex h-full w-full bg-[var(--bg-app)] overflow-hidden font-sans text-[var(--text-primary)] theme-transition">
       
       {/* ── Sidebar Izquierdo ─────────────────────────────────────────── */}
       
 
       {/* ── Área Principal: Tactical Map ──────────────────────────────── */}
-      <main className="flex-1 relative bg-[#0a0a0a]" style={{ minHeight: 0 }}>
+      <main className="flex-1 relative bg-[var(--bg-app)]" style={{ minHeight: 0 }}>
         {/* KPI Bar */}
         <div className="absolute top-6 left-10 right-6 z-10 flex gap-4 pointer-events-none">
-           <div className="glass-panel p-4 rounded-xl flex items-center gap-4 pointer-events-auto">
-             <div className="bg-[#881337]/30 border border-[#9f1239]/40 p-2 rounded-lg">
-               <AlertTriangle className="text-[#fb7185]" size={24} />
+           <div className="bg-[var(--bg-surface)] shadow-sm dark:shadow-md p-4 rounded flex items-center gap-4 pointer-events-auto">
+             <div className="bg-red-500/15 text-red-600 dark:bg-red-950/60 dark:text-red-400 p-2.5 rounded shadow-xs flex items-center justify-center">
+               <AlertTriangle size={24} />
              </div>
              <div>
-               <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Alertas Activas</div>
-               <div className="text-2xl font-black text-[#efede3] tabular-nums">{activeCount ?? '0'}</div>
+               <div className="text-[11px] text-[var(--text-secondary)] uppercase tracking-widest font-black">Alertas Activas</div>
+               <div className="text-2xl font-black text-[var(--text-primary)] tabular-nums">{activeCount ?? '0'}</div>
              </div>
            </div>
 
@@ -189,13 +189,13 @@ const CommandCenter: React.FC = () => {
 
         {/* Nearby Cameras Collage Panel */}
         {focusedAlertId && activeAlerts[focusedAlertId] && (
-          <div className="absolute bottom-6 left-6 right-[26rem] z-30 glass-panel p-4 rounded-xl flex flex-col gap-3 pointer-events-auto animate-in slide-in-from-bottom-4">
+          <div className="absolute bottom-6 left-6 right-[26rem] z-30 bg-[var(--bg-surface)] shadow-md dark:shadow-lg p-4 rounded flex flex-col gap-3 pointer-events-auto animate-in slide-in-from-bottom-4">
             <div className="flex justify-between items-center">
-              <div className="text-xs uppercase text-[#efede3] font-bold tracking-widest flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_#ffffff] animate-pulse"></span>
+              <div className="text-xs uppercase text-[var(--text-primary)] font-bold tracking-widest flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--brand)] shadow-[0_0_8px_var(--brand)] animate-pulse"></span>
                 Cámaras de Seguridad Cercanas (Radio 100m)
               </div>
-              <div className="text-[10px] text-slate-400 font-mono">
+              <div className="text-[10px] text-[var(--text-muted)] font-mono font-medium">
                 {nearbyCameras.length} {nearbyCameras.length === 1 ? 'cámara detectada' : 'cámaras detectadas'}
               </div>
             </div>
@@ -208,22 +208,22 @@ const CommandCenter: React.FC = () => {
                     <div 
                       key={cam.id} 
                       onClick={() => setSelectedCamera(cam)}
-                      className="min-w-[200px] max-w-[240px] aspect-video bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex flex-col relative group hover:border-white transition-colors cursor-pointer"
+                      className="min-w-[200px] max-w-[240px] aspect-video bg-[var(--bg-surface)] rounded overflow-hidden shadow-sm hover:shadow-md flex flex-col relative group transition-all cursor-pointer"
                     >
-                      <div className="absolute top-1.5 right-1.5 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[8px] font-black uppercase text-slate-300 shadow z-10 flex items-center gap-1">
+                      <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur px-1.5 py-0.5 rounded text-[8px] font-black uppercase text-white shadow z-10 flex items-center gap-1">
                         {streamUrl ? (
                           <>
-                            <span className="w-1 h-1 bg-white rounded-full animate-pulse"></span>
+                            <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse"></span>
                             LIVE
                           </>
                         ) : (
                           <>
-                            <span className="w-1 h-1 bg-slate-500 rounded-full"></span>
+                            <span className="w-1 h-1 bg-slate-400 rounded-full"></span>
                             OFFLINE
                           </>
                         )}
                       </div>
-                      <div className="flex-1 bg-black flex items-center justify-center relative overflow-hidden">
+                      <div className="flex-1 bg-black/90 flex items-center justify-center relative overflow-hidden">
                         {streamUrl ? (
                           <iframe
                             src={streamUrl}
@@ -232,15 +232,15 @@ const CommandCenter: React.FC = () => {
                             allowFullScreen
                           />
                         ) : (
-                          <div className="flex flex-col items-center gap-1 text-slate-600 p-2 text-center select-none">
-                            <span className="text-[9px] font-mono uppercase tracking-wider text-[#737373]">Sin Señal</span>
+                          <div className="flex flex-col items-center gap-1 text-[var(--text-muted)] p-2 text-center select-none">
+                            <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-muted)]">Sin Señal</span>
                             <span className="text-[8px] font-mono max-w-xs truncate">{cam.name}</span>
                           </div>
                         )}
                       </div>
-                      <div className="p-1.5 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-[9px] text-slate-300">
+                      <div className="p-1.5 bg-[var(--bg-surface)] flex items-center justify-between text-[9px] text-[var(--text-secondary)]">
                         <span className="font-bold truncate max-w-[120px]">{cam.name}</span>
-                        <span className="font-mono text-[8px] text-[#737373]">
+                        <span className="font-mono text-[8px] text-[var(--text-muted)]">
                           {getHaversineDistance(
                             activeAlerts[focusedAlertId].sourceLocation.lat,
                             activeAlerts[focusedAlertId].sourceLocation.lng,
@@ -254,7 +254,7 @@ const CommandCenter: React.FC = () => {
                           e.stopPropagation();
                           setSelectedCamera(cam);
                         }}
-                        className="w-full bg-[#1c1c1c] hover:bg-[#262626] text-[#efede3] text-[10px] py-1 font-semibold transition-colors border-t border-[#2e2e2e]"
+                        className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-primary)] text-[10px] py-1 font-bold transition-colors cursor-pointer"
                       >
                         ABRIR VIDEO FEED
                       </button>
@@ -263,7 +263,7 @@ const CommandCenter: React.FC = () => {
                 })}
               </div>
             ) : (
-              <div className="py-4 text-center text-xs text-[#737373] bg-slate-950/40 rounded-lg border border-slate-800/50">
+              <div className="py-4 text-center text-xs text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded shadow-inner">
                 No se encontraron cámaras de seguridad en un radio de 100 metros.
               </div>
             )}
