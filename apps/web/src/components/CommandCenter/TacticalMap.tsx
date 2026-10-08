@@ -11,6 +11,7 @@ import { getCityCoordinates } from '../../utils/colombiaCities';
 import { useTacticalHeatmapLayer } from './TacticalHeatmapLayer';
 import { routingService } from '../../services/routingService';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { useSocket } from '../../hooks/useSocket';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const TACTICAL_DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -223,8 +224,48 @@ export const TacticalMap: React.FC = () => {
     ];
   }, [systemCameras, setSelectedCamera]);
 
-  // Police units are tracked via real-time socket events (ghost:live_tracking)
-  const [policeUnits] = useState<any[]>([]);
+  // Police units are tracked via real-time socket events (patrol:location -> police:unit_moved)
+  const { socket } = useSocket({ namespace: '/operators' });
+  const [policeUnits, setPoliceUnits] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUnitMoved = (unit: any) => {
+      setPoliceUnits(prev => {
+        const id = unit.officerId || unit.socketId || unit.id;
+        const idx = prev.findIndex(p => (p.officerId || p.socketId || p.id) === id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], ...unit };
+          return next;
+        }
+        return [...prev, unit];
+      });
+    };
+
+    const handleUnitOffline = (data: any) => {
+      setPoliceUnits(prev => prev.filter(p => (p.officerId || p.socketId || p.id) !== data.officerId));
+    };
+
+    const handleActiveUnits = (units: any[]) => {
+      if (Array.isArray(units)) {
+        setPoliceUnits(units);
+      }
+    };
+
+    socket.on('police:unit_moved', handleUnitMoved);
+    socket.on('police:unit_online', handleUnitMoved);
+    socket.on('police:unit_offline', handleUnitOffline);
+    socket.on('police:active_units', handleActiveUnits);
+
+    return () => {
+      socket.off('police:unit_moved', handleUnitMoved);
+      socket.off('police:unit_online', handleUnitMoved);
+      socket.off('police:unit_offline', handleUnitOffline);
+      socket.off('police:active_units', handleActiveUnits);
+    };
+  }, [socket]);
 
   const policeLayer = useMemo(() => {
     if (policeUnits.length === 0) return [];
@@ -233,18 +274,18 @@ export const TacticalMap: React.FC = () => {
         id: 'police-units-layer',
         data: policeUnits,
         pickable: true,
-        iconAtlas: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="%23ffffff" stroke="%23000000" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+        iconAtlas: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="%232563eb" stroke="%23ffffff" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
         iconMapping: {
           shield: { x: 0, y: 0, width: 36, height: 36, mask: false }
         },
         getIcon: () => 'shield',
-        getPosition: (d: any) => [d.lng, d.lat],
+        getPosition: (d: any) => [d.lng ?? d.longitude, d.lat ?? d.latitude],
         getSize: () => 40,
         sizeScale: 1,
-        autoHighlight: false,
+        autoHighlight: true,
         transitions: {
           getPosition: {
-            duration: 3000,
+            duration: 2000,
             easing: (t: number) => t
           }
         },
