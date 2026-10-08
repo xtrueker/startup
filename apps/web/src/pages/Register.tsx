@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Smartphone, Lock, ArrowLeft, CheckCircle2, UserCheck, ShieldAlert } from 'lucide-react';
 

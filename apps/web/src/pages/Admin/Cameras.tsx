@@ -102,7 +102,7 @@ const AdminCameras: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0a] text-[#f5f5f5] p-6 lg:p-8 gap-6 overflow-y-auto">
+    <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-6 lg:p-8 gap-6 overflow-y-auto custom-scrollbar theme-transition">
       
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

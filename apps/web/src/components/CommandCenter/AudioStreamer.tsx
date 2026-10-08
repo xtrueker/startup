@@ -40,35 +40,35 @@ export const AudioStreamer: React.FC<{ alertId: string }> = ({ alertId }) => {
   }, [currentUrl]);
 
   return (
-    <div className="bg-zinc-950 p-3 rounded-lg flex flex-col gap-2 border border-zinc-800 text-white">
-      <div className="flex justify-between items-center text-xs font-bold text-zinc-300">
+    <div className="bg-[var(--bg-app)] p-3 rounded flex flex-col gap-2 border border-[var(--border-base)] text-[var(--text-primary)]">
+      <div className="flex justify-between items-center text-xs font-bold text-[var(--text-primary)]">
         <div className="flex items-center gap-2">
           {isPlaying ? (
             <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--brand)] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--brand)]"></span>
             </span>
           ) : (
-            <Mic size={14} className="text-zinc-500" />
+            <Mic size={14} className="text-[var(--text-muted)]" />
           )}
           <span>Evidencia de Audio "Black-Box"</span>
         </div>
-        <div className="text-[10px] font-mono px-2 py-0.5 bg-zinc-900 border border-zinc-700 rounded-full text-zinc-400">
+        <div className="text-[10px] font-mono px-2 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border-base)] rounded-full text-[var(--text-muted)]">
           {queueLength} Chunks
         </div>
       </div>
 
-      <div className="h-9 bg-black rounded-md flex items-center px-3 border border-zinc-800/80">
+      <div className="h-9 bg-[var(--bg-surface)] rounded flex items-center px-3 border border-[var(--border-base)]">
         {isPlaying ? (
           <div className="flex items-center gap-2.5 w-full">
-            <Volume2 size={15} className="text-white" />
-            <div className="text-xs text-zinc-300 font-mono animate-pulse">
+            <Volume2 size={15} className="text-[var(--brand)]" />
+            <div className="text-xs text-[var(--text-primary)] font-mono animate-pulse">
               Decodificando transmisión en vivo ({currentUrl?.substring(0, 20)}...)
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-zinc-500 text-xs font-mono">
-             <Loader size={13} className="animate-spin text-zinc-400" /> Esperando paquetes de audio...
+          <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs font-mono">
+             <Loader size={13} className="animate-spin text-[var(--text-muted)]" /> Esperando paquetes de audio...
           </div>
         )}
       </div>

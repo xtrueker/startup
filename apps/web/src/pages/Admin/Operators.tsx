@@ -10,13 +10,11 @@ import {
   Phone, 
   IdCard, 
   Monitor, 
-  Clock, 
   Trash2, 
   X, 
   Check, 
   AlertCircle,
   Radio,
-  Lock,
   Eye,
   EyeOff
 } from 'lucide-react';
@@ -299,14 +297,14 @@ const AdminOperators: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0a] text-[#f5f5f5] p-6 lg:p-8 gap-6 overflow-y-auto">
+    <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-6 lg:p-8 gap-6 overflow-y-auto custom-scrollbar theme-transition">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/command-center')}
             title="Volver al Centro de Mando"
-            className="w-9 h-9 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#262626] hover:border-[#404040] flex items-center justify-center text-[#a1a1aa] hover:text-white transition-all mr-1 p-0 shrink-0"
+            className="w-9 h-9 rounded-xl bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] border border-[var(--border-base)] hover:border-[var(--border-strong)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all mr-1 p-0 shrink-0"
           >
             <ArrowLeft size={17} />
           </button>
@@ -314,8 +312,8 @@ const AdminOperators: React.FC = () => {
             <UserCog size={20} className="text-[#818cf8]" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-[#efede3] tracking-tight">Operadores de Monitoreo</h1>
-            <p className="text-xs text-[#737373] font-mono">
+            <h1 className="text-xl font-black text-[var(--text-primary)] tracking-tight">Operadores de Monitoreo</h1>
+            <p className="text-xs text-[var(--text-muted)] font-mono">
               Personal certificado para vigilancia, CCTV y despacho de emergencias
             </p>
           </div>
@@ -332,22 +330,22 @@ const AdminOperators: React.FC = () => {
 
       {/* Stats Quick Ribbon */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-[#121212] border border-[#222222] rounded-xl p-3.5 flex items-center justify-between">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-base)] rounded-xl p-3.5 flex items-center justify-between theme-transition">
           <div>
-            <div className="text-xl font-black text-[#efede3]">{operators.length}</div>
-            <div className="text-[10px] text-[#737373] uppercase tracking-wider font-bold">Total Operadores</div>
+            <div className="text-xl font-black text-[var(--text-primary)]">{operators.length}</div>
+            <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-bold">Total Operadores</div>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-[#1a1a2e] border border-[#2e2e50] flex items-center justify-center text-[#818cf8]">
+          <div className="w-8 h-8 rounded-lg bg-[var(--accent-bg)] border border-[var(--accent-border)]/40 flex items-center justify-center text-[var(--accent)]">
             <UserCog size={16} />
           </div>
         </div>
 
-        <div className="bg-[#121212] border border-[#222222] rounded-xl p-3.5 flex items-center justify-between">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-base)] rounded-xl p-3.5 flex items-center justify-between theme-transition">
           <div>
             <div className="text-xl font-black text-[#34d399]">
               {operators.filter(o => o.status === 'en_servicio').length}
             </div>
-            <div className="text-[10px] text-[#737373] uppercase tracking-wider font-bold">En Servicio Activo</div>
+            <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-bold">En Servicio Activo</div>
           </div>
           <div className="w-8 h-8 rounded-lg bg-[#064e3b]/40 border border-[#065f46]/40 flex items-center justify-center text-[#34d399]">
             <Radio size={16} />

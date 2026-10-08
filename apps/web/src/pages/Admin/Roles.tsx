@@ -117,7 +117,7 @@ const AdminRoles: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0a] text-[#f5f5f5] p-8 gap-6 overflow-y-auto custom-scrollbar">
+    <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-8 gap-6 overflow-y-auto custom-scrollbar theme-transition">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

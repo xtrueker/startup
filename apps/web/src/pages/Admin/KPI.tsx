@@ -5,7 +5,7 @@ import { BarChart3, TrendingUp, AlertTriangle, Clock, Users, ArrowLeft } from 'l
 const AdminKPI: React.FC = () => {
   const navigate = useNavigate();
   return (
-  <div className="flex flex-col h-full bg-[#0a0a0a] text-[#f5f5f5] p-8 gap-6">
+  <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-8 gap-6 theme-transition">
     <div className="flex items-center gap-3">
       <button
         onClick={() => navigate('/command-center')}

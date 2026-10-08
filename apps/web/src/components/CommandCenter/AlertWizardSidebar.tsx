@@ -11,11 +11,8 @@ import {
   Shield, 
   Car, 
   Users, 
-  Radio, 
-  BadgeCheck, 
   Navigation, 
   Clock, 
-  ChevronRight,
   Flame,
   Check
 } from 'lucide-react';
@@ -136,83 +133,85 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'text-[#fda4af] border-[#881337]/50 bg-[#881337]/25 font-bold';
-      case 'reviewing': return 'text-[#fde68a] border-[#78350f]/50 bg-[#78350f]/25';
-      case 'verified': return 'text-[#7dd3fc] border-[#0369a1]/50 bg-[#0c4a6e]/25 font-semibold';
-      case 'resolved': return 'text-[#86efac] border-[#047857]/50 bg-[#064e3b]/25';
-      default: return 'text-[#a3a3a3] border-[#262626] bg-[#141414]';
+      case 'pending': return 'text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-950/60 shadow-xs font-black';
+      case 'reviewing': return 'text-amber-800 bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 shadow-xs font-bold';
+      case 'verified': return 'text-sky-800 bg-sky-100 dark:text-sky-300 dark:bg-sky-950/60 shadow-xs font-bold';
+      case 'resolved': return 'text-emerald-800 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-950/60 shadow-xs font-bold';
+      default: return 'text-stone-700 bg-stone-200 dark:text-stone-300 dark:bg-stone-800 shadow-xs';
     }
   };
 
   return (
-    <div className="w-[410px] bg-[#0c0c0e] border-l border-[#26262a] flex flex-col h-full shadow-[-15px_0_40px_rgba(0,0,0,0.8)] z-30 animate-in slide-in-from-right text-[#efede3]">
+    <div className="w-[410px] bg-[var(--bg-sidebar)] flex flex-col h-full shadow-md dark:shadow-lg z-30 animate-in slide-in-from-right text-[var(--text-primary)] theme-transition">
       {/* Header */}
-      <div className="p-4 border-b border-[#222226] flex items-start justify-between bg-[#111114]">
+      <div className="p-4 flex items-start justify-between bg-[var(--bg-sidebar-header)] shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#450a0a]/80 border border-[#991b1b]/50 flex items-center justify-center text-[#f87171] shadow-md shrink-0">
+          <div className="w-9 h-9 rounded bg-red-500/15 text-red-600 dark:bg-red-950/50 dark:text-red-400 flex items-center justify-center shadow-xs shrink-0">
             <ShieldAlert size={18} />
           </div>
           <div>
-            <h2 className="text-sm font-black text-[#efede3] tracking-wide uppercase">
+            <h2 className="text-sm font-black text-[var(--text-primary)] tracking-wide uppercase">
               Asistente de Despacho
             </h2>
-            <div className="text-[11px] text-[#737373] font-mono mt-0.5">
+            <div className="text-[11px] text-[var(--text-muted)] font-mono mt-0.5">
               Alerta ID: #{alert.id.substring(0, 8)}
             </div>
           </div>
         </div>
-        <button onClick={onClose} className="text-[#737373] hover:text-[#efede3] transition-colors p-1.5 rounded-lg hover:bg-[#1f1f23]">
+        <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1.5 rounded hover:bg-[var(--bg-overlay)] cursor-pointer">
           <X size={16} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
+      <div className="w-full h-px bg-neutral-200 dark:bg-[#343434]" />
+
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar bg-[var(--bg-sidebar)]">
         {/* Info Card de la Alerta */}
-        <div className="bg-[#131316] border border-[#26262b] rounded-xl p-3.5 space-y-2">
+        <div className="bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs rounded p-3.5 space-y-2">
           <div className="flex items-center justify-between">
-            <div className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getStatusColor(alert.status)}`}>
+            <div className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider ${getStatusColor(alert.status)}`}>
               {alert.status === 'pending' ? 'Alerta Crítica SOS' : alert.status === 'reviewing' ? 'En Atención / Despacho' : alert.status}
             </div>
-            <span className="text-[11px] font-mono text-[#737373] flex items-center gap-1">
+            <span className="text-[11px] font-mono text-[var(--text-muted)] flex items-center gap-1 font-semibold">
               <Clock size={11} /> {new Date(alert.timestamp).toLocaleTimeString('es-ES')}
             </span>
           </div>
-          <p className="text-[#efede3] font-bold text-xs leading-snug">
+          <p className="text-[var(--text-primary)] font-bold text-xs leading-snug">
             {alert.description || 'Pánico disparado por ciudadano en cuadrante'}
           </p>
-          <div className="text-[#a3a3a3] text-[11px] font-mono flex items-center gap-1.5 pt-1 border-t border-[#222226]">
-            <Navigation size={11} className="text-[#818cf8] shrink-0" />
+          <div className="text-[var(--text-secondary)] text-[11px] font-mono flex items-center gap-1.5 pt-1.5">
+            <Navigation size={11} className="text-[var(--brand)] shrink-0" />
             <span className="truncate">{alert.sourceLocation.address || `${alert.sourceLocation.lat.toFixed(4)}, ${alert.sourceLocation.lng.toFixed(4)}`}</span>
           </div>
         </div>
 
         {/* ─── DESPACHO TÁCTICO: SELECTOR VISUAL DE EQUIPOS ─── */}
-        <div className="bg-[#121215] border border-[#26262b] rounded-2xl p-4 space-y-3.5 shadow-lg">
+        <div className="bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs rounded p-4 space-y-3.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-[#34d399]">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-[#34d399]">
               <Shield size={15} />
               <span>Despacho de Unidades en Campo</span>
             </div>
-            <span className="text-[10px] font-mono text-[#737373]">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] font-semibold">
               {availableTeams.length} en radio
             </span>
           </div>
 
           {assignedTeam ? (
             /* ─── UNIDAD YA ASIGNADA / EN RUTA (Hologram Radar Card) ─── */
-            <div className="relative overflow-hidden rounded-xl border border-[#059669]/60 bg-gradient-to-b from-[#0a2318] to-[#0d1712] p-4 space-y-3 shadow-[0_0_20px_rgba(5,150,105,0.2)]">
+            <div className="relative overflow-hidden rounded bg-emerald-500/10 dark:bg-emerald-950/30 p-4 space-y-3 shadow-md">
               {/* Baliza reflectiva */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10b981]"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[#34d399]">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-[#34d399]">
                     Unidad en Desplazamiento
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-[#a3a3a3] bg-[#0e2a1d] px-2 py-0.5 rounded border border-[#059669]/40">
+                <span className="text-[10px] font-mono text-[var(--text-primary)] bg-[var(--bg-surface)] px-2 py-0.5 rounded shadow-xs font-bold">
                   ETA ~{assignedTeam.etaMins || 3} min
                 </span>
               </div>
@@ -220,23 +219,23 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
               {/* Nombre y Placa Destacada */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-sm font-black text-[#efede3]">{assignedTeam.teamName}</h4>
-                  <p className="text-[11px] text-[#737373] font-mono">{assignedTeam.assignedZone}</p>
+                  <h4 className="text-sm font-black text-[var(--text-primary)]">{assignedTeam.teamName}</h4>
+                  <p className="text-[11px] text-[var(--text-muted)] font-mono">{assignedTeam.assignedZone}</p>
                 </div>
 
-                <div className="px-3 py-1 bg-[#1a1807] border border-[#eab308]/60 rounded-lg text-center shadow-inner">
-                  <span className="text-[9px] block text-[#ca8a04] uppercase font-bold tracking-widest">Placa Móvil</span>
-                  <span className="text-xs font-black text-[#facc15] font-mono">{assignedTeam.mainVehiclePlate}</span>
+                <div className="px-3 py-1 bg-amber-500/15 rounded text-center shadow-xs">
+                  <span className="text-[9px] block text-amber-700 dark:text-[#ca8a04] uppercase font-bold tracking-widest">Placa Móvil</span>
+                  <span className="text-xs font-black text-amber-800 dark:text-[#facc15] font-mono">{assignedTeam.mainVehiclePlate}</span>
                 </div>
               </div>
 
               {/* Dotación y Comandante */}
-              <div className="pt-2 border-t border-[#1b3d2b] flex items-center justify-between text-[11px] text-[#a3a3a3] font-mono">
+              <div className="pt-2 flex items-center justify-between text-[11px] text-[var(--text-secondary)] font-mono">
                 <span>Líder: @{assignedTeam.leaderUsername}</span>
                 <button
                   type="button"
                   onClick={() => setShowMemberDetails(v => !v)}
-                  className="text-[#34d399] hover:underline flex items-center gap-1 font-bold"
+                  className="text-emerald-600 dark:text-[#34d399] hover:underline flex items-center gap-1 font-bold cursor-pointer"
                 >
                   <Users size={12} />
                   <span>{assignedTeam.members?.length || 0} agentes ({showMemberDetails ? 'Ocultar' : 'Ver'})</span>
@@ -245,11 +244,11 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
 
               {/* Desglose de integrantes si se abre */}
               {showMemberDetails && (
-                <div className="space-y-1.5 pt-2 border-t border-[#1b3d2b] text-[11px] font-mono">
+                <div className="space-y-1.5 pt-2 text-[11px] font-mono">
                   {assignedTeam.members?.map((m: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between text-[#d4d4d4] bg-[#0c1e15] px-2.5 py-1.5 rounded border border-[#163a27]">
+                    <div key={idx} className="flex items-center justify-between text-[var(--text-primary)] bg-[var(--bg-elevated)] px-2.5 py-1.5 rounded shadow-xs">
                       <span>{m.name} ({m.roleInTeam})</span>
-                      <span className="text-[#facc15] font-bold">Placa: {m.badgeOrPlate}</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-bold">Placa: {m.badgeOrPlate}</span>
                     </div>
                   ))}
                 </div>
@@ -258,7 +257,7 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
               {/* Botón Reasignar */}
               <button
                 onClick={handleUnassignTeam}
-                className="w-full py-2 rounded-xl bg-[#1c1c20] hover:bg-[#25252b] text-xs font-bold text-[#a3a3a3] hover:text-white transition-colors border border-[#303036] flex items-center justify-center gap-1.5"
+                className="w-full py-2 rounded bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Reasignar o Liberar Móvil</span>
               </button>
@@ -273,50 +272,50 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                     <div
                       key={team.id}
                       onClick={() => setSelectedTeamId(team.id)}
-                      className={`cursor-pointer rounded-xl p-3 border transition-all duration-200 relative ${
+                      className={`cursor-pointer rounded p-3 transition-all duration-200 relative ${
                         isSelected
-                          ? 'bg-gradient-to-r from-[#0d281e] to-[#0f1f1a] border-[#10b981] ring-1 ring-[#10b981]/60 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                          : 'bg-[#161619] border-[#26262a] hover:border-[#383840] hover:bg-[#1a1a1f]'
+                          ? 'bg-emerald-500/10 shadow-[0_4px_16px_rgba(16,185,129,0.22)] ring-2 ring-emerald-500/50'
+                          : 'bg-[var(--bg-elevated)] shadow-sm hover:shadow-md hover:bg-[var(--bg-overlay)]'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2.5 min-w-0">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                          <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 mt-0.5 shadow-xs ${
                             isSelected 
-                              ? 'bg-[#10b981]/20 text-[#34d399] border border-[#10b981]/40' 
-                              : 'bg-[#202024] text-[#8c8c8c] border border-[#2e2e34]'
+                              ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' 
+                              : 'bg-[var(--bg-surface)] text-[var(--text-secondary)]'
                           }`}>
                             <Car size={16} />
                           </div>
 
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h4 className="text-xs font-bold text-[#efede3] truncate">{team.teamName}</h4>
+                              <h4 className="text-xs font-bold text-[var(--text-primary)] truncate">{team.teamName}</h4>
                               {isSelected && (
-                                <span className="w-4 h-4 rounded-full bg-[#10b981] text-black flex items-center justify-center shrink-0">
+                                <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
                                   <Check size={11} strokeWidth={3} />
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-[#737373] font-mono truncate">{team.assignedZone}</p>
+                            <p className="text-[11px] text-[var(--text-muted)] font-mono truncate">{team.assignedZone}</p>
                           </div>
                         </div>
 
                         {/* Placa vehicular estilo oficial */}
-                        <div className="px-2 py-0.5 bg-[#171505] border border-[#eab308]/50 rounded text-center shrink-0 shadow-inner">
-                          <span className="text-[11px] font-black text-[#facc15] font-mono tracking-wider">
+                        <div className="px-2 py-0.5 bg-amber-500/15 rounded text-center shrink-0 shadow-xs">
+                          <span className="text-[11px] font-black text-amber-800 dark:text-[#facc15] font-mono tracking-wider">
                             {team.mainVehiclePlate}
                           </span>
                         </div>
                       </div>
 
                       {/* Footer de la tarjeta con dotación y tiempo */}
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#222226] text-[10px] font-mono">
-                        <span className="text-[#a3a3a3] flex items-center gap-1">
-                          <Users size={11} className="text-[#34d399]" />
+                      <div className="flex items-center justify-between mt-2 pt-2 text-[10px] font-mono">
+                        <span className="text-[var(--text-secondary)] flex items-center gap-1 font-medium">
+                          <Users size={11} className="text-emerald-600 dark:text-emerald-400" />
                           <span>{team.members?.length || 0} Agentes • @{team.leaderUsername}</span>
                         </span>
-                        <span className="text-[#34d399] font-bold">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                           ETA ~{team.etaMins || 3} min
                         </span>
                       </div>
@@ -328,7 +327,7 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
               {/* Botón de Despacho de Alto Impacto */}
               <button
                 onClick={handleDispatchTeam}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#059669] to-[#0d9488] hover:from-[#047857] hover:to-[#0f766e] text-white text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(5,150,105,0.35)] flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                className="w-full py-3 rounded bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
                 <Shield size={16} />
                 <span>Autorizar Despacho Inmediato</span>
@@ -338,64 +337,64 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
         </div>
 
         {/* Acciones de Estado de la Alerta */}
-        <div className="bg-[#121215] border border-[#26262b] rounded-2xl p-4 space-y-3">
-          <h3 className="text-xs font-bold uppercase text-[#737373] tracking-wider">Bitácora & Estado Operativo</h3>
+        <div className="bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs rounded p-4 space-y-3">
+          <h3 className="text-xs font-bold uppercase text-[var(--text-primary)] tracking-wider">Bitácora & Estado Operativo</h3>
           
           <textarea 
             placeholder="Nota operativa obligatoria para cambiar estado..."
             value={note}
             onChange={e => setNote(e.target.value)}
-            className="w-full bg-[#0a0a0c] border border-[#26262b] rounded-xl p-3 text-xs text-[#efede3] outline-none focus:border-[#4f46e5]/60 min-h-[64px] resize-none font-mono placeholder-[#525256]"
+            className="w-full bg-[var(--bg-input)] shadow-sm focus:shadow-md rounded p-3 text-xs text-[var(--text-primary)] outline-none min-h-[64px] resize-none font-mono placeholder-[var(--text-disabled)] transition-all"
           />
 
           <div className="grid grid-cols-2 gap-2">
             <button 
               onClick={() => handleStatusChange('reviewing')}
               disabled={alert.status !== 'pending' || note.length < 5}
-              className="flex items-center justify-center gap-1.5 bg-[#17171b] text-[#d4d4d4] border border-[#2a2a30] py-2 rounded-xl text-xs font-semibold hover:bg-[#202026] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="flex items-center justify-center gap-1.5 bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-primary)] shadow-sm hover:shadow py-2 rounded text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
             >
               <Eye size={13} /> Tomar Control
             </button>
             <button 
               onClick={() => handleStatusChange('verified')}
               disabled={alert.status !== 'reviewing' || note.length < 5}
-              className="flex items-center justify-center gap-1.5 bg-[#17171b] text-[#7dd3fc] border border-[#0369a1]/40 py-2 rounded-xl text-xs font-semibold hover:bg-[#0c4a6e]/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="flex items-center justify-center gap-1.5 bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 shadow-sm hover:shadow py-2 rounded text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
             >
               <CheckCircle size={13} /> Verificar
             </button>
             <button 
               onClick={() => handleStatusChange('resolved')}
               disabled={!['reviewing', 'verified'].includes(alert.status) || note.length < 5}
-              className="col-span-2 flex items-center justify-center gap-2 bg-[#efede3] text-[#0a0a0a] border border-[#efede3] py-2.5 rounded-xl text-xs font-black hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-all uppercase tracking-wider shadow-sm"
+              className="col-span-2 flex items-center justify-center gap-2 bg-[var(--text-primary)] text-[var(--bg-app)] shadow-md hover:shadow-lg py-2.5 rounded text-xs font-black hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all uppercase tracking-wider cursor-pointer"
             >
               <FileArchive size={14} /> Resolver y Archivar
             </button>
           </div>
           {note.length < 5 && (
-            <span className="text-[10px] text-[#737373] text-center block">* Se requiere una nota mínima de 5 caracteres para archivar.</span>
+            <span className="text-[10px] text-[var(--text-muted)] text-center block font-medium">* Se requiere una nota mínima de 5 caracteres para archivar.</span>
           )}
         </div>
 
         {/* --- REPORTE POST-EVENTO (Motor Predictivo) --- */}
-        <div className="bg-[#121215] border border-[#26262b] rounded-2xl p-4 space-y-2.5">
-          <h3 className="text-xs font-bold uppercase text-[#efede3] tracking-wider flex items-center gap-2">
-            <Flame size={14} className="text-[#f59e0b]" />
+        <div className="bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs rounded p-4 space-y-2.5">
+          <h3 className="text-xs font-bold uppercase text-[var(--text-primary)] tracking-wider flex items-center gap-2">
+            <Flame size={14} className="text-amber-500" />
             <span>Entrenamiento de Rutas (IA)</span>
           </h3>
-          <p className="text-[10px] text-[#737373] leading-tight">
+          <p className="text-[10px] text-[var(--text-muted)] leading-tight font-medium">
             Traza la ruta de escape real tomada por los sospechosos para reentrenar el Motor Predictivo espacial.
           </p>
           
           {!isDrawingRoute ? (
             <button 
               onClick={() => useCommandStore.getState().setDrawingRoute(true)}
-              className="w-full bg-[#18181c] border border-[#2a2a30] text-[#efede3] hover:bg-[#222228] py-2.5 rounded-xl text-xs font-bold transition-colors"
+              className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-primary)] shadow-sm hover:shadow py-2.5 rounded text-xs font-bold transition-all cursor-pointer"
             >
               Trazar Ruta en el Mapa
             </button>
           ) : (
             <div className="flex flex-col gap-2">
-              <div className="bg-[#18181c] border border-[#33333b] p-2.5 rounded-xl text-xs text-[#efede3] font-mono">
+              <div className="bg-[var(--bg-elevated)] shadow-xs p-2.5 rounded text-xs text-[var(--text-primary)] font-mono">
                 Modo dibujo activo: Haz clics en el mapa para fijar waypoints.
               </div>
               
@@ -416,7 +415,7 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                     }
                   }}
                   disabled={escapeRouteWaypoints.length === 0}
-                  className="w-full bg-[#18181c] hover:bg-[#222228] text-[#d4d4d4] py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed border border-[#2a2a30]"
+                  className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-secondary)] shadow-sm py-2 rounded text-xs font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 >
                   Deshacer
                 </button>
@@ -426,7 +425,7 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                     useCommandStore.getState().clearEscapeRoute();
                     window.alert("Modelo Predictivo Actualizado ✅\nLa ruta ha sido guardada y procesada por la IA.");
                   }}
-                  className="w-full bg-[#efede3] hover:bg-white text-[#0a0a0a] py-2 rounded-xl text-xs font-black transition-colors"
+                  className="w-full bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-app)] shadow-md py-2 rounded text-xs font-black transition-all cursor-pointer"
                 >
                   Guardar Ruta
                 </button>
