@@ -48,6 +48,19 @@ const safeStorage = {
   },
 };
 
+type AuthListener = (isAuthenticated: boolean) => void;
+const authListeners = new Set<AuthListener>();
+
+function notifyAuthChange(isAuthenticated: boolean) {
+  authListeners.forEach((listener) => {
+    try {
+      listener(isAuthenticated);
+    } catch (e) {
+      console.error('[AuthService] Error en listener de autenticación:', e);
+    }
+  });
+}
+
 const api = axios.create({ baseURL: `${config.API_URL}/api` });
 
 // Auto-inject JWT token into every request
@@ -56,6 +69,18 @@ api.interceptors.request.use(async (req) => {
   if (token) req.headers.Authorization = `Bearer ${token}`;
   return req;
 });
+
+// Auto-logout si el token expira o es rechazado (401)
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response && error.response.status === 401) {
+      console.warn('[AuthService] 401 Unauthorized detectado. Expulsando sesión...');
+      await authService.logout();
+    }
+    return Promise.reject(error);
+  }
+);
 
 export interface LoginData {
   email: string;
@@ -81,6 +106,7 @@ export const authService = {
     await safeStorage.setItemAsync('userId', user.id);
     await safeStorage.setItemAsync('userRole', user.role);
     await safeStorage.setItemAsync('userProfile', JSON.stringify(user));
+    notifyAuthChange(true);
     return user;
   },
 
@@ -91,6 +117,7 @@ export const authService = {
     await safeStorage.setItemAsync('userId', user.id);
     await safeStorage.setItemAsync('userRole', user.role);
     await safeStorage.setItemAsync('userProfile', JSON.stringify(user));
+    notifyAuthChange(true);
     return user;
   },
 
@@ -99,6 +126,14 @@ export const authService = {
     await safeStorage.deleteItemAsync('userId');
     await safeStorage.deleteItemAsync('userRole');
     await safeStorage.deleteItemAsync('userProfile');
+    notifyAuthChange(false);
+  },
+
+  subscribe: (listener: AuthListener) => {
+    authListeners.add(listener);
+    return () => {
+      authListeners.delete(listener);
+    };
   },
 
   getToken: () => safeStorage.getItemAsync('token'),

@@ -31,7 +31,12 @@ const INITIAL_REGION = {
   longitudeDelta: 0.015,
 };
 
-export default function HomeScreen() {
+export interface HomeScreenProps {
+  onLogout?: () => void;
+  onOpenPatrol?: () => void;
+}
+
+export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps = {}) {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -195,12 +200,44 @@ export default function HomeScreen() {
     );
   };
 
-  const handleLogout = async () => {
-    if (panicState.status === 'active') {
+  const handleLogout = () => {
+    if (panicState.status === 'active' || panicState.status === 'triggering') {
       Alert.alert('Alerta Activa', 'Debes desactivar la emergencia antes de salir.');
       return;
     }
-    await authService.logout();
+
+    const performLogout = async () => {
+      try {
+        await authService.logout();
+        onLogout?.();
+      } catch (err) {
+        console.error('Error al cerrar sesión:', err);
+        Alert.alert('Error', 'No se pudo cerrar la sesión correctamente.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed =
+        typeof window !== 'undefined'
+          ? window.confirm('¿Estás seguro de que deseas salir y cerrar tu sesión?')
+          : true;
+      if (confirmed) {
+        performLogout();
+      }
+    } else {
+      Alert.alert(
+        'Cerrar Sesión',
+        '¿Estás seguro de que deseas salir de tu cuenta?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Salir',
+            style: 'destructive',
+            onPress: performLogout,
+          },
+        ]
+      );
+    }
   };
 
   const centerOnUser = () => {
@@ -257,9 +294,26 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-          <Text style={styles.logoutText}>SALIR</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {['operator', 'police', 'admin'].includes(profile?.role) && onOpenPatrol ? (
+            <TouchableOpacity
+              onPress={onOpenPatrol}
+              style={[styles.logoutBtn, { backgroundColor: '#0284C7', borderColor: '#38BDF8' }]}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.logoutText, { color: '#FFFFFF' }]}>🚔 PATRULLA</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={styles.logoutBtn}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.logoutText}>SALIR</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* 📍 CARD DE TELEMETRÍA GPS MINIMALISTA */}

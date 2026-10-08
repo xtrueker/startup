@@ -5,6 +5,7 @@ import { authService } from './services/auth';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import HomeScreen from './screens/HomeScreen';
+import PatrolModeScreen from './screens/PatrolModeScreen';
 
 // Modo Fantasma y Servicio de Pánico
 import { ghostModeService } from './services/GhostModeService';
@@ -15,7 +16,9 @@ import { localDatabase } from './services/localDatabase';
 export default function App() {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [view, setView] = useState<'login' | 'register'>('login');
+  const [activeScreen, setActiveScreen] = useState<'home' | 'patrol'>('home');
 
   // Estado global de Intercepción Táctica (Modo Fantasma)
   const [isGhostModeActive, setIsGhostModeActive] = useState(false);
@@ -26,6 +29,14 @@ export default function App() {
         await localDatabase.init();
         const auth = await authService.isAuthenticated();
         setAuthenticated(auth);
+        if (auth) {
+          const profile = await authService.getProfile();
+          const role = profile?.role || null;
+          setUserRole(role);
+          if (role === 'police') {
+            setActiveScreen('patrol');
+          }
+        }
       } catch (error) {
         console.error('Auth check failed:', error);
       } finally {
@@ -33,6 +44,23 @@ export default function App() {
       }
     }
     checkAuth();
+
+    // Suscribirse reactivamente a cambios de autenticación (Login / Logout / 401 Expirado)
+    const unsubscribeAuth = authService.subscribe(async (isAuth) => {
+      setAuthenticated(isAuth);
+      if (!isAuth) {
+        setUserRole(null);
+        setActiveScreen('home');
+        setView('login');
+      } else {
+        const profile = await authService.getProfile();
+        const role = profile?.role || null;
+        setUserRole(role);
+        if (role === 'police') {
+          setActiveScreen('patrol');
+        }
+      }
+    });
 
     // Iniciar la escucha pasiva del acorde de botones físicos de volumen
     ghostModeService.startListening();
@@ -54,6 +82,7 @@ export default function App() {
     });
 
     return () => {
+      unsubscribeAuth();
       ghostModeService.stopListening();
     };
   }, []);
@@ -81,10 +110,34 @@ export default function App() {
   }
 
   if (authenticated) {
+    const isPolice = userRole === 'police';
+
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="light-content" backgroundColor="#0A0E17" />
-        <HomeScreen />
+        {activeScreen === 'patrol' ? (
+          <PatrolModeScreen
+            isDedicatedOfficer={isPolice}
+            onBack={() => setActiveScreen('home')}
+            onLogout={async () => {
+              await authService.logout();
+              setAuthenticated(false);
+              setUserRole(null);
+              setActiveScreen('home');
+              setView('login');
+            }}
+          />
+        ) : (
+          <HomeScreen
+            onLogout={() => {
+              setAuthenticated(false);
+              setUserRole(null);
+              setActiveScreen('home');
+              setView('login');
+            }}
+            onOpenPatrol={() => setActiveScreen('patrol')}
+          />
+        )}
       </SafeAreaProvider>
     );
   }
