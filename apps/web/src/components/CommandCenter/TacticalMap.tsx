@@ -269,18 +269,52 @@ export const TacticalMap: React.FC = () => {
 
   const policeLayer = useMemo(() => {
     if (policeUnits.length === 0) return [];
+    
+    // Atlas SVG con iconos de Siren (Policía) y Ambulance (Ambulancia)
+    const TACTICAL_UNITS_ATLAS = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="48" viewBox="0 0 96 48">
+  <g transform="translate(0, 0)">
+    <circle cx="24" cy="24" r="21" fill="#1e3a8a" stroke="#60a5fa" stroke-width="2.5"/>
+    <path d="M19 24a5 5 0 0 1 5-5v0a5 5 0 0 1 5 5v6H19v-6z" fill="#3b82f6" stroke="#ffffff" stroke-width="2"/>
+    <path d="M17 32a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1H17v-1z" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"/>
+    <line x1="33" y1="24" x2="36" y2="24" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="30" y1="17" x2="32" y2="15" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="12" y1="24" x2="15" y2="24" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="24" y1="13" x2="24" y2="15" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="16" y1="17" x2="18" y2="18.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(48, 0)">
+    <circle cx="24" cy="24" r="21" fill="#881337" stroke="#fb7185" stroke-width="2.5"/>
+    <g stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M18 20h-4" stroke="#ef4444" stroke-width="2.5"/>
+      <path d="M16 18v4" stroke="#ef4444" stroke-width="2.5"/>
+      <path d="M33 27h1a1 1 0 0 0 1-1v-3a1 1 0 0 0-.293-.707L31.414 19H29V16a2 2 0 0 0-2-2H17a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h1"/>
+      <circle cx="21" cy="27" r="2" fill="#ffffff"/>
+      <path d="M23 27h6"/>
+      <circle cx="31" cy="27" r="2" fill="#ffffff"/>
+    </g>
+  </g>
+</svg>`.trim());
+
     return [
       new IconLayer({
         id: 'police-units-layer',
         data: policeUnits,
         pickable: true,
-        iconAtlas: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="%232563eb" stroke="%23ffffff" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+        iconAtlas: TACTICAL_UNITS_ATLAS,
         iconMapping: {
-          shield: { x: 0, y: 0, width: 36, height: 36, mask: false }
+          siren: { x: 0, y: 0, width: 48, height: 48, mask: false },
+          ambulance: { x: 48, y: 0, width: 48, height: 48, mask: false }
         },
-        getIcon: () => 'shield',
+        getIcon: (d: any) => {
+          const isAmbulance = d.unitType === 'ambulance' || 
+                              d.type === 'ambulance' || 
+                              d.teamType === 'ambulancia' || 
+                              (d.officerName && d.officerName.toLowerCase().includes('ambulanc'));
+          return isAmbulance ? 'ambulance' : 'siren';
+        },
         getPosition: (d: any) => [d.lng ?? d.longitude, d.lat ?? d.latitude],
-        getSize: () => 40,
+        getSize: () => 44,
         sizeScale: 1,
         autoHighlight: true,
         transitions: {

@@ -14,7 +14,9 @@ import {
   Trash2,
   RefreshCw,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Siren,
+  Ambulance
 } from 'lucide-react';
 import { rolesService, type Role } from '../../services/rolesService';
 
@@ -276,6 +278,15 @@ const AdminRoles: React.FC = () => {
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
+                    {role.id === 'police' ? (
+                      <div className="w-6 h-6 rounded bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0" title="Fuerza Policial">
+                        <Siren size={13} />
+                      </div>
+                    ) : (role.id.includes('medic') || role.id.includes('ambulanc')) ? (
+                      <div className="w-6 h-6 rounded bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0" title="Cuerpo Médico / Ambulancia">
+                        <Ambulance size={13} />
+                      </div>
+                    ) : null}
                     <h3 className="text-base font-bold text-[var(--text-primary)]">{role.name}</h3>
                     {role.isSystem ? (
                       <span className="text-[9px] font-mono uppercase bg-neutral-800 text-neutral-300 border border-neutral-700 px-2 py-0.5 rounded font-bold">

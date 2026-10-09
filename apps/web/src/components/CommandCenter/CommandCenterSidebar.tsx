@@ -421,8 +421,8 @@ export const CommandCenterSidebar: React.FC = () => {
                   onClick={() => handleAlertCardClick(alert.id)}
                   className={`rounded flex flex-col cursor-pointer transition-all duration-200 overflow-hidden relative
                     ${isFocused 
-                      ? 'bg-[#ece9e6] dark:bg-[var(--bg-elevated)] shadow-md scale-[1.01]' 
-                      : 'bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs hover:shadow-sm hover:scale-[1.01] hover:bg-[#ece9e6] dark:hover:bg-[var(--bg-elevated)]'
+                      ? 'bg-[#ece9e6] dark:bg-[#141415] shadow-md scale-[1.01]' 
+                      : 'bg-[#f8f7f5] dark:bg-[#141415] shadow-xs hover:shadow-sm hover:scale-[1.01] hover:bg-[#ece9e6] dark:hover:bg-[var(--bg-elevated)]'
                     }
                     ${isOverdue ? 'before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3.5px] before:bg-red-500' : ''}`}
                 >

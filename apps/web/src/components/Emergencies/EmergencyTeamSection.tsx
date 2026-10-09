@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Car, Users, User } from 'lucide-react';
+import { Siren, Ambulance, Car, Users, User } from 'lucide-react';
 import { stripEmojis, type AssignedTeamInfo } from './types';
 
 interface EmergencyTeamSectionProps {
@@ -7,13 +7,19 @@ interface EmergencyTeamSectionProps {
 }
 
 export const EmergencyTeamSection: React.FC<EmergencyTeamSectionProps> = ({ team }) => {
+  const isAmbulance = team.teamType?.toLowerCase().includes('ambulanc') || team.teamName?.toLowerCase().includes('ambulanc');
+
   return (
     <div className="space-y-4">
       <div className="bg-[#141416] border border-zinc-800 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200 uppercase tracking-wider">
-            <Shield size={14} className="text-emerald-400" />
-            <span>Unidad y Patrulla en Campo</span>
+            {isAmbulance ? (
+              <Ambulance size={15} className="text-rose-400" />
+            ) : (
+              <Siren size={15} className="text-sky-400" />
+            )}
+            <span>{isAmbulance ? 'Ambulancia / Asistencia Médica' : 'Unidad y Patrulla Policial'}</span>
           </div>
           <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 font-mono">
             {stripEmojis(team.status)}

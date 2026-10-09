@@ -18,7 +18,9 @@ import {
   Radio,
   UserPlus,
   BadgeCheck,
-  ChevronRight
+  ChevronRight,
+  Siren,
+  Ambulance
 } from 'lucide-react';
 
 export interface TeamMember {
@@ -32,7 +34,7 @@ export interface TeamMember {
 export interface Team {
   id: string;
   teamName: string;
-  teamType: 'patrulla' | 'motorizada' | 'tactica' | 'vigilancia';
+  teamType: 'patrulla' | 'ambulancia' | 'motorizada' | 'tactica' | 'vigilancia';
   leaderUsername: string;
   leaderEmail: string;
   leaderId: string;
@@ -106,6 +108,34 @@ const INITIAL_TEAMS: Team[] = [
       }
     ],
     createdAt: new Date(Date.now() - 3600000 * 24 * 5).toISOString(),
+  },
+  {
+    id: 'team-003',
+    teamName: 'Ambulancia Táctica SAMU-02',
+    teamType: 'ambulancia',
+    leaderUsername: 'paramedico_sanchez',
+    leaderEmail: 'm.sanchez@salud.gov.co',
+    leaderId: '52891044',
+    mainVehiclePlate: 'AMB-108',
+    assignedZone: 'Sector Hospitalario - Base Central',
+    status: 'disponible',
+    members: [
+      {
+        id: 'mem-6',
+        name: 'Dra. Marcela Sánchez',
+        identification: '52891044',
+        badgeOrPlate: 'MED-441',
+        roleInTeam: 'Médico Jefe de Tripulación'
+      },
+      {
+        id: 'mem-7',
+        name: 'Paramédico Carlos Rivas',
+        identification: '1018239011',
+        badgeOrPlate: 'APH-920',
+        roleInTeam: 'Técnico en Atención Prehospitalaria'
+      }
+    ],
+    createdAt: new Date(Date.now() - 3600000 * 24 * 3).toISOString(),
   }
 ];
 
@@ -131,7 +161,7 @@ const AdminTeams: React.FC = () => {
 
   // Form states - General Team Data
   const [teamName, setTeamName] = useState('');
-  const [teamType, setTeamType] = useState<'patrulla' | 'motorizada' | 'tactica' | 'vigilancia'>('patrulla');
+  const [teamType, setTeamType] = useState<'patrulla' | 'ambulancia' | 'motorizada' | 'tactica' | 'vigilancia'>('patrulla');
   const [leaderUsername, setLeaderUsername] = useState('');
   const [leaderEmail, setLeaderEmail] = useState('');
   const [leaderId, setLeaderId] = useState('');
@@ -297,13 +327,15 @@ const AdminTeams: React.FC = () => {
   const getTeamTypeBadge = (type: string) => {
     switch (type) {
       case 'patrulla':
-        return { label: 'Patrulla Vehicular', bg: 'bg-[#0369a1]/30', text: 'text-[#38bdf8]', border: 'border-[#0284c7]/40' };
+        return { label: 'Patrulla Policial', Icon: Siren, bg: 'bg-[#0369a1]/30', text: 'text-[#38bdf8]', border: 'border-[#0284c7]/40' };
+      case 'ambulancia':
+        return { label: 'Ambulancia Médica', Icon: Ambulance, bg: 'bg-rose-500/20', text: 'text-rose-400', border: 'border-rose-500/40' };
       case 'motorizada':
-        return { label: 'Escuadrón Motorizado', bg: 'bg-[#d97706]/20', text: 'text-[#fbbf24]', border: 'border-[#d97706]/40' };
+        return { label: 'Escuadrón Motorizado', Icon: Siren, bg: 'bg-[#d97706]/20', text: 'text-[#fbbf24]', border: 'border-[#d97706]/40' };
       case 'tactica':
-        return { label: 'Unidad Táctica Reacción', bg: 'bg-[#991b1b]/30', text: 'text-[#f87171]', border: 'border-[#b91c1c]/40' };
+        return { label: 'Unidad Táctica Reacción', Icon: Siren, bg: 'bg-[#991b1b]/30', text: 'text-[#f87171]', border: 'border-[#b91c1c]/40' };
       default:
-        return { label: 'Cuadrante Vigilancia', bg: 'bg-[#065f46]/30', text: 'text-[#34d399]', border: 'border-[#059669]/40' };
+        return { label: 'Cuadrante Vigilancia', Icon: Siren, bg: 'bg-[#065f46]/30', text: 'text-[#34d399]', border: 'border-[#059669]/40' };
     }
   };
 
@@ -424,7 +456,8 @@ const AdminTeams: React.FC = () => {
             className="bg-[#121212] border border-[#222222] text-[#d4d4d4] rounded-xl px-3 py-2 text-xs outline-none cursor-pointer hover:border-[#333333]"
           >
             <option value="all">Todos los Tipos</option>
-            <option value="patrulla">Patrullas</option>
+            <option value="patrulla">Patrullas Policiales</option>
+            <option value="ambulancia">Ambulancias Médicas</option>
             <option value="motorizada">Motorizadas</option>
             <option value="tactica">Unidades Tácticas</option>
             <option value="vigilancia">Vigilancia a Pie</option>
@@ -459,6 +492,8 @@ const AdminTeams: React.FC = () => {
               const typeBadge = getTeamTypeBadge(team.teamType);
               const statusBadge = getStatusBadge(team.status);
               const isExpanded = expandedTeamId === team.id;
+              const isAmbulance = team.teamType === 'ambulancia' || team.teamName?.toLowerCase().includes('ambulanc');
+              const TypeIcon = isAmbulance ? Ambulance : Siren;
 
               return (
                 <div
@@ -468,8 +503,12 @@ const AdminTeams: React.FC = () => {
                   {/* Top card */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1b3326] to-[#0f1f17] border border-[#065f46]/40 flex items-center justify-center font-black text-[#34d399] text-base shadow-md">
-                        <Shield size={22} />
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-base shadow-md ${
+                        isAmbulance
+                          ? 'bg-gradient-to-br from-[#3b1219] to-[#200a0e] border border-rose-600/40 text-rose-400'
+                          : 'bg-gradient-to-br from-[#0c2340] to-[#071322] border border-sky-600/40 text-sky-400'
+                      }`}>
+                        <TypeIcon size={22} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -659,7 +698,8 @@ const AdminTeams: React.FC = () => {
                       onChange={(e: any) => setTeamType(e.target.value)}
                       className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#e5e5e5] outline-none transition-colors cursor-pointer"
                     >
-                      <option value="patrulla">Patrulla Vehicular (Camioneta / Sedán)</option>
+                      <option value="patrulla">Patrulla Policial (Camioneta / Sedán)</option>
+                      <option value="ambulancia">Ambulancia Médica / Asistencia SAMU</option>
                       <option value="motorizada">Escuadrón Motorizado (Motos)</option>
                       <option value="tactica">Unidad Táctica de Reacción (GOES / SWAT)</option>
                       <option value="vigilancia">Cuadrante a Pie / Vigilancia Comunitaria</option>

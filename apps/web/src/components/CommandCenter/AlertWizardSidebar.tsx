@@ -14,7 +14,9 @@ import {
   Navigation, 
   Clock, 
   Flame,
-  Check
+  Check,
+  Siren,
+  Ambulance
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -84,6 +86,21 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
           { name: 'Capitán Vargas', identification: '71928410', badgeOrPlate: 'SWAT-1', roleInTeam: 'Líder Operativo' },
           { name: 'Tirador Especialista M. Ruiz', identification: '103829104', badgeOrPlate: 'SWAT-2', roleInTeam: 'Táctico' },
           { name: 'Agente Brechero L. Peña', identification: '108472911', badgeOrPlate: 'SWAT-3', roleInTeam: 'Asalto' }
+        ]
+      },
+      {
+        id: 'team-004',
+        teamName: 'Ambulancia Táctica SAMU-02',
+        teamType: 'ambulancia',
+        mainVehiclePlate: 'AMB-104',
+        leaderUsername: 'dr_ramirez',
+        leaderId: '79201452',
+        assignedZone: 'Urgencias y Trauma - Zona Central',
+        status: 'disponible',
+        etaMins: 3,
+        members: [
+          { name: 'Dr. Alejandro Ramírez', identification: '79201452', badgeOrPlate: 'MED-01', roleInTeam: 'Médico Jefe' },
+          { name: 'Paramédico Claudia Soto', identification: '1098231994', badgeOrPlate: 'MED-02', roleInTeam: 'Paramédico' }
         ]
       }
     ];
@@ -225,9 +242,22 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
 
               {/* Nombre y Placa Destacada */}
               <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-black text-[var(--text-primary)]">{assignedTeam.teamName}</h4>
-                  <p className="text-[11px] text-[var(--text-muted)] font-mono">{assignedTeam.assignedZone}</p>
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${
+                    assignedTeam.teamType === 'ambulancia' || assignedTeam.teamName?.toLowerCase().includes('ambulanc')
+                      ? 'bg-rose-500/20 text-rose-500'
+                      : 'bg-blue-500/20 text-blue-500'
+                  }`}>
+                    {assignedTeam.teamType === 'ambulancia' || assignedTeam.teamName?.toLowerCase().includes('ambulanc') ? (
+                      <Ambulance size={18} />
+                    ) : (
+                      <Siren size={18} />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-[var(--text-primary)]">{assignedTeam.teamName}</h4>
+                    <p className="text-[11px] text-[var(--text-muted)] font-mono">{assignedTeam.assignedZone}</p>
+                  </div>
                 </div>
 
                 <div className="px-3 py-1 bg-amber-500/15 rounded text-center shadow-xs">
@@ -287,13 +317,18 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2.5 min-w-0">
-                          <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 mt-0.5 shadow-xs ${
-                            isSelected 
-                              ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' 
-                              : 'bg-[var(--bg-surface)] text-[var(--text-secondary)]'
-                          }`}>
-                            <Car size={16} />
-                          </div>
+                          {(() => {
+                            const isAmb = team.teamType === 'ambulancia' || team.teamName?.toLowerCase().includes('ambulanc');
+                            return (
+                              <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 mt-0.5 shadow-xs ${
+                                isSelected
+                                  ? (isAmb ? 'bg-rose-500/20 text-rose-500' : 'bg-blue-500/20 text-blue-500')
+                                  : (isAmb ? 'bg-rose-500/10 text-rose-400' : 'bg-blue-500/10 text-blue-400')
+                              }`}>
+                                {isAmb ? <Ambulance size={16} /> : <Siren size={16} />}
+                              </div>
+                            );
+                          })()}
 
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
