@@ -1,0 +1,29 @@
+$kind: http-request
+name: 'Update Role'
+method: PATCH
+url: '{{baseUrl}}/api/roles/:id'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: id
+    value: '{{roleId}}'
+body:
+  type: json
+  content: |-
+    {
+      "name": "Patrullero Táctico Especial",
+      "description": "Acceso ampliado con despacho táctico",
+      "permissions": [
+        "read:teams",
+        "write:teams",
+        "write:alerts",
+        "read:alerts"
+      ]
+    }

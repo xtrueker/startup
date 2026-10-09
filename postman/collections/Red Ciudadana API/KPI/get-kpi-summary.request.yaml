@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get KPI Summary'
+method: GET
+url: '{{baseUrl}}/api/kpi/summary'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

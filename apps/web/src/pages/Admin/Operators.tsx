@@ -18,77 +18,16 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
-import api from '../../services/api';
+import { operatorService } from '../../services/operators';
+import type { Operator } from '../../services/operators';
 
-export interface Operator {
-  id: string;
-  fullName: string;
-  cedula: string;
-  email: string;
-  phone: string;
-  consoleStation: string;
-  shift: 'mañana' | 'tarde' | 'noche' | '24x48';
-  specialty: 'cctv' | 'despacho' | 'tactico' | 'supervisor';
-  status: 'en_servicio' | 'disponible' | 'en_descanso' | 'inactivo';
-  zoneAssigned: string;
-  createdAt: string;
-}
 
-const INITIAL_OPERATORS: Operator[] = [
-  {
-    id: 'op-001',
-    fullName: 'Carlos Mendoza Rios',
-    cedula: '1098234812',
-    email: 'c.mendoza@centrodespacho.gov.co',
-    phone: '+57 312 458 9012',
-    consoleStation: 'Consola Alpha-01 (Mosaico CCTV)',
-    shift: 'mañana',
-    specialty: 'cctv',
-    status: 'en_servicio',
-    zoneAssigned: 'Sector Norte - Comuna 1 & 2',
-    createdAt: new Date(Date.now() - 3600000 * 24 * 30).toISOString(),
-  },
-  {
-    id: 'op-002',
-    fullName: 'Valeria Gomez Peña',
-    cedula: '1032489021',
-    email: 'v.gomez@centrodespacho.gov.co',
-    phone: '+57 320 891 2234',
-    consoleStation: 'Consola Bravo-04 (Despacho 911)',
-    shift: 'tarde',
-    specialty: 'despacho',
-    status: 'en_servicio',
-    zoneAssigned: 'Sector Centro - Distrito Histórico',
-    createdAt: new Date(Date.now() - 3600000 * 24 * 15).toISOString(),
-  },
-  {
-    id: 'op-003',
-    fullName: 'Julian Ramirez Silva',
-    cedula: '1075632190',
-    email: 'j.ramirez@centrodespacho.gov.co',
-    phone: '+57 315 762 1098',
-    consoleStation: 'Consola Delta-02 (Supervisión Táctica)',
-    shift: 'noche',
-    specialty: 'tactico',
-    status: 'disponible',
-    zoneAssigned: 'Sector Sur - Corredor Industrial',
-    createdAt: new Date(Date.now() - 3600000 * 24 * 60).toISOString(),
-  },
-];
-
-const LOCAL_STORAGE_KEY = 'admin_operators_list';
 
 const AdminOperators: React.FC = () => {
   const navigate = useNavigate();
 
-  const [operators, setOperators] = useState<Operator[]>(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : INITIAL_OPERATORS;
-    } catch {
-      return INITIAL_OPERATORS;
-    }
-  });
+  const [operators, setOperators] = useState<Operator[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [shiftFilter, setShiftFilter] = useState<string>('all');
@@ -109,46 +48,21 @@ const AdminOperators: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Guardar en localStorage
-  useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(operators));
-  }, [operators]);
+  // Cargar operadores desde la API
+  const fetchOperators = async () => {
+    setLoading(true);
+    try {
+      const data = await operatorService.getOperators();
+      setOperators(data);
+    } catch (err) {
+      console.error('Error cargando operadores:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Cargar operadores remotos de la API si existen
   useEffect(() => {
-    const fetchApiOperators = async () => {
-      try {
-        const res = await api.get('/users?role=operator');
-        if (res.data?.data && Array.isArray(res.data.data)) {
-          const apiUsers = res.data.data;
-          setOperators(prev => {
-            const combined = [...prev];
-            apiUsers.forEach((u: any) => {
-              if (!combined.some(o => o.email.toLowerCase() === u.email.toLowerCase() || o.cedula === u.cedula)) {
-                combined.push({
-                  id: u.id,
-                  fullName: u.fullName || 'Operador del Sistema',
-                  cedula: u.cedula || 'N/A',
-                  email: u.email,
-                  phone: u.phone || '+57 300 000 0000',
-                  consoleStation: 'Consola Principal',
-                  shift: 'mañana',
-                  specialty: 'cctv',
-                  status: 'en_servicio',
-                  zoneAssigned: 'Sector General',
-                  createdAt: u.createdAt || new Date().toISOString(),
-                });
-              }
-            });
-            return combined;
-          });
-        }
-      } catch (err) {
-        // En caso de que no tenga permisos de listado o el endpoint requiera supervisor
-        console.log('Utilizando listado persistido de operadores.');
-      }
-    };
-    fetchApiOperators();
+    fetchOperators();
   }, []);
 
   const resetForm = () => {
@@ -198,48 +112,38 @@ const AdminOperators: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Intentar registrar el usuario en el backend si está activo
-      try {
-        await api.post('/auth/register', {
-          fullName: formFullName.trim(),
-          cedula: formCedula.trim(),
-          email: formEmail.trim(),
-          password: formPassword,
-          phone: formPhone.trim(),
-          role: 'operator'
-        });
-      } catch (apiErr) {
-        // Si el registro devuelve que ya existe o no permite rol directo, continuamos registrándolo en la consola táctica
-        console.warn('Registro API complementado en consola local:', apiErr);
-      }
-
-      const newOp: Operator = {
-        id: `op-${Date.now()}`,
+      await operatorService.createOperator({
         fullName: formFullName.trim(),
         cedula: formCedula.trim(),
         email: formEmail.trim(),
-        phone: formPhone.trim() || '+57 300 000 0000',
+        password: formPassword,
+        phone: formPhone.trim() || undefined,
         consoleStation: formConsole,
         shift: formShift,
         specialty: formSpecialty,
         status: 'en_servicio',
         zoneAssigned: formZone,
-        createdAt: new Date().toISOString(),
-      };
+      });
 
-      setOperators(prev => [newOp, ...prev]);
+      await fetchOperators();
       handleCloseModal();
     } catch (err: any) {
-      setFormError(err.message || 'Error al crear el operador.');
+      const msg = err?.response?.data?.message || err.message || 'Error al crear el operador.';
+      setFormError(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteOperator = (op: Operator) => {
+  const handleDeleteOperator = async (op: Operator) => {
     const confirmDelete = window.confirm(`¿Seguro que deseas dar de baja al operador "${op.fullName}"?`);
     if (!confirmDelete) return;
-    setOperators(prev => prev.filter(o => o.id !== op.id));
+    try {
+      await operatorService.deleteOperator(op.id);
+      setOperators(prev => prev.filter(o => o.id !== op.id));
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'No se pudo dar de baja al operador.');
+    }
   };
 
   const filteredOperators = operators.filter(op => {

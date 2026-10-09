@@ -1,0 +1,40 @@
+$kind: http-request
+name: 'Create Team'
+method: POST
+url: '{{baseUrl}}/api/teams'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "teamName": "Unidad de Respuesta Alfa-12",
+      "teamType": "patrulla",
+      "leaderUsername": "cmdte_rodriguez",
+      "leaderEmail": "h.rodriguez@policia.gov.co",
+      "leaderId": "79845123",
+      "mainVehiclePlate": "POL-492",
+      "assignedZone": "Sector Norte - Cuadrante 3",
+      "status": "patrullando",
+      "members": [
+        {
+          "name": "Sgto. Hector Rodriguez",
+          "identification": "79845123",
+          "badgeOrPlate": "PL-8831",
+          "roleInTeam": "Comandante de Escuadra"
+        },
+        {
+          "name": "Patrullero David Arias",
+          "identification": "1023458901",
+          "badgeOrPlate": "PL-9942",
+          "roleInTeam": "Conductor Táctico"
+        }
+      ]
+    }

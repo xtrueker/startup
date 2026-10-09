@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Get Operator by ID'
+method: GET
+url: '{{baseUrl}}/api/operators/:id'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: id
+    value: '{{operatorId}}'

@@ -1,0 +1,25 @@
+$kind: http-request
+name: 'Add Team Member'
+method: POST
+url: '{{baseUrl}}/api/teams/:id/members'
+order: 6000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: id
+    value: '{{teamId}}'
+body:
+  type: json
+  content: |-
+    {
+      "name": "Agente Sofia Castro",
+      "identification": "1074829103",
+      "badgeOrPlate": "PL-7721",
+      "roleInTeam": "Primer Respondiente / Paramédico"
+    }

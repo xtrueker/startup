@@ -20,139 +20,17 @@ import {
   BadgeCheck,
   ChevronRight,
   Siren,
-  Ambulance
+  Ambulance,
+  RefreshCw
 } from 'lucide-react';
-
-export interface TeamMember {
-  id: string;
-  name: string;
-  identification: string;
-  badgeOrPlate: string; // Placa personal o de vehículo de apoyo
-  roleInTeam: string;
-}
-
-export interface Team {
-  id: string;
-  teamName: string;
-  teamType: 'patrulla' | 'ambulancia' | 'motorizada' | 'tactica' | 'vigilancia';
-  leaderUsername: string;
-  leaderEmail: string;
-  leaderId: string;
-  mainVehiclePlate: string;
-  assignedZone: string;
-  status: 'patrullando' | 'disponible' | 'en_incidente' | 'fuera_servicio';
-  members: TeamMember[];
-  createdAt: string;
-}
-
-const INITIAL_TEAMS: Team[] = [
-  {
-    id: 'team-001',
-    teamName: 'Unidad de Respuesta Alfa-12',
-    teamType: 'patrulla',
-    leaderUsername: 'cmdte_rodriguez',
-    leaderEmail: 'h.rodriguez@policia.gov.co',
-    leaderId: '79845123',
-    mainVehiclePlate: 'POL-492',
-    assignedZone: 'Sector Norte - Cuadrante 3',
-    status: 'patrullando',
-    members: [
-      {
-        id: 'mem-1',
-        name: 'Sgto. Hector Rodriguez',
-        identification: '79845123',
-        badgeOrPlate: 'PL-8831',
-        roleInTeam: 'Comandante de Escuadra'
-      },
-      {
-        id: 'mem-2',
-        name: 'Patrullero David Arias',
-        identification: '1023458901',
-        badgeOrPlate: 'PL-9942',
-        roleInTeam: 'Conductor Táctico'
-      },
-      {
-        id: 'mem-3',
-        name: 'Agente Sofia Castro',
-        identification: '1074829103',
-        badgeOrPlate: 'PL-7721',
-        roleInTeam: 'Primer Respondiente / Paramédico'
-      }
-    ],
-    createdAt: new Date(Date.now() - 3600000 * 24 * 10).toISOString(),
-  },
-  {
-    id: 'team-002',
-    teamName: 'Escuadrón Rápido Halcón-4',
-    teamType: 'motorizada',
-    leaderUsername: 'cabo_morales',
-    leaderEmail: 'j.morales@policia.gov.co',
-    leaderId: '80123984',
-    mainVehiclePlate: 'MOTO-773',
-    assignedZone: 'Sector Centro - Eje Comercial',
-    status: 'disponible',
-    members: [
-      {
-        id: 'mem-4',
-        name: 'Cabo Jorge Morales',
-        identification: '80123984',
-        badgeOrPlate: 'MOTO-773',
-        roleInTeam: 'Líder de Patrullaje Motorizado'
-      },
-      {
-        id: 'mem-5',
-        name: 'Patrullero Camilo Vega',
-        identification: '1098234561',
-        badgeOrPlate: 'MOTO-774',
-        roleInTeam: 'Escolta / Apoyo Motorizado'
-      }
-    ],
-    createdAt: new Date(Date.now() - 3600000 * 24 * 5).toISOString(),
-  },
-  {
-    id: 'team-003',
-    teamName: 'Ambulancia Táctica SAMU-02',
-    teamType: 'ambulancia',
-    leaderUsername: 'paramedico_sanchez',
-    leaderEmail: 'm.sanchez@salud.gov.co',
-    leaderId: '52891044',
-    mainVehiclePlate: 'AMB-108',
-    assignedZone: 'Sector Hospitalario - Base Central',
-    status: 'disponible',
-    members: [
-      {
-        id: 'mem-6',
-        name: 'Dra. Marcela Sánchez',
-        identification: '52891044',
-        badgeOrPlate: 'MED-441',
-        roleInTeam: 'Médico Jefe de Tripulación'
-      },
-      {
-        id: 'mem-7',
-        name: 'Paramédico Carlos Rivas',
-        identification: '1018239011',
-        badgeOrPlate: 'APH-920',
-        roleInTeam: 'Técnico en Atención Prehospitalaria'
-      }
-    ],
-    createdAt: new Date(Date.now() - 3600000 * 24 * 3).toISOString(),
-  }
-];
-
-const LOCAL_STORAGE_KEY = 'admin_teams_list';
+import { teamService } from '../../services/teams';
+import type { Team, TeamMember } from '../../services/teams';
 
 const AdminTeams: React.FC = () => {
   const navigate = useNavigate();
 
-  const [teams, setTeams] = useState<Team[]>(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : INITIAL_TEAMS;
-    } catch {
-      return INITIAL_TEAMS;
-    }
-  });
-
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -170,7 +48,7 @@ const AdminTeams: React.FC = () => {
   const [status, setStatus] = useState<'patrullando' | 'disponible' | 'en_incidente' | 'fuera_servicio'>('disponible');
 
   // Form states - Members list
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<Array<{ id: string; name: string; identification: string; badgeOrPlate?: string; roleInTeam?: string }>>([]);
 
   // Member sub-form
   const [memberName, setMemberName] = useState('');
@@ -178,11 +56,24 @@ const AdminTeams: React.FC = () => {
   const [memberBadgeOrPlate, setMemberBadgeOrPlate] = useState('');
   const [memberRole, setMemberRole] = useState('Patrullero / Agente');
   const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Persistir en localStorage
+  // Cargar equipos desde el backend
+  const fetchTeams = async () => {
+    setLoading(true);
+    try {
+      const data = await teamService.getTeams();
+      setTeams(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error al cargar equipos:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(teams));
-  }, [teams]);
+    fetchTeams();
+  }, []);
 
   const resetForm = () => {
     setTeamName('');
@@ -222,8 +113,8 @@ const AdminTeams: React.FC = () => {
       return;
     }
 
-    const newMember: TeamMember = {
-      id: `mem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    const newMember = {
+      id: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: memberName.trim(),
       identification: memberId.trim(),
       badgeOrPlate: memberBadgeOrPlate.trim() || 'N/A',
@@ -243,8 +134,8 @@ const AdminTeams: React.FC = () => {
     setMembers(prev => prev.filter(m => m.id !== id));
   };
 
-  // Crear el equipo completo
-  const handleCreateTeam = (e: React.FormEvent) => {
+  // Crear el equipo completo en la API
+  const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -269,39 +160,51 @@ const AdminTeams: React.FC = () => {
       return;
     }
 
-    // Si no se agregaron miembros explícitos en la lista dinámica, agregar al líder por defecto
-    const finalMembers = members.length > 0 ? members : [
-      {
-        id: `mem-${Date.now()}`,
-        name: leaderUsername.trim(),
-        identification: leaderId.trim(),
-        badgeOrPlate: mainVehiclePlate.trim(),
-        roleInTeam: 'Líder de Unidad'
-      }
-    ];
+    setIsSubmitting(true);
 
-    const newTeam: Team = {
-      id: `team-${Date.now()}`,
-      teamName: teamName.trim(),
-      teamType,
-      leaderUsername: leaderUsername.trim(),
-      leaderEmail: leaderEmail.trim(),
-      leaderId: leaderId.trim(),
-      mainVehiclePlate: mainVehiclePlate.trim().toUpperCase(),
-      assignedZone,
-      status,
-      members: finalMembers,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      // Si no se agregaron miembros explícitos en la lista dinámica, agregar al líder por defecto
+      const finalMembers = members.length > 0 ? members : [
+        {
+          name: leaderUsername.trim(),
+          identification: leaderId.trim(),
+          badgeOrPlate: mainVehiclePlate.trim().toUpperCase(),
+          roleInTeam: 'Líder de Unidad'
+        }
+      ];
 
-    setTeams(prev => [newTeam, ...prev]);
-    handleCloseModal();
+      await teamService.createTeam({
+        teamName: teamName.trim(),
+        teamType,
+        leaderUsername: leaderUsername.trim(),
+        leaderEmail: leaderEmail.trim(),
+        leaderId: leaderId.trim(),
+        mainVehiclePlate: mainVehiclePlate.trim().toUpperCase(),
+        assignedZone,
+        status,
+        members: finalMembers,
+      });
+
+      await fetchTeams();
+      handleCloseModal();
+    } catch (err: any) {
+      console.error('Error creando equipo:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Error al guardar el equipo en el servidor.';
+      setFormError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteTeam = (team: Team) => {
+  const handleDeleteTeam = async (team: Team) => {
     const confirmDelete = window.confirm(`¿Seguro que deseas eliminar el equipo "${team.teamName}"?`);
     if (!confirmDelete) return;
-    setTeams(prev => prev.filter(t => t.id !== team.id));
+    try {
+      await teamService.deleteTeam(team.id);
+      setTeams(prev => prev.filter(t => t.id !== team.id));
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'No se pudo eliminar el equipo en el servidor.');
+    }
   };
 
   const filteredTeams = teams.filter(team => {

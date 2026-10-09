@@ -1,0 +1,28 @@
+$kind: http-request
+name: 'Create Operator'
+method: POST
+url: '{{baseUrl}}/api/operators'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fullName": "Agente Camilo Torres",
+      "cedula": "1098452109",
+      "email": "c.torres@red-ciudadana.gov.co",
+      "password": "Password123!",
+      "phone": "+57 310 987 6543",
+      "consoleStation": "Consola Alpha-01 (Mosaico CCTV)",
+      "shift": "mañana",
+      "specialty": "cctv",
+      "status": "en_servicio",
+      "zoneAssigned": "Sector Centro - Distrito Histórico"
+    }

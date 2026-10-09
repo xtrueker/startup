@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get Team Statistics'
+method: GET
+url: '{{baseUrl}}/api/teams/stats'
+order: 1500
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
