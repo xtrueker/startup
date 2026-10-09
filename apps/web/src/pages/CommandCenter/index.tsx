@@ -3,6 +3,7 @@ import { useSocket } from '../../hooks/useSocket';
 import { useCommandStore } from '../../stores/useCommandStore';
 import { TacticalMap } from '../../components/CommandCenter/TacticalMap';
 import { AlertWizardSidebar } from '../../components/CommandCenter/AlertWizardSidebar';
+import { PoliceSirenBorders } from '../../components/CommandCenter/PoliceSirenBorders';
 import { 
   ShieldAlert, AlertTriangle, X
 } from 'lucide-react';
@@ -30,7 +31,7 @@ const CommandCenter: React.FC = () => {
     pushAudioChunk,
     focusedAlertId, focusMapOnAlert, updateAlertStatus,
     ghostVictims, predictiveCameras, selectedCamera, setSelectedCamera,
-    systemCameras
+    systemCameras, sidebarOpen
   } = useCommandStore();
 
   // ── Fetch Initial State ──────────────────────────────────────────────────────
@@ -172,7 +173,13 @@ const CommandCenter: React.FC = () => {
       {/* ── Área Principal: Tactical Map ──────────────────────────────── */}
       <main className="flex-1 relative bg-[var(--bg-app)]" style={{ minHeight: 0 }}>
         {/* KPI Bar */}
-        <div className="absolute top-6 left-10 right-6 z-10 flex gap-4 pointer-events-none">
+        <div 
+          className="absolute top-6 right-6 z-10 flex gap-4 pointer-events-none"
+          style={{ 
+            left: sidebarOpen ? 360 : 110, 
+            transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)' 
+          }}
+        >
            <div className="bg-[var(--bg-surface)] shadow-sm dark:shadow-md p-4 rounded flex items-center gap-4 pointer-events-auto">
              <div className="bg-red-500/15 text-red-600 dark:bg-red-950/60 dark:text-red-400 p-2.5 rounded shadow-xs flex items-center justify-center">
                <AlertTriangle size={24} />
@@ -187,9 +194,18 @@ const CommandCenter: React.FC = () => {
 
         <TacticalMap />
 
+        {/* Efecto Sirena Policial Neón (Bordes Superior, Derecho e Inferior) */}
+        <PoliceSirenBorders active={activeCount > 0} />
+
         {/* Nearby Cameras Collage Panel */}
         {focusedAlertId && activeAlerts[focusedAlertId] && (
-          <div className="absolute bottom-6 left-6 right-[26rem] z-30 bg-[var(--bg-surface)] shadow-md dark:shadow-lg p-4 rounded flex flex-col gap-3 pointer-events-auto animate-in slide-in-from-bottom-4">
+          <div 
+            className="absolute bottom-6 right-[26rem] z-30 bg-[var(--bg-surface)] shadow-md dark:shadow-lg p-4 rounded flex flex-col gap-3 pointer-events-auto animate-in slide-in-from-bottom-4"
+            style={{ 
+              left: sidebarOpen ? 346 : 90, 
+              transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)' 
+            }}
+          >
             <div className="flex justify-between items-center">
               <div className="text-xs uppercase text-[var(--text-primary)] font-bold tracking-widest flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[var(--brand)] shadow-[0_0_8px_var(--brand)] animate-pulse"></span>
@@ -274,7 +290,13 @@ const CommandCenter: React.FC = () => {
 
         {/* ─── GHOST MODE UI: INTERCEPTION BANNER & CAMERA GRID ─── */}
         {Object.keys(ghostVictims || {}).length > 0 && (
-          <div className="absolute top-20 left-80 right-0 bottom-0 pointer-events-none flex flex-col z-50 p-6 animate-in slide-in-from-top-4">
+          <div 
+            className="absolute top-20 right-0 bottom-0 pointer-events-none flex flex-col z-50 p-6 animate-in slide-in-from-top-4"
+            style={{ 
+              left: sidebarOpen ? 346 : 90, 
+              transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)' 
+            }}
+          >
             {/* Massive Red Banner */}
             <div className="w-full bg-rose-600/90 backdrop-blur-md border-b-4 border-rose-900 text-white p-4 shadow-[0_10px_50px_rgba(225,29,72,0.5)] flex items-center justify-between rounded-xl pointer-events-auto">
               <div className="flex items-center gap-4">

@@ -19,7 +19,6 @@ import {
   Users,
   Siren,
   BarChart3,
-  Filter,
   ChevronDown,
   Crosshair,
   Skull,
@@ -33,7 +32,8 @@ import {
 } from 'lucide-react';
 
 export const CommandCenterSidebar: React.FC = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const sidebarOpen = useCommandStore(s => s.sidebarOpen);
+  const setSidebarOpen = useCommandStore(s => s.setSidebarOpen);
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
@@ -105,21 +105,25 @@ export const CommandCenterSidebar: React.FC = () => {
 
   return (
     <aside
-      style={{ width: sidebarOpen ? 320 : 64, transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)' }}
-      className="relative bg-[var(--bg-sidebar)] flex flex-col z-30 shadow-sm dark:shadow-md flex-shrink-0 h-full theme-transition"
+      style={{
+        width: sidebarOpen ? 320 : 64,
+        height: 'calc(100% - 12px)',
+        transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
+      }}
+      className="absolute top-[6px] left-[6px] bottom-[6px] z-30 bg-[var(--bg-sidebar)] flex flex-col flex-shrink-0 theme-transition rounded-[12px] border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_4px_20px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.35)] pointer-events-auto"
     >
       {/* ── Toggle button flotante ÚNICO en el borde ── */}
       <button
         onClick={() => setSidebarOpen(v => !v)}
         title={sidebarOpen ? 'Colapsar barra lateral' : 'Desplegar barra lateral'}
-        className="absolute -right-3.5 top-6 z-50 w-7 h-7 rounded-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center shadow-lg transition-all cursor-pointer p-0"
+        className="absolute -right-5 top-6 z-50 w-7 h-7 rounded-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center shadow-lg transition-all cursor-pointer p-0"
       >
         {sidebarOpen ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
       </button>
 
       {/* ── COLLAPSED: barra de iconos completa ── */}
       {!sidebarOpen && (
-        <div className="w-[64px] h-full flex flex-col items-center py-3 gap-2 bg-[var(--bg-sidebar)] overflow-y-auto overflow-x-hidden custom-scrollbar select-none">
+        <div className="w-[64px] h-full flex flex-col items-center py-3 gap-2 bg-[var(--bg-sidebar)] overflow-y-auto overflow-x-hidden custom-scrollbar select-none rounded-[12px]">
           {/* Avatar del Operador */}
           <div className="relative flex-shrink-0 my-0.5" title={`Operador: ${userRole}`}>
             <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#2a2a2a] to-[#181818] flex items-center justify-center font-black text-white text-sm shadow-md">
@@ -270,9 +274,9 @@ export const CommandCenterSidebar: React.FC = () => {
 
       {/* ── EXPANDED: full sidebar content ── */}
       {sidebarOpen && (
-        <div className="w-[320px] h-full flex flex-col overflow-hidden">
+        <div className="w-[320px] h-full flex flex-col overflow-hidden rounded-[12px]">
           {/* User Info + Logout */}
-          <div className="px-4 py-3 bg-[var(--bg-sidebar-header)] flex items-center gap-3 shadow-xs">
+          <div className="px-4 py-3 bg-[#f9f9f9] dark:bg-[#111112] flex items-center gap-3 shadow-xs">
             {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#262626] to-[#141414] flex items-center justify-center font-black text-white text-sm shadow-md">
@@ -288,7 +292,6 @@ export const CommandCenterSidebar: React.FC = () => {
                 {user?.ciudad && (
                   <>
                     <span className="text-[var(--text-muted)]">•</span>
-                    <span className="text-emerald-500 font-bold truncate">{user.ciudad}</span>
                   </>
                 )}
               </div>
@@ -318,7 +321,7 @@ export const CommandCenterSidebar: React.FC = () => {
           <div className="w-full h-px bg-neutral-200 dark:bg-[#343434]" />
 
           {/* Header con Central de Despacho y Heatmap directamente abajo */}
-          <div className="p-4 bg-[var(--bg-sidebar)] shadow-xs flex flex-col gap-2.5">
+          <div className="p-4 bg-[#f9f9f9] dark:bg-[#111112] shadow-xs flex flex-col gap-2.5">
             <div className="flex items-center justify-between gap-2">
               <button
                 onClick={handleDispatchClick}
@@ -334,7 +337,7 @@ export const CommandCenterSidebar: React.FC = () => {
               className={`flex items-center justify-center gap-2 w-full py-2.5 px-3 rounded text-xs font-bold transition-all cursor-pointer ${
                 heatmapEnabled
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
-                  : 'bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-primary)] shadow-sm hover:shadow-md'
+                  : 'bg-[#efefef] dark:bg-[#181819] hover:bg-[var(--bg-overlay)] text-[var(--text-primary)] shadow-sm hover:shadow-md'
               }`}
             >
               <Layers size={14} className={heatmapEnabled ? 'text-white' : 'text-[var(--text-secondary)]'} />
@@ -355,14 +358,11 @@ export const CommandCenterSidebar: React.FC = () => {
             ] as const;
             const selected = TYPE_OPTIONS.find(o => o.key === filterType) ?? TYPE_OPTIONS[0];
             return (
-              <div className="px-4 py-3 bg-[var(--bg-sidebar)] flex flex-col gap-2">
-                <h3 className="text-[10px] uppercase text-[var(--text-muted)] font-bold flex items-center gap-1.5 tracking-wider">
-                  <Filter size={11} className="text-[var(--brand)]" /> Filtrar por Tipo
-                </h3>
+              <div className="px-4 py-3 bg-[#f9f9f9] dark:bg-[#111112] flex flex-col gap-2">
                 <div className="relative">
                   <button
                     onClick={() => setTypeDropdownOpen(v => !v)}
-                    className="w-full flex items-center gap-2 bg-[var(--bg-input)] shadow-sm hover:shadow rounded px-3 py-2 text-sm text-[var(--text-primary)] font-semibold transition-all duration-150 outline-none cursor-pointer"
+                    className="w-full flex items-center gap-2 bg-[#efefef] dark:bg-[#181819] shadow-sm hover:shadow rounded px-3 py-2 text-sm text-[var(--text-primary)] font-semibold transition-all duration-150 outline-none cursor-pointer"
                   >
                     <selected.Icon size={14} className={selected.iconColor} />
                     <span className="flex-1 text-left text-[13px]">{selected.label}</span>
@@ -396,7 +396,7 @@ export const CommandCenterSidebar: React.FC = () => {
           <div className="w-full h-px bg-neutral-200 dark:bg-[#343434]" />
 
           {/* Lista de Eventos Virtualizada */}
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar bg-[var(--bg-sidebar)]">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar bg-[#f9f9f9] dark:bg-[#111112]">
             <h3 className="text-xs uppercase text-[var(--text-primary)] font-extrabold mb-1 flex items-center gap-2 tracking-wider">
               <Activity size={14} className="text-[var(--brand)]" /> {`Emergencias Activas (${activeCount})`}
             </h3>
@@ -421,8 +421,8 @@ export const CommandCenterSidebar: React.FC = () => {
                   onClick={() => handleAlertCardClick(alert.id)}
                   className={`rounded flex flex-col cursor-pointer transition-all duration-200 overflow-hidden relative
                     ${isFocused 
-                      ? 'bg-[#ece9e6] dark:bg-[#141415] shadow-md scale-[1.01]' 
-                      : 'bg-[#f8f7f5] dark:bg-[#141415] shadow-xs hover:shadow-sm hover:scale-[1.01] hover:bg-[#ece9e6] dark:hover:bg-[var(--bg-elevated)]'
+                      ? 'bg-[#efefef] dark:bg-[#181819] shadow-md scale-[1.01]' 
+                      : 'bg-[#efefef] dark:bg-[#181819] shadow-xs hover:shadow-sm hover:scale-[1.01] hover:bg-[#ece9e6] dark:hover:bg-[var(--bg-elevated)]'
                     }
                     ${isOverdue ? 'before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3.5px] before:bg-red-500' : ''}`}
                 >

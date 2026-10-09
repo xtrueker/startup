@@ -9,7 +9,6 @@ import {
   Eye, 
   FileArchive, 
   Shield, 
-  Car, 
   Users, 
   Navigation, 
   Clock, 
@@ -166,7 +165,7 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
   };
 
   return (
-    <div className="w-[410px] bg-[var(--bg-sidebar)] flex flex-col h-full shadow-md dark:shadow-lg z-30 animate-in slide-in-from-right text-[var(--text-primary)] theme-transition">
+    <div className="w-[410px] bg-[var(--bg-sidebar)] flex flex-col h-full border-l border-neutral-200/90 dark:border-neutral-800/80 shadow-[-6px_0_25px_-3px_rgba(0,0,0,0.14),_-2px_0_8px_-2px_rgba(0,0,0,0.06)] dark:shadow-[-6px_0_25px_-3px_rgba(0,0,0,0.5)] z-30 animate-in slide-in-from-right text-[var(--text-primary)] theme-transition">
       {/* Header */}
       <div className="p-4 flex items-start justify-between bg-[var(--bg-sidebar-header)] shadow-xs">
         <div className="flex items-center gap-3">

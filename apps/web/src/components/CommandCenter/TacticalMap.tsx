@@ -415,7 +415,7 @@ export const TacticalMap: React.FC = () => {
         </button>
 
         {/* Perspective: Operador (3D) vs Ciudadano (2D) */}
-        <div className="bg-[var(--bg-surface)] p-[3px] rounded flex gap-1 shadow-md">
+        <div className="bg-[var(--bg-surface)] p-[6px] rounded flex gap-1 shadow-md">
           <button 
             onClick={() => handlePerspectiveChange('3d')}
             className={`px-2 py-1 text-[10px] font-bold transition-all cursor-pointer rounded ${

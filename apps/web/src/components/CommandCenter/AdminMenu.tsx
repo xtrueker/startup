@@ -67,7 +67,7 @@ export const AdminMenu: React.FC = () => {
       {/* Header toggle */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-[#f4f2f0] dark:hover:bg-[var(--bg-elevated)] transition-colors group cursor-pointer"
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left bg-[#f9f9f9] dark:bg-[#111112] hover:bg-[#f4f2f0] dark:hover:bg-[var(--bg-elevated)] transition-colors group cursor-pointer"
       >
         <div className="w-6 h-6 rounded bg-[var(--accent-bg)] shadow-xs flex items-center justify-center flex-shrink-0">
           <Settings2 size={13} className="text-[var(--accent)]" />
