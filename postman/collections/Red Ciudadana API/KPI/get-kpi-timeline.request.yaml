@@ -1,0 +1,14 @@
+$kind: http-request
+name: 'Get KPI Alerts Timeline'
+method: GET
+url: '{{baseUrl}}/api/kpi/timeline'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+queryParams:
+  - key: days
+    value: '7'
+    description: Number of days to include in the timeline

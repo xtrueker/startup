@@ -544,3 +544,79 @@ textarea,
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TACTICAL POLICE SIREN NEON BORDER EFFECT (SUBTLE & PARALLEL)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Animación sutil y sincronizada: ambas luces respiran e iluminan en paralelo */
+@keyframes policeSirenParallelPulse {
+  0%, 100% {
+    opacity: 0.3;
+    filter: brightness(0.85);
+  }
+  50% {
+    opacity: 0.78;
+    filter: brightness(1.22);
+  }
+}
+
+.police-neon-strobe-parallel {
+  animation: policeSirenParallelPulse 2s ease-in-out infinite;
+  will-change: opacity, filter;
+}
+
+/* Tubos de Neón Horizontales - Azul Policial Oscuro & Rojo Carmesí */
+.police-neon-tube-blue-h {
+  background: linear-gradient(90deg, #1e40af 0%, #1d4ed8 55%, transparent 100%);
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.5),
+    0 0 5px #1d4ed8,
+    0 0 12px rgba(29, 78, 216, 0.6),
+    0 0 22px rgba(30, 64, 175, 0.3);
+}
+
+.police-neon-tube-red-h {
+  background: linear-gradient(90deg, transparent 0%, #dc2626 45%, #b91c1c 100%);
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.5),
+    0 0 5px #dc2626,
+    0 0 12px rgba(220, 38, 38, 0.6),
+    0 0 22px rgba(185, 28, 28, 0.3);
+}
+
+/* Tubos de Neón Verticales (Borde Derecho) */
+.police-neon-tube-blue-v {
+  background: linear-gradient(180deg, #1e40af 0%, #1d4ed8 55%, transparent 100%);
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.5),
+    0 0 5px #1d4ed8,
+    0 0 12px rgba(29, 78, 216, 0.6),
+    0 0 22px rgba(30, 64, 175, 0.3);
+}
+
+.police-neon-tube-red-v {
+  background: linear-gradient(180deg, transparent 0%, #dc2626 45%, #b91c1c 100%);
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.5),
+    0 0 5px #dc2626,
+    0 0 12px rgba(220, 38, 38, 0.6),
+    0 0 22px rgba(185, 28, 28, 0.3);
+}
+
+[data-theme="light"] .police-neon-tube-blue-h,
+[data-theme="light"] .police-neon-tube-blue-v {
+  background: linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 55%, transparent 100%);
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.7),
+    0 0 5px #1d4ed8,
+    0 0 12px rgba(29, 78, 216, 0.45);
+}
+
+[data-theme="light"] .police-neon-tube-red-h,
+[data-theme="light"] .police-neon-tube-red-v {
+  background: linear-gradient(90deg, transparent 0%, #dc2626 45%, #991b1b 100%);
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.7),
+    0 0 5px #dc2626,
+    0 0 12px rgba(220, 38, 38, 0.45);
+}

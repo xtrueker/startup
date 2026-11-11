@@ -1,0 +1,26 @@
+$kind: http-request
+name: 'Create Role'
+method: POST
+url: '{{baseUrl}}/api/roles'
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id": "patrullero_custom",
+      "name": "Patrullero Táctico",
+      "description": "Acceso operativo a cuadrantes y recepción de alertas",
+      "permissions": [
+        "read:teams",
+        "write:alerts",
+        "read:alerts"
+      ]
+    }

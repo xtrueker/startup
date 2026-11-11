@@ -18,111 +18,19 @@ import {
   Radio,
   UserPlus,
   BadgeCheck,
-  ChevronRight
+  ChevronRight,
+  Siren,
+  Ambulance,
+  RefreshCw
 } from 'lucide-react';
-
-export interface TeamMember {
-  id: string;
-  name: string;
-  identification: string;
-  badgeOrPlate: string; // Placa personal o de vehículo de apoyo
-  roleInTeam: string;
-}
-
-export interface Team {
-  id: string;
-  teamName: string;
-  teamType: 'patrulla' | 'motorizada' | 'tactica' | 'vigilancia';
-  leaderUsername: string;
-  leaderEmail: string;
-  leaderId: string;
-  mainVehiclePlate: string;
-  assignedZone: string;
-  status: 'patrullando' | 'disponible' | 'en_incidente' | 'fuera_servicio';
-  members: TeamMember[];
-  createdAt: string;
-}
-
-const INITIAL_TEAMS: Team[] = [
-  {
-    id: 'team-001',
-    teamName: 'Unidad de Respuesta Alfa-12',
-    teamType: 'patrulla',
-    leaderUsername: 'cmdte_rodriguez',
-    leaderEmail: 'h.rodriguez@policia.gov.co',
-    leaderId: '79845123',
-    mainVehiclePlate: 'POL-492',
-    assignedZone: 'Sector Norte - Cuadrante 3',
-    status: 'patrullando',
-    members: [
-      {
-        id: 'mem-1',
-        name: 'Sgto. Hector Rodriguez',
-        identification: '79845123',
-        badgeOrPlate: 'PL-8831',
-        roleInTeam: 'Comandante de Escuadra'
-      },
-      {
-        id: 'mem-2',
-        name: 'Patrullero David Arias',
-        identification: '1023458901',
-        badgeOrPlate: 'PL-9942',
-        roleInTeam: 'Conductor Táctico'
-      },
-      {
-        id: 'mem-3',
-        name: 'Agente Sofia Castro',
-        identification: '1074829103',
-        badgeOrPlate: 'PL-7721',
-        roleInTeam: 'Primer Respondiente / Paramédico'
-      }
-    ],
-    createdAt: new Date(Date.now() - 3600000 * 24 * 10).toISOString(),
-  },
-  {
-    id: 'team-002',
-    teamName: 'Escuadrón Rápido Halcón-4',
-    teamType: 'motorizada',
-    leaderUsername: 'cabo_morales',
-    leaderEmail: 'j.morales@policia.gov.co',
-    leaderId: '80123984',
-    mainVehiclePlate: 'MOTO-773',
-    assignedZone: 'Sector Centro - Eje Comercial',
-    status: 'disponible',
-    members: [
-      {
-        id: 'mem-4',
-        name: 'Cabo Jorge Morales',
-        identification: '80123984',
-        badgeOrPlate: 'MOTO-773',
-        roleInTeam: 'Líder de Patrullaje Motorizado'
-      },
-      {
-        id: 'mem-5',
-        name: 'Patrullero Camilo Vega',
-        identification: '1098234561',
-        badgeOrPlate: 'MOTO-774',
-        roleInTeam: 'Escolta / Apoyo Motorizado'
-      }
-    ],
-    createdAt: new Date(Date.now() - 3600000 * 24 * 5).toISOString(),
-  }
-];
-
-const LOCAL_STORAGE_KEY = 'admin_teams_list';
+import { teamService } from '../../services/teams';
+import type { Team, TeamMember } from '../../services/teams';
 
 const AdminTeams: React.FC = () => {
   const navigate = useNavigate();
 
-  const [teams, setTeams] = useState<Team[]>(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : INITIAL_TEAMS;
-    } catch {
-      return INITIAL_TEAMS;
-    }
-  });
-
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -131,7 +39,7 @@ const AdminTeams: React.FC = () => {
 
   // Form states - General Team Data
   const [teamName, setTeamName] = useState('');
-  const [teamType, setTeamType] = useState<'patrulla' | 'motorizada' | 'tactica' | 'vigilancia'>('patrulla');
+  const [teamType, setTeamType] = useState<'patrulla' | 'ambulancia' | 'motorizada' | 'tactica' | 'vigilancia'>('patrulla');
   const [leaderUsername, setLeaderUsername] = useState('');
   const [leaderEmail, setLeaderEmail] = useState('');
   const [leaderId, setLeaderId] = useState('');
@@ -140,7 +48,7 @@ const AdminTeams: React.FC = () => {
   const [status, setStatus] = useState<'patrullando' | 'disponible' | 'en_incidente' | 'fuera_servicio'>('disponible');
 
   // Form states - Members list
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<Array<{ id: string; name: string; identification: string; badgeOrPlate?: string; roleInTeam?: string }>>([]);
 
   // Member sub-form
   const [memberName, setMemberName] = useState('');
@@ -148,11 +56,24 @@ const AdminTeams: React.FC = () => {
   const [memberBadgeOrPlate, setMemberBadgeOrPlate] = useState('');
   const [memberRole, setMemberRole] = useState('Patrullero / Agente');
   const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Persistir en localStorage
+  // Cargar equipos desde el backend
+  const fetchTeams = async () => {
+    setLoading(true);
+    try {
+      const data = await teamService.getTeams();
+      setTeams(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error al cargar equipos:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(teams));
-  }, [teams]);
+    fetchTeams();
+  }, []);
 
   const resetForm = () => {
     setTeamName('');
@@ -192,8 +113,8 @@ const AdminTeams: React.FC = () => {
       return;
     }
 
-    const newMember: TeamMember = {
-      id: `mem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    const newMember = {
+      id: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: memberName.trim(),
       identification: memberId.trim(),
       badgeOrPlate: memberBadgeOrPlate.trim() || 'N/A',
@@ -213,8 +134,8 @@ const AdminTeams: React.FC = () => {
     setMembers(prev => prev.filter(m => m.id !== id));
   };
 
-  // Crear el equipo completo
-  const handleCreateTeam = (e: React.FormEvent) => {
+  // Crear el equipo completo en la API
+  const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -239,39 +160,51 @@ const AdminTeams: React.FC = () => {
       return;
     }
 
-    // Si no se agregaron miembros explícitos en la lista dinámica, agregar al líder por defecto
-    const finalMembers = members.length > 0 ? members : [
-      {
-        id: `mem-${Date.now()}`,
-        name: leaderUsername.trim(),
-        identification: leaderId.trim(),
-        badgeOrPlate: mainVehiclePlate.trim(),
-        roleInTeam: 'Líder de Unidad'
-      }
-    ];
+    setIsSubmitting(true);
 
-    const newTeam: Team = {
-      id: `team-${Date.now()}`,
-      teamName: teamName.trim(),
-      teamType,
-      leaderUsername: leaderUsername.trim(),
-      leaderEmail: leaderEmail.trim(),
-      leaderId: leaderId.trim(),
-      mainVehiclePlate: mainVehiclePlate.trim().toUpperCase(),
-      assignedZone,
-      status,
-      members: finalMembers,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      // Si no se agregaron miembros explícitos en la lista dinámica, agregar al líder por defecto
+      const finalMembers = members.length > 0 ? members : [
+        {
+          name: leaderUsername.trim(),
+          identification: leaderId.trim(),
+          badgeOrPlate: mainVehiclePlate.trim().toUpperCase(),
+          roleInTeam: 'Líder de Unidad'
+        }
+      ];
 
-    setTeams(prev => [newTeam, ...prev]);
-    handleCloseModal();
+      await teamService.createTeam({
+        teamName: teamName.trim(),
+        teamType,
+        leaderUsername: leaderUsername.trim(),
+        leaderEmail: leaderEmail.trim(),
+        leaderId: leaderId.trim(),
+        mainVehiclePlate: mainVehiclePlate.trim().toUpperCase(),
+        assignedZone,
+        status,
+        members: finalMembers,
+      });
+
+      await fetchTeams();
+      handleCloseModal();
+    } catch (err: any) {
+      console.error('Error creando equipo:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Error al guardar el equipo en el servidor.';
+      setFormError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteTeam = (team: Team) => {
+  const handleDeleteTeam = async (team: Team) => {
     const confirmDelete = window.confirm(`¿Seguro que deseas eliminar el equipo "${team.teamName}"?`);
     if (!confirmDelete) return;
-    setTeams(prev => prev.filter(t => t.id !== team.id));
+    try {
+      await teamService.deleteTeam(team.id);
+      setTeams(prev => prev.filter(t => t.id !== team.id));
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'No se pudo eliminar el equipo en el servidor.');
+    }
   };
 
   const filteredTeams = teams.filter(team => {
@@ -297,13 +230,15 @@ const AdminTeams: React.FC = () => {
   const getTeamTypeBadge = (type: string) => {
     switch (type) {
       case 'patrulla':
-        return { label: 'Patrulla Vehicular', bg: 'bg-[#0369a1]/30', text: 'text-[#38bdf8]', border: 'border-[#0284c7]/40' };
+        return { label: 'Patrulla Policial', Icon: Siren, bg: 'bg-[#0369a1]/30', text: 'text-[#38bdf8]', border: 'border-[#0284c7]/40' };
+      case 'ambulancia':
+        return { label: 'Ambulancia Médica', Icon: Ambulance, bg: 'bg-rose-500/20', text: 'text-rose-400', border: 'border-rose-500/40' };
       case 'motorizada':
-        return { label: 'Escuadrón Motorizado', bg: 'bg-[#d97706]/20', text: 'text-[#fbbf24]', border: 'border-[#d97706]/40' };
+        return { label: 'Escuadrón Motorizado', Icon: Siren, bg: 'bg-[#d97706]/20', text: 'text-[#fbbf24]', border: 'border-[#d97706]/40' };
       case 'tactica':
-        return { label: 'Unidad Táctica Reacción', bg: 'bg-[#991b1b]/30', text: 'text-[#f87171]', border: 'border-[#b91c1c]/40' };
+        return { label: 'Unidad Táctica Reacción', Icon: Siren, bg: 'bg-[#991b1b]/30', text: 'text-[#f87171]', border: 'border-[#b91c1c]/40' };
       default:
-        return { label: 'Cuadrante Vigilancia', bg: 'bg-[#065f46]/30', text: 'text-[#34d399]', border: 'border-[#059669]/40' };
+        return { label: 'Cuadrante Vigilancia', Icon: Siren, bg: 'bg-[#065f46]/30', text: 'text-[#34d399]', border: 'border-[#059669]/40' };
     }
   };
 
@@ -424,7 +359,8 @@ const AdminTeams: React.FC = () => {
             className="bg-[#121212] border border-[#222222] text-[#d4d4d4] rounded-xl px-3 py-2 text-xs outline-none cursor-pointer hover:border-[#333333]"
           >
             <option value="all">Todos los Tipos</option>
-            <option value="patrulla">Patrullas</option>
+            <option value="patrulla">Patrullas Policiales</option>
+            <option value="ambulancia">Ambulancias Médicas</option>
             <option value="motorizada">Motorizadas</option>
             <option value="tactica">Unidades Tácticas</option>
             <option value="vigilancia">Vigilancia a Pie</option>
@@ -459,6 +395,8 @@ const AdminTeams: React.FC = () => {
               const typeBadge = getTeamTypeBadge(team.teamType);
               const statusBadge = getStatusBadge(team.status);
               const isExpanded = expandedTeamId === team.id;
+              const isAmbulance = team.teamType === 'ambulancia' || team.teamName?.toLowerCase().includes('ambulanc');
+              const TypeIcon = isAmbulance ? Ambulance : Siren;
 
               return (
                 <div
@@ -468,8 +406,12 @@ const AdminTeams: React.FC = () => {
                   {/* Top card */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1b3326] to-[#0f1f17] border border-[#065f46]/40 flex items-center justify-center font-black text-[#34d399] text-base shadow-md">
-                        <Shield size={22} />
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-base shadow-md ${
+                        isAmbulance
+                          ? 'bg-gradient-to-br from-[#3b1219] to-[#200a0e] border border-rose-600/40 text-rose-400'
+                          : 'bg-gradient-to-br from-[#0c2340] to-[#071322] border border-sky-600/40 text-sky-400'
+                      }`}>
+                        <TypeIcon size={22} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -659,7 +601,8 @@ const AdminTeams: React.FC = () => {
                       onChange={(e: any) => setTeamType(e.target.value)}
                       className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#e5e5e5] outline-none transition-colors cursor-pointer"
                     >
-                      <option value="patrulla">Patrulla Vehicular (Camioneta / Sedán)</option>
+                      <option value="patrulla">Patrulla Policial (Camioneta / Sedán)</option>
+                      <option value="ambulancia">Ambulancia Médica / Asistencia SAMU</option>
                       <option value="motorizada">Escuadrón Motorizado (Motos)</option>
                       <option value="tactica">Unidad Táctica de Reacción (GOES / SWAT)</option>
                       <option value="vigilancia">Cuadrante a Pie / Vigilancia Comunitaria</option>

@@ -1,0 +1,23 @@
+$kind: http-request
+name: 'Get All Operators'
+method: GET
+url: '{{baseUrl}}/api/operators'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+queryParams:
+  - key: shift
+    value: ''
+    description: 'Filter by shift: mañana, tarde, noche, 24x48'
+    disabled: true
+  - key: status
+    value: ''
+    description: 'Filter by status: en_servicio, disponible, en_descanso, inactivo'
+    disabled: true
+  - key: specialty
+    value: ''
+    description: 'Filter by specialty: cctv, despacho, tactico, supervisor'
+    disabled: true

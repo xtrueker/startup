@@ -1,0 +1,19 @@
+$kind: http-request
+name: 'Get All Teams'
+method: GET
+url: '{{baseUrl}}/api/teams'
+order: 1000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+queryParams:
+  - key: teamType
+    value: ''
+    description: 'Filter by type: patrulla, ambulancia, motorizada, tactica, vigilancia'
+    disabled: true
+  - key: status
+    value: ''
+    description: 'Filter by status: patrullando, disponible, en_incidente, fuera_servicio'
+    disabled: true

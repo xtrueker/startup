@@ -1,0 +1,15 @@
+$kind: http-request
+name: 'Delete Team Member'
+method: DELETE
+url: '{{baseUrl}}/api/teams/:teamId/members/:memberId'
+order: 7000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+pathVariables:
+  - key: teamId
+    value: '{{teamId}}'
+  - key: memberId
+    value: '{{memberId}}'

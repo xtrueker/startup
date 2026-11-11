@@ -84,6 +84,10 @@ interface CommandCenterState {
   setEscapeRoutePoints: (points: [number, number][]) => void;
   undoLastWaypoint: () => void;
   clearEscapeRoute: () => void;
+
+  // Sidebar Layout State
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 export const useCommandStore = create<CommandCenterState>((set) => ({
@@ -113,6 +117,11 @@ export const useCommandStore = create<CommandCenterState>((set) => ({
     return { escapeRouteWaypoints: newWaypoints };
   }),
   clearEscapeRoute: () => set({ escapeRouteWaypoints: [], escapeRoutePoints: [], isDrawingRoute: false }),
+
+  sidebarOpen: true,
+  setSidebarOpen: (open) => set((state) => ({
+    sidebarOpen: typeof open === 'function' ? open(state.sidebarOpen) : open,
+  })),
 
   updateGhostLocation: (victim) => set((state) => ({
     ghostVictims: { ...state.ghostVictims, [victim.userId]: victim }

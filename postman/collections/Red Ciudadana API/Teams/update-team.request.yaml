@@ -1,0 +1,23 @@
+$kind: http-request
+name: 'Update Team'
+method: PATCH
+url: '{{baseUrl}}/api/teams/:id'
+order: 4000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+pathVariables:
+  - key: id
+    value: '{{teamId}}'
+body:
+  type: json
+  content: |-
+    {
+      "status": "en_incidente",
+      "assignedZone": "Sector Centro - Eje Comercial"
+    }
