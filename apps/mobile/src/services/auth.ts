@@ -147,6 +147,20 @@ export const authService = {
     return res.data.data;
   },
 
+  probeLiveness: async (payload: {
+    stage: 'align_neutral' | 'perform_gesture';
+    frameBase64: string;
+    token: string;
+  }): Promise<{
+    status: 'coaching' | 'neutral_locked' | 'gesture_locked' | 'spoof_blocked';
+    tone: 'neutral' | 'amber' | 'aqua' | 'emerald' | 'crimson';
+    guidance: string;
+    nextToken?: string;
+  }> => {
+    const res = await api.post('/auth/liveness-probe', payload);
+    return res.data.data;
+  },
+
   verifyBiometrics: async (payload: {
     idCardFront: string;
     selfieNeutral: string;

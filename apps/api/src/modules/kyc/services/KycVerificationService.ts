@@ -610,6 +610,7 @@ export class KycVerificationService {
     step2Prompt: string;
     challengeToken: string;
   } {
+    // Retos universales y dignos, diseñados para ser fáciles para adultos mayores e imposibles para fotos fijas
     const challenges: Array<{
       type: LivenessChallengeType;
       step1: string;
@@ -617,26 +618,22 @@ export class KycVerificationService {
     }> = [
       {
         type: 'smile',
-        step1: 'Mantén expresión seria mirando al frente',
-        step2: '¡Ahora sonríe ampliamente!',
-      },
-      {
-        type: 'open_mouth',
-        step1: 'Mira al frente con los labios cerrados',
-        step2: '¡Ahora abre la boca claramente!',
+        step1: 'Mira tranquilo hacia la pantalla',
+        step2: '¡Muy bien! Ahora regálanos una sonrisa',
       },
       {
         type: 'turn_head',
-        step1: 'Mira totalmente de frente al lente',
-        step2: '¡Ahora gira un poco tu rostro hacia un lado!',
+        step1: 'Mira de frente hacia la pantalla',
+        step2: '¡Muy bien! Ahora gira un poquito tu cabeza hacia un lado',
       },
     ];
 
     const chosen = challenges[Math.floor(Math.random() * challenges.length)];
     const challengeToken = signTokenPayload({
       challengeType: chosen.type,
+      step2Prompt: chosen.step2,
       nonce: crypto.randomBytes(8).toString('hex'),
-      exp: Date.now() + 5 * 60 * 1000,
+      exp: Date.now() + 10 * 60 * 1000,
     });
 
     return {
@@ -644,6 +641,258 @@ export class KycVerificationService {
       step1Prompt: chosen.step1,
       step2Prompt: chosen.step2,
       challengeToken,
+    };
+  }
+
+  /**
+   * Guía inteligente en tiempo real SIN límite de segundos:
+   * Detecta pacientemente cuándo la persona está mirando bien a la cámara y cuándo realiza el gesto,
+   * guiándola paso a paso con mensajes claros y bloqueando al instante fotos, pantallas o cédulas.
+   */
+  static async evaluateLiveGuidanceProbe(input: {
+    stage?: 'align_neutral' | 'perform_gesture';
+    frameBase64?: string;
+    token?: string;
+  }): Promise<{
+    status: 'coaching' | 'neutral_locked' | 'gesture_locked' | 'spoof_blocked';
+    tone: 'neutral' | 'amber' | 'aqua' | 'emerald' | 'crimson';
+    guidance: string;
+    nextToken?: string;
+  }> {
+    if (!input.frameBase64 || !input.token) {
+      return {
+        status: 'coaching',
+        tone: 'neutral',
+        guidance: 'Ubica tu rostro frente a la pantalla',
+      };
+    }
+
+    const stage = input.stage === 'perform_gesture' ? 'perform_gesture' : 'align_neutral';
+    const tokenData = verifyTokenPayload<{
+      challengeType: LivenessChallengeType;
+      step2Prompt?: string;
+      baseSmileScore?: number;
+      baseYaw?: number;
+      baseRoll?: number;
+    }>(input.token);
+
+    if (!tokenData?.challengeType) {
+      const fresh = this.issueLivenessChallenge();
+      return {
+        status: 'coaching',
+        tone: 'neutral',
+        guidance: fresh.step1Prompt,
+        nextToken: fresh.challengeToken,
+      };
+    }
+
+    let normalizedProbe: Buffer;
+    try {
+      const rawBuf = decodeBase64Image(input.frameBase64);
+      normalizedProbe = await sharp(rawBuf)
+        .rotate()
+        .resize({ width: 720, height: 720, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+    } catch {
+      return {
+        status: 'coaching',
+        tone: 'neutral',
+        guidance: 'Enfocando la cámara...',
+      };
+    }
+
+    const b64 = normalizedProbe.toString('base64');
+    const [labelsResp, textResp, facesResp] = await Promise.all([
+      invokeAwsRekognition('DetectLabels', {
+        Image: { Bytes: b64 },
+        MaxLabels: 20,
+        MinConfidence: 62,
+      }),
+      invokeAwsRekognition('DetectText', {
+        Image: { Bytes: b64 },
+      }),
+      invokeAwsRekognition('DetectFaces', {
+        Image: { Bytes: b64 },
+        Attributes: ['ALL'],
+      }),
+    ]);
+
+    // 1. Bloqueo en vivo contra fotos impresas, pantallas o cédulas frente al lente
+    const labels: any[] = Array.isArray(labelsResp.data?.Labels) ? labelsResp.data.Labels : [];
+    for (const lbl of labels) {
+      const name = String(lbl?.Name || '');
+      const conf = Number(lbl?.Confidence || 0);
+      if (SPOOF_DOCUMENT_LABELS.has(name) && conf >= 65) {
+        return {
+          status: 'spoof_blocked',
+          tone: 'crimson',
+          guidance: 'No uses cédulas ni fotos impresas. Muestra únicamente tu rostro real.',
+        };
+      }
+      if (SPOOF_SCREEN_LABELS.has(name) && conf >= 68) {
+        return {
+          status: 'spoof_blocked',
+          tone: 'crimson',
+          guidance: 'Retira otros celulares o pantallas. Muestra únicamente tu rostro real.',
+        };
+      }
+    }
+
+    const textLines: any[] = Array.isArray(textResp.data?.TextDetections)
+      ? textResp.data.TextDetections.filter(
+          (t: any) => t?.Type === 'LINE' && Number(t?.Confidence || 0) >= 75
+        )
+      : [];
+    const upperAllText = textLines
+      .map((t) => String(t.DetectedText || '').toUpperCase())
+      .join(' ');
+    if (
+      ID_SPOOF_TEXT_KEYWORDS.some((kw) => upperAllText.includes(kw)) ||
+      textLines.length >= 4
+    ) {
+      return {
+        status: 'spoof_blocked',
+        tone: 'crimson',
+        guidance: 'Detectamos un documento con texto frente a la cámara. Muestra tu rostro real.',
+      };
+    }
+
+    // 2. Guía amable paso a paso de posición del rostro
+    const faces: any[] = Array.isArray(facesResp.data?.FaceDetails)
+      ? facesResp.data.FaceDetails
+      : [];
+    if (faces.length === 0) {
+      return {
+        status: 'coaching',
+        tone: 'neutral',
+        guidance: 'Pon tu rostro frente a la pantalla, con calma',
+      };
+    }
+
+    faces.sort(
+      (a, b) =>
+        Number(b?.BoundingBox?.Width || 0) * Number(b?.BoundingBox?.Height || 0) -
+        Number(a?.BoundingBox?.Width || 0) * Number(a?.BoundingBox?.Height || 0)
+    );
+    const f = faces[0];
+    const boxH = Number(f?.BoundingBox?.Height || 0);
+    const boxW = Number(f?.BoundingBox?.Width || 0);
+
+    if (boxH < 0.19 || boxW < 0.14) {
+      return {
+        status: 'coaching',
+        tone: 'amber',
+        guidance: 'Acerca un poquito más el celular hacia tu cara',
+      };
+    }
+
+    if (f?.Sunglasses?.Value === true && Number(f?.Sunglasses?.Confidence || 0) >= 80) {
+      return {
+        status: 'coaching',
+        tone: 'amber',
+        guidance: 'Por favor quítate las gafas oscuras para verte bien',
+      };
+    }
+
+    if (f?.EyesOpen?.Value === false && Number(f?.EyesOpen?.Confidence || 0) >= 80) {
+      return {
+        status: 'coaching',
+        tone: 'amber',
+        guidance: 'Mira hacia la pantalla con los ojos abiertos',
+      };
+    }
+
+    const yaw = Number(f?.Pose?.Yaw || 0);
+    const pitch = Number(f?.Pose?.Pitch || 0);
+    const roll = Number(f?.Pose?.Roll || 0);
+    const smileVal = Boolean(f?.Smile?.Value);
+    const smileConf = Number(f?.Smile?.Confidence || 0);
+    const smileScore = smileVal ? smileConf : Math.max(0, 100 - smileConf);
+
+    // ETAPA 1: Esperar sin prisa hasta que mire tranquilo de frente a la cámara
+    if (stage === 'align_neutral') {
+      if (Math.abs(yaw) > 15 || Math.abs(pitch) > 20) {
+        return {
+          status: 'coaching',
+          tone: 'amber',
+          guidance: 'Mira de frente hacia el centro de la pantalla',
+        };
+      }
+
+      if (tokenData.challengeType === 'smile' && smileVal && smileScore > 72) {
+        return {
+          status: 'coaching',
+          tone: 'neutral',
+          guidance: 'Primero míranos con expresión tranquila (sin sonreír todavía)',
+        };
+      }
+
+      const stage1Token = signTokenPayload({
+        challengeType: tokenData.challengeType,
+        step2Prompt:
+          tokenData.step2Prompt || '¡Muy bien! Ahora regálanos una sonrisa',
+        baseSmileScore: smileScore,
+        baseYaw: yaw,
+        baseRoll: roll,
+        exp: Date.now() + 10 * 60 * 1000,
+      });
+
+      return {
+        status: 'neutral_locked',
+        tone: 'aqua',
+        guidance:
+          tokenData.step2Prompt || '¡Muy bien! Ahora regálanos una sonrisa',
+        nextToken: stage1Token,
+      };
+    }
+
+    // ETAPA 2: Esperar pacientemente el tiempo que la persona necesite para leer y hacer el gesto
+    if (tokenData.challengeType === 'smile') {
+      const baseSmile = Number(tokenData.baseSmileScore ?? 15);
+      const deltaSmile = smileScore - baseSmile;
+      if (smileVal && smileScore >= 70 && deltaSmile >= 22) {
+        const finalChallengeToken = signTokenPayload({
+          challengeType: 'smile',
+          exp: Date.now() + 5 * 60 * 1000,
+        });
+        return {
+          status: 'gesture_locked',
+          tone: 'emerald',
+          guidance: '¡Excelente! Verificando tu identidad...',
+          nextToken: finalChallengeToken,
+        };
+      }
+
+      return {
+        status: 'coaching',
+        tone: 'aqua',
+        guidance: 'Cuando estés listo, sonríe mirando a la pantalla',
+      };
+    }
+
+    const baseYaw = Number(tokenData.baseYaw ?? 0);
+    const baseRoll = Number(tokenData.baseRoll ?? 0);
+    const deltaYaw = Math.abs(yaw - baseYaw);
+    const deltaRoll = Math.abs(roll - baseRoll);
+
+    if (deltaYaw >= 11 && deltaRoll <= 22) {
+      const finalChallengeToken = signTokenPayload({
+        challengeType: 'turn_head',
+        exp: Date.now() + 5 * 60 * 1000,
+      });
+      return {
+        status: 'gesture_locked',
+        tone: 'emerald',
+        guidance: '¡Excelente! Verificando tu identidad...',
+        nextToken: finalChallengeToken,
+      };
+    }
+
+    return {
+      status: 'coaching',
+      tone: 'aqua',
+      guidance: 'Cuando estés listo, gira un poquito tu cabeza hacia un lado',
     };
   }
 

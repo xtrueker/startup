@@ -61,6 +61,38 @@ router.get('/liveness-challenge', (_req: Request, res: Response) => {
 
 /**
  * @swagger
+ * /api/auth/liveness-probe:
+ *   post:
+ *     summary: Guía visual en tiempo real sin temporizador (detecta postura de mirada, gestos y antifraude)
+ *     tags: [Auth]
+ *     security: []
+ */
+router.post('/liveness-probe', async (req: Request, res: Response) => {
+  try {
+    const { stage, frameBase64, token } = req.body;
+    const result = await KycVerificationService.evaluateLiveGuidanceProbe({
+      stage,
+      frameBase64,
+      token,
+    });
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        status: 'coaching',
+        tone: 'neutral',
+        guidance: 'Mantén tu rostro frente a la pantalla',
+      },
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/auth/verify-biometrics:
  *   post:
  *     summary: Prueba de vida activa (2 fotogramas) + detección antisuplantación (PAD) contra cédula
