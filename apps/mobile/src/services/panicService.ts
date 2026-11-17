@@ -9,6 +9,7 @@ export interface PanicTriggerOptions {
   triggerType?: 'button' | 'ghost_mode';
   description?: string;
   customCoords?: { latitude: number; longitude: number };
+  customAddress?: string;
 }
 
 export interface PanicState {
@@ -161,7 +162,10 @@ class PanicService {
       if (options?.customCoords) {
         latitude = options.customCoords.latitude;
         longitude = options.customCoords.longitude;
-        address = 'Coordenadas provistas';
+        address =
+          options.customAddress && !options.customAddress.startsWith('Obteniendo') && !options.customAddress.startsWith('Sincronizando')
+            ? options.customAddress
+            : 'Ubicación GPS confirmada';
       } else {
         const locationResult = await this.getPreciseLocation();
         latitude = locationResult.latitude;

@@ -6,6 +6,8 @@ import { getSocket, emitToOperators, dispatchTacticalAlert } from '../../../shar
 import { AuditService } from '../../../shared/services/AuditService';
 import { supabase } from '../../../infrastructure/database/connection';
 import { User } from '../../../infrastructure/database/models';
+import { EvidenceStorageService } from '../../mobile/services/EvidenceStorageService';
+import { env } from '../../../config/env';
 
 const router = Router();
 
@@ -244,6 +246,30 @@ router.get('/:id/events', requireAuth, requireRole(['admin', 'supervisor', 'oper
   } catch (error: any) {
     console.error('ERROR obteniendo eventos de alerta:', error.message);
     res.status(500).json({ success: false, message: 'Error interno', error: error.message });
+  }
+});
+
+// EVIDENCIAS ACÚSTICAS DE UNA ALERTA (CON URLS FIRMADAS DE REPRODUCCIÓN)
+// GET /api/alerts/:id/evidence
+router.get('/:id/evidence', requireAuth, requireRole(['admin', 'supervisor', 'operator', 'police']), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const rawProto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
+    const proto = rawProto.split(',')[0].trim();
+    const host = req.get('host') || `localhost:${env.PORT}`;
+    const apiBaseUrl = process.env.PUBLIC_API_URL
+      ? process.env.PUBLIC_API_URL.replace(/\/+$/, '')
+      : `${proto}://${host}`;
+
+    const clips = await EvidenceStorageService.listAlertEvidence(id, apiBaseUrl);
+    res.json({
+      success: true,
+      count: clips.length,
+      data: clips,
+    });
+  } catch (error: any) {
+    console.error('ERROR obteniendo evidencias de alerta:', error.message);
+    res.status(500).json({ success: false, message: 'Error obteniendo evidencias de audio' });
   }
 });
 

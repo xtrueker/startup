@@ -289,15 +289,58 @@ router.get('/evidence/stream/:id', async (req: Request, res: Response) => {
       });
     }
 
+    const totalLength = audio.buffer.length;
     res.setHeader('Content-Type', audio.mimeType);
-    res.setHeader('Content-Length', audio.buffer.length.toString());
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'private, max-age=300');
     res.setHeader('X-Evidence-SHA256', audio.sha256Hash);
+
+    const rangeHeader = req.headers.range;
+    if (rangeHeader) {
+      const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+      if (match) {
+        const start = match[1] ? parseInt(match[1], 10) : 0;
+        const end = match[2] ? Math.min(parseInt(match[2], 10), totalLength - 1) : totalLength - 1;
+        if (start >= 0 && start <= end && start < totalLength) {
+          const chunk = audio.buffer.subarray(start, end + 1);
+          res.setHeader('Content-Range', `bytes ${start}-${end}/${totalLength}`);
+          res.setHeader('Content-Length', chunk.length.toString());
+          return res.status(206).send(chunk);
+        }
+      }
+    }
+
+    res.setHeader('Content-Length', totalLength.toString());
     res.status(200).send(audio.buffer);
   } catch (error: any) {
     console.error('Error reproduciendo evidencia:', error.message);
     res.status(500).json({ success: false, message: 'Error al descifrar evidencia' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/mobile/evidence/vault:
+ *   get:
+ *     summary: Obtener bóveda histórica de alertas con grabaciones de audio firmadas para reproducción
+ *     tags: [Mobile]
+ */
+router.get('/evidence/vault', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as any).user;
+    const userId = authUser?.userId || authUser?.id;
+    const role = authUser?.role || 'citizen';
+
+    const bundles = await EvidenceStorageService.listEvidenceVault({
+      userId,
+      role,
+      apiBaseUrl: getRequestBaseUrl(req),
+    });
+
+    res.json({ success: true, count: bundles.length, data: bundles });
+  } catch (error: any) {
+    console.error('Error consultando bóveda de evidencias:', error.message);
+    res.status(500).json({ success: false, message: 'Error cargando grabaciones de evidencia' });
   }
 });
 

@@ -172,4 +172,88 @@ export class EvidenceStorageService {
       createdAt: r.created_at,
     }));
   }
+
+  /**
+   * Lista el historial de alertas con sus grabaciones acústicas descifrables mediante URL firmada.
+   * - Ciudadanos: ven estrictamente sus propias alertas y audios.
+   * - Operadores / Policía / Supervisores / Admin: ven las alertas recientes con evidencia acústica.
+   */
+  static async listEvidenceVault(params: {
+    userId: string;
+    role: string;
+    apiBaseUrl: string;
+    limit?: number;
+  }) {
+    const pool = getPgPool();
+    const isAuthority = ['admin', 'supervisor', 'operator', 'police'].includes(params.role);
+    const maxAlerts = params.limit || 20;
+
+    const alertsQuery = isAuthority
+      ? `SELECT a.id, a.type, a.status, a.address, a.description, a.created_at,
+                u.full_name AS citizen_name,
+                COUNT(e.id)::int AS clip_count
+         FROM public.alerts a
+         LEFT JOIN public.users u ON u.id = a.user_id
+         LEFT JOIN public.alert_evidence e ON e.alert_id = a.id
+         GROUP BY a.id, u.full_name
+         HAVING COUNT(e.id) > 0 OR a.created_at > NOW() - INTERVAL '24 hours'
+         ORDER BY (COUNT(e.id) > 0) DESC, a.created_at DESC
+         LIMIT $1`
+      : `SELECT a.id, a.type, a.status, a.address, a.description, a.created_at,
+                u.full_name AS citizen_name,
+                COUNT(e.id)::int AS clip_count
+         FROM public.alerts a
+         LEFT JOIN public.users u ON u.id = a.user_id
+         LEFT JOIN public.alert_evidence e ON e.alert_id = a.id
+         WHERE a.user_id = $1
+         GROUP BY a.id, u.full_name
+         ORDER BY a.created_at DESC
+         LIMIT $2`;
+
+    const alertsRes = isAuthority
+      ? await pool.query(alertsQuery, [maxAlerts])
+      : await pool.query(alertsQuery, [params.userId, maxAlerts]);
+
+    if (alertsRes.rowCount === 0) {
+      return [];
+    }
+
+    const alertIds = alertsRes.rows.map((r) => r.id);
+    const clipsRes = await pool.query(
+      `SELECT id, alert_id, media_type, chunk_index, duration_ms, byte_size, sha256_hash, created_at
+       FROM public.alert_evidence
+       WHERE alert_id = ANY($1::uuid[])
+       ORDER BY alert_id, chunk_index ASC, created_at ASC`,
+      [alertIds]
+    );
+
+    const clipsByAlert = new Map<string, any[]>();
+    for (const c of clipsRes.rows) {
+      const list = clipsByAlert.get(c.alert_id) || [];
+      list.push({
+        id: c.id,
+        alertId: c.alert_id,
+        mimeType: c.media_type,
+        chunkIndex: c.chunk_index,
+        durationMs: c.duration_ms || 15000,
+        byteSize: c.byte_size,
+        sha256Hash: c.sha256_hash,
+        url: signEvidenceStreamUrl(c.id, params.apiBaseUrl, 3600),
+        createdAt: c.created_at,
+      });
+      clipsByAlert.set(c.alert_id, list);
+    }
+
+    return alertsRes.rows.map((a) => ({
+      alertId: a.id,
+      type: a.type,
+      status: a.status,
+      address: a.address || 'Ubicación registrada',
+      description: a.description || '',
+      citizenName: a.citizen_name || 'Ciudadano',
+      createdAt: a.created_at,
+      clipCount: a.clip_count,
+      clips: clipsByAlert.get(a.id) || [],
+    }));
+  }
 }

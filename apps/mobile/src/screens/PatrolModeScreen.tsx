@@ -21,6 +21,7 @@ import {
   PatrolStatus,
   TacticalDispatch,
 } from '../services/PatrolService';
+import { EvidenceVaultModal } from '../components/EvidenceVaultModal';
 import {
   palette,
   fontSans,
@@ -87,6 +88,8 @@ export default function PatrolModeScreen({
   const [state, setState] = useState<PatrolState>(patrolService.getState());
   const [loading, setLoading] = useState(false);
   const [activeDispatch, setActiveDispatch] = useState<TacticalDispatch | null>(null);
+  const [vaultVisible, setVaultVisible] = useState(false);
+  const [vaultFocusAlertId, setVaultFocusAlertId] = useState<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -407,6 +410,17 @@ export default function PatrolModeScreen({
             </LiquidGlassCard>
           )}
 
+          <LiquidPillButton
+            label="Escuchar evidencias de audio SOS"
+            variant="glass"
+            icon="waves"
+            iconPosition="left"
+            onPress={() => {
+              setVaultFocusAlertId(null);
+              setVaultVisible(true);
+            }}
+          />
+
           <View style={[styles.privacyNote, glassSurfaceStyle(20, false)]}>
             <PrismIcon name="lock" size={15} color={palette.textSecondary} />
             <Text style={styles.privacyText}>
@@ -481,6 +495,12 @@ export default function PatrolModeScreen({
           </LiquidGlassCard>
         </View>
       </Modal>
+
+      <EvidenceVaultModal
+        visible={vaultVisible}
+        onClose={() => setVaultVisible(false)}
+        focusAlertId={vaultFocusAlertId}
+      />
     </SafeAreaView>
   );
 }

@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TacticalMap } from '../components/TacticalMap';
+import { EvidenceVaultModal } from '../components/EvidenceVaultModal';
 import * as Location from 'expo-location';
 import { authService } from '../services/auth';
 import { panicService, PanicState } from '../services/panicService';
@@ -67,6 +68,7 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
   );
   const [gpsReady, setGpsReady] = useState(false);
   const [profile, setProfile] = useState<any>(null);
+  const [vaultVisible, setVaultVisible] = useState(false);
 
   useEffect(() => {
     authService
@@ -278,6 +280,7 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
         customCoords: userLocation
           ? { latitude: userLocation.latitude, longitude: userLocation.longitude }
           : undefined,
+        customAddress: currentAddress,
       });
     } catch {
       if (Platform.OS === 'web') {
@@ -555,8 +558,21 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
       </View>
 
       {/* ================================================================== */}
-      {/* FLOATING RECENTER BUTTON                                           */}
+      {/* FLOATING AUDIO EVIDENCE VAULT + RECENTER BUTTONS                   */}
       {/* ================================================================== */}
+      <TouchableOpacity
+        style={[
+          styles.vaultFloatingPill,
+          glassSurfaceStyle(24, true),
+          { bottom: Math.max(insets.bottom, 16) + (isCompact ? 334 : 370) },
+        ]}
+        onPress={() => setVaultVisible(true)}
+        activeOpacity={0.82}
+      >
+        <PrismIcon name="waves" size={16} color={palette.aqua} />
+        <Text style={styles.vaultFloatingText}>Audios</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity
         style={[
           styles.recenterButton,
@@ -721,6 +737,12 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
           </View>
         </View>
       </View>
+
+      <EvidenceVaultModal
+        visible={vaultVisible}
+        onClose={() => setVaultVisible(false)}
+        focusAlertId={panicState.alertId}
+      />
     </SafeAreaView>
   );
 }
@@ -876,6 +898,23 @@ const styles = StyleSheet.create({
     color: palette.textSecondary,
   },
 
+  vaultFloatingPill: {
+    position: 'absolute',
+    right: 20,
+    height: 44,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 20,
+  },
+  vaultFloatingText: {
+    fontFamily: fontSans,
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
   recenterButton: {
     position: 'absolute',
     right: 20,
