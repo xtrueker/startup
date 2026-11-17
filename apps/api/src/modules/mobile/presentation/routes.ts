@@ -32,8 +32,9 @@ function extractUserFromOptionalToken(req: Request): { userId?: string; role?: s
 }
 
 function getRequestBaseUrl(req: Request): string {
-  if (process.env.PUBLIC_API_URL) return process.env.PUBLIC_API_URL;
-  const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
+  if (process.env.PUBLIC_API_URL) return process.env.PUBLIC_API_URL.replace(/\/+$/, '');
+  const rawProto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
+  const proto = rawProto.split(',')[0].trim();
   const host = req.get('host') || `localhost:${env.PORT}`;
   return `${proto}://${host}`;
 }

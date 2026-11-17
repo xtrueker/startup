@@ -28,12 +28,29 @@ import { kpiRouter } from './modules/kpi/presentation/routes';
 const app = express();
 const server = http.createServer(app);
 
-// Middleware de seguridad
-app.use(helmet());
+// Confiar en el primer proxy inverso (AWS App Runner / Cloud Run / Nginx) para rate-limit e HTTPS
+app.set('trust proxy', 1);
 
-// Permitir conexiones (CORS)
+// Middleware de seguridad (CORP cross-origin habilitado para reproducción de evidencia acústica firmada)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
+// Permitir conexiones (CORS: soporta orígenes separados por coma, móvil nativo y previsualizaciones cloud)
+const allowedOrigins = env.FRONTEND_URL.split(',').map((o) => o.trim()).filter(Boolean);
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? env.FRONTEND_URL : true, // 'true' permite cualquier origen en desarrollo
+  origin: (origin, callback) => {
+    if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+    const isAllowed =
+      allowedOrigins.includes(origin) ||
+      /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+      origin.endsWith('.awsapprunner.com') ||
+      origin.endsWith('.netlify.app') ||
+      origin.endsWith('.vercel.app');
+    callback(null, isAllowed ? true : allowedOrigins[0] || false);
+  },
   credentials: true,
 }));
 
@@ -64,7 +81,17 @@ app.use('/api/mobile/panic', panicLimiter);
 // Permitir leer JSON en el body (soporta expediente KYC de 3 fotografías en alta resolución)
 app.use(express.json({ limit: '25mb' }));
 
-// Ruta de prueba
+// Rutas de salud (Raíz y /health para compatibilidad total con AWS App Runner y Cloud Run)
+app.get('/', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'Red Ciudadana API',
+    docs: '/api/docs',
+    health: '/health',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',

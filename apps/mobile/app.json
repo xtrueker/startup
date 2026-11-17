@@ -16,6 +16,8 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos tu ubicación en segundo plano durante una emergencia activa para que los rescatistas y cuadrantes puedan rastrearte.",
         "NSLocationAlwaysUsageDescription": "Rastreo continuo de ubicación mientras una alerta de pánico esté activa.",
         "NSMicrophoneUsageDescription": "Captura discreta de audio como evidencia acústica de seguridad mientras una alerta de pánico esté activa.",
+        "NSCameraUsageDescription": "Necesitamos acceso a tu cámara para capturar tu documento y verificar tu identidad biométrica.",
+        "NSPhotoLibraryUsageDescription": "Permite seleccionar fotografías de respaldo para verificación de identidad.",
         "UIBackgroundModes": [
           "location",
           "audio",
@@ -30,9 +32,10 @@
         "backgroundColor": "#F2F5F9"
       },
       "package": "com.redciudadana.seguridad",
-      "versionCode": 1,
+      "versionCode": 2,
       "userInterfaceStyle": "light",
       "permissions": [
+        "CAMERA",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
@@ -51,6 +54,13 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Necesitamos tu ubicación para enviar ayuda y alertar a la red en caso de emergencia.",
           "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Necesitamos acceso a tu cámara para capturar tu documento y verificar tu identidad biométrica.",
+          "photosPermission": "Permite seleccionar fotografías de respaldo para verificación de identidad."
         }
       ],
       [

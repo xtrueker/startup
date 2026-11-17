@@ -33,16 +33,16 @@ function validateEnv(): EnvConfig {
 
   // Devolver objeto con valores (o valores por defecto)
   return {
-    NODE_ENV: process.env.NODE_ENV || 'development',
+    NODE_ENV: (process.env.NODE_ENV || 'development').trim(),
     PORT: parseInt(process.env.PORT || '3001', 10),
-    MONGODB_URI: process.env.MONGODB_URI,
-    JWT_SECRET: process.env.JWT_SECRET,
-    FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
-    REDIS_URL: process.env.REDIS_URL,
-    SUPABASE_URL: process.env.SUPABASE_URL,
-    SUPABASE_KEY: process.env.SUPABASE_KEY,
-    DATABASE_URL: process.env.DATABASE_URL,
-    DB_PASSWORD: process.env.DB_PASSWORD,
+    MONGODB_URI: process.env.MONGODB_URI?.trim(),
+    JWT_SECRET: process.env.JWT_SECRET.trim(),
+    FRONTEND_URL: (process.env.FRONTEND_URL || 'http://localhost:5173').trim(),
+    REDIS_URL: process.env.REDIS_URL?.trim(),
+    SUPABASE_URL: process.env.SUPABASE_URL.trim(),
+    SUPABASE_KEY: process.env.SUPABASE_KEY.trim(),
+    DATABASE_URL: process.env.DATABASE_URL?.trim(),
+    DB_PASSWORD: process.env.DB_PASSWORD?.trim(),
   };
 }
 

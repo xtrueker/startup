@@ -1,4 +1,10 @@
+import path from 'path';
 import swaggerJsdoc from 'swagger-jsdoc';
+
+const isCompiledJs = __filename.endsWith('.js');
+const modulesGlob = isCompiledJs
+  ? path.join(__dirname, '../modules/*/presentation/*.js').replace(/\\/g, '/')
+  : path.join(__dirname, '../modules/*/presentation/*.ts').replace(/\\/g, '/');
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -116,10 +122,7 @@ Obtén el token haciendo \`POST /api/auth/login\`.
     },
     security: [{ bearerAuth: [] }],
   },
-  apis: [
-    './src/modules/*/presentation/routes.ts',
-    './src/modules/*/presentation/*.ts',
-  ],
+  apis: [modulesGlob],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);
