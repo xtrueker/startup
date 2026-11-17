@@ -16,14 +16,25 @@ import {
   Edit3, 
   Play, 
   X, 
-  RefreshCw
+  RefreshCw,
+  Compass,
+  Radio,
+  Layers
 } from 'lucide-react';
 import type { Camera } from '../../services/cameras';
 import { cameraService } from '../../services/cameras';
 import { CameraModal } from '../../components/CommandCenter/CameraModal';
+import { useCommandStore } from '../../stores/useCommandStore';
+import {
+  LiquidGlassCard,
+  LiquidInput,
+  LiquidPillButton,
+  StatusPill,
+} from '../../components/ui/LiquidPrimitives';
 
 const AdminCameras: React.FC = () => {
   const navigate = useNavigate();
+  const { setSelectedCamera } = useCommandStore();
 
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +70,8 @@ const AdminCameras: React.FC = () => {
     const matchesSearch = 
       cam.name?.toLowerCase().includes(search.toLowerCase()) ||
       cam.location?.address?.toLowerCase().includes(search.toLowerCase()) ||
-      cam.streamUrl?.toLowerCase().includes(search.toLowerCase());
+      cam.streamUrl?.toLowerCase().includes(search.toLowerCase()) ||
+      cam.id?.toLowerCase().includes(search.toLowerCase());
 
     if (!matchesSearch) return false;
     if (filterStatus === 'online') return cam.status === 'online';
@@ -70,22 +82,19 @@ const AdminCameras: React.FC = () => {
   const onlineCount = cameras.filter(c => c.status === 'online').length;
   const offlineCount = cameras.filter(c => c.status !== 'online').length;
 
-  // Handle open modal for new camera
   const handleOpenAddModal = () => {
     setCameraToEdit(null);
     setIsModalOpen(true);
   };
 
-  // Handle edit camera
   const handleEditCamera = (cam: Camera) => {
     setCameraToEdit(cam);
     setIsModalOpen(true);
   };
 
-  // Handle delete camera
   const handleDeleteCamera = async (cam: Camera) => {
-    const confirmDelete = window.confirm(`¿Estás seguro de eliminar la cámara "${cam.name}"?`);
-    if (!confirmDelete) return;
+    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar la cámara "${cam.name}"?`);
+    if (!confirmed) return;
 
     try {
       await cameraService.deleteCamera(cam.id);
@@ -96,270 +105,322 @@ const AdminCameras: React.FC = () => {
     }
   };
 
-  // Handle successful save from modal
   const handleSaveSuccess = (_savedCam: Camera) => {
     fetchCameras();
   };
 
+  const handleInspectOnMap = (cam: Camera) => {
+    setSelectedCamera({
+      id: cam.id,
+      name: cam.name,
+      lat: cam.location?.latitude || 0,
+      lng: cam.location?.longitude || 0,
+      rtspUrl: cam.streamUrl
+    });
+    navigate('/command-center');
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-6 lg:p-8 gap-6 overflow-y-auto custom-scrollbar theme-transition">
+    <div className="flex flex-col h-full bg-transparent text-[var(--text-primary)] p-5 lg:p-7 gap-5 overflow-y-auto custom-scrollbar theme-transition">
       
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      {/* Top Floating Header */}
+      <LiquidGlassCard strong className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+        <div className="flex items-center gap-3.5">
           <button
             onClick={() => navigate('/command-center')}
             title="Volver al Centro de Mando"
-            className="w-9 h-9 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#262626] hover:border-[#404040] flex items-center justify-center text-[#a1a1aa] hover:text-white transition-all mr-1 p-0 shrink-0"
+            className="w-10 h-10 rounded-full glass-button flex items-center justify-center shrink-0 p-0"
           >
             <ArrowLeft size={17} />
           </button>
-          <div className="w-10 h-10 rounded-xl bg-[#0c1a2e]/80 border border-[#1e40af]/40 flex items-center justify-center shrink-0">
-            <Cctv size={20} className="text-[#38bdf8]" />
+          <div className="w-11 h-11 rounded-2xl bg-[var(--accent-bg)] border border-[var(--accent-border)] flex items-center justify-center shrink-0 text-[#0EA5E9]">
+            <Cctv size={21} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-[#efede3] tracking-tight">Cámaras de Seguridad</h1>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#1e293b] text-[#38bdf8] border border-[#38bdf8]/30 uppercase">
-                MediaMTX RTSP / WebRTC
-              </span>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
+                Cámaras de seguridad
+              </h1>
+              <StatusPill label="MediaMTX RTSP / WebRTC" tone="aqua" />
             </div>
-            <p className="text-xs text-[#737373] font-mono">
-              Monitoreo en vivo, control perimetral y cobertura de alerta ciudadana
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+              Monitoreo perimetral, cobertura de alerta y cuadrantes de vigilancia
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          <LiquidPillButton
+            variant="glass"
+            size="sm"
+            onClick={() => navigate('/command-center/camera-grid')}
+            title="Abrir Mosaico 4x4"
+          >
+            <Layers size={14} className="text-[#0EA5E9]" />
+            <span className="hidden md:inline">Mosaico 4x4</span>
+          </LiquidPillButton>
+
           <button 
             onClick={fetchCameras}
             disabled={loading}
             title="Refrescar lista"
-            className="w-9 h-9 rounded-xl bg-[#141414] hover:bg-[#202020] border border-[#262626] flex items-center justify-center text-[#a1a1aa] hover:text-white transition-all p-0"
+            className="w-9 h-9 rounded-full glass-button flex items-center justify-center p-0"
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={15} className={loading ? 'animate-spin text-[#0EA5E9]' : ''} />
           </button>
           
-          <button 
+          <LiquidPillButton 
+            variant="obsidian"
+            size="sm"
             onClick={handleOpenAddModal}
-            className="flex items-center gap-2 bg-[#0284c7] hover:bg-[#0369a1] text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-[0_4px_14px_rgba(2,132,199,0.3)] active:scale-[0.98]"
           >
-            <Plus size={16} /> 
-            <span>Agregar Cámara</span>
-          </button>
+            <Plus size={15} /> 
+            <span>Agregar cámara</span>
+          </LiquidPillButton>
         </div>
-      </div>
+      </LiquidGlassCard>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div 
+      {/* Metrics Cards (KPI) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
+        <LiquidGlassCard
+          strong={filterStatus === 'all'}
           onClick={() => setFilterStatus('all')}
-          className={`bg-[#111111] border rounded-xl p-4 flex items-center justify-between cursor-pointer transition-all ${
-            filterStatus === 'all' ? 'border-[#38bdf8]/60 bg-[#161a22]' : 'border-[#1e1e1e] hover:border-[#2e2e2e]'
+          className={`p-5 flex items-center justify-between cursor-pointer transition-all hover:-translate-y-0.5 ${
+            filterStatus === 'all' ? 'ring-2 ring-[#0EA5E9]/50' : ''
           }`}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#0c1a2e] flex items-center justify-center text-[#38bdf8]">
-              <Cctv size={20} />
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-sky-500/12 border border-sky-500/25 flex items-center justify-center text-[#0EA5E9]">
+              <Cctv size={21} />
             </div>
             <div>
-              <div className="text-2xl font-black text-[#efede3]">{cameras.length}</div>
-              <div className="text-[10px] text-[#737373] uppercase tracking-wider font-mono">Total Registradas</div>
+              <div className="text-2xl font-bold text-[var(--text-primary)] tabular-nums">{cameras.length}</div>
+              <div className="text-xs text-[var(--text-secondary)] font-medium">Total registradas</div>
             </div>
           </div>
-        </div>
+          <StatusPill label="Todas" tone="aqua" />
+        </LiquidGlassCard>
 
-        <div 
+        <LiquidGlassCard
+          strong={filterStatus === 'online'}
           onClick={() => setFilterStatus('online')}
-          className={`bg-[#111111] border rounded-xl p-4 flex items-center justify-between cursor-pointer transition-all ${
-            filterStatus === 'online' ? 'border-[#10b981]/60 bg-[#0e1c15]' : 'border-[#1e1e1e] hover:border-[#2e2e2e]'
+          className={`p-5 flex items-center justify-between cursor-pointer transition-all hover:-translate-y-0.5 ${
+            filterStatus === 'online' ? 'ring-2 ring-[#10B981]/50' : ''
           }`}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#062016] flex items-center justify-center text-[#34d399]">
-              <Wifi size={20} />
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center text-[#0D9488] dark:text-emerald-400">
+              <Wifi size={21} />
             </div>
             <div>
-              <div className="text-2xl font-black text-[#efede3]">{onlineCount}</div>
-              <div className="text-[10px] text-[#737373] uppercase tracking-wider font-mono">En Línea (Streaming)</div>
+              <div className="text-2xl font-bold text-[var(--text-primary)] tabular-nums">{onlineCount}</div>
+              <div className="text-xs text-[var(--text-secondary)] font-medium">En línea (Streaming)</div>
             </div>
           </div>
-          <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] animate-pulse" />
-        </div>
+          <StatusPill label="Activas" tone="emerald" pulsing />
+        </LiquidGlassCard>
 
-        <div 
+        <LiquidGlassCard
+          strong={filterStatus === 'offline'}
           onClick={() => setFilterStatus('offline')}
-          className={`bg-[#111111] border rounded-xl p-4 flex items-center justify-between cursor-pointer transition-all ${
-            filterStatus === 'offline' ? 'border-[#f43f5e]/60 bg-[#241115]' : 'border-[#1e1e1e] hover:border-[#2e2e2e]'
+          className={`p-5 flex items-center justify-between cursor-pointer transition-all hover:-translate-y-0.5 ${
+            filterStatus === 'offline' ? 'ring-2 ring-[#E11D48]/50' : ''
           }`}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#2b1114] flex items-center justify-center text-[#fb7185]">
-              <WifiOff size={20} />
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-rose-500/12 border border-rose-500/25 flex items-center justify-center text-[#E11D48]">
+              <WifiOff size={21} />
             </div>
             <div>
-              <div className="text-2xl font-black text-[#efede3]">{offlineCount}</div>
-              <div className="text-[10px] text-[#737373] uppercase tracking-wider font-mono">Offline / Inactivas</div>
+              <div className="text-2xl font-bold text-[var(--text-primary)] tabular-nums">{offlineCount}</div>
+              <div className="text-xs text-[var(--text-secondary)] font-medium">Offline / Inactivas</div>
             </div>
           </div>
-        </div>
+          <StatusPill label="Sin señal" tone="crimson" />
+        </LiquidGlassCard>
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="relative">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#525252]" />
-        <input 
-          type="text" 
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, dirección, IP o URL de stream..." 
-          className="w-full bg-[#121212] border border-[#262626] focus:border-[#38bdf8]/60 rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#d4d4d4] placeholder-[#525252] outline-none transition-colors font-mono" 
-        />
-        {search && (
-          <button 
-            onClick={() => setSearch('')}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#737373] hover:text-white text-xs"
-          >
-            ✕
-          </button>
-        )}
-      </div>
+      {/* Liquid Pill Search Bar */}
+      <LiquidInput
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Buscar cámara por nombre, dirección física, GPS o URL de stream..."
+        leftIcon={<Search size={16} />}
+        rightElement={
+          search ? (
+            <button
+              onClick={() => setSearch('')}
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            >
+              Limpiar
+            </button>
+          ) : undefined
+        }
+      />
 
-      {/* Camera Grid or Empty State */}
+      {/* ── CUADRÍCULA DE 4 COLUMNAS DE CÁMARAS ────────────────── */}
       {loading ? (
-        <div className="flex-1 bg-[#111111] border border-[#1e1e1e] rounded-2xl flex flex-col items-center justify-center gap-3 min-h-[300px]">
-          <RefreshCw size={26} className="text-[#38bdf8] animate-spin" />
-          <span className="text-xs font-mono text-[#737373]">Consultando cámaras registradas...</span>
-        </div>
+        <LiquidGlassCard className="flex-1 flex flex-col items-center justify-center gap-3 min-h-[300px]">
+          <RefreshCw size={28} className="text-[#0EA5E9] animate-spin" />
+          <span className="text-xs font-mono text-[var(--text-muted)]">Consultando cámaras registradas...</span>
+        </LiquidGlassCard>
       ) : filteredCameras.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4 pb-6">
           {filteredCameras.map((cam) => {
             const isOnline = cam.status === 'online';
+            const lat = cam.location?.latitude;
+            const lng = cam.location?.longitude;
+
             return (
-              <div 
+              <LiquidGlassCard 
                 key={cam.id}
-                className="bg-[#121212] border border-[#202020] hover:border-[#383838] rounded-2xl overflow-hidden flex flex-col transition-all group shadow-lg"
+                strong
+                className="flex flex-col transition-all group hover:-translate-y-1"
               >
-                {/* Simulated / Live Video Header Viewport */}
+                {/* Video Header Viewport */}
                 <div 
                   onClick={() => setViewingCamera(cam)}
-                  className="aspect-video bg-black relative flex items-center justify-center cursor-pointer group-hover:opacity-95 overflow-hidden"
+                  className="aspect-video bg-neutral-950 relative flex items-center justify-center cursor-pointer overflow-hidden select-none rounded-t-[26px]"
                 >
-                  {/* Status Badge */}
-                  <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10 text-[9px] font-mono font-bold">
+                  <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/15 text-[9.5px] font-mono font-bold">
                     <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
                     <span className={isOnline ? 'text-emerald-400' : 'text-rose-400'}>
                       {isOnline ? 'EN LÍNEA' : 'OFFLINE'}
                     </span>
                   </div>
 
-                  {/* Coverage Radius Badge */}
-                  <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/10 text-[9px] font-mono text-[#38bdf8]">
+                  <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 bg-black/75 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/15 text-[9.5px] font-mono text-sky-400">
                     <Radar size={11} />
-                    <span>{cam.coverageRadius || 100}m</span>
+                    <span>{cam.coverageRadius || 100} m</span>
                   </div>
 
-                  {/* Video Viewport or Stream Signal */}
-                  {cam.streamUrl && cam.streamUrl.startsWith('http') ? (
-                    <iframe
-                      src={cam.streamUrl}
-                      title={cam.name}
-                      className="w-full h-full border-0 pointer-events-none"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1.5 text-center p-4">
-                      <Cctv size={30} className="text-[#38bdf8]/60 group-hover:text-[#38bdf8] transition-colors" />
-                      <span className="text-[10px] font-mono text-[#888] group-hover:text-[#ccc]">
-                        {cam.streamUrl ? 'Click para Abrir Feed de Video' : 'Sin URL configurada'}
-                      </span>
-                    </div>
-                  )}
+                  <div className="w-full h-full flex flex-col items-center justify-center p-3 relative bg-radial from-neutral-800 to-black">
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.35)_50%)] bg-[length:100%_4px] pointer-events-none opacity-40" />
 
-                  {/* Play Overlay On Hover */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <div className="w-10 h-10 rounded-full bg-[#0284c7]/90 text-white flex items-center justify-center shadow-lg">
-                      <Play size={18} className="translate-x-0.5" />
+                    <div className="w-10 h-10 border border-sky-400/35 rounded-full flex items-center justify-center relative mb-1.5">
+                      <Cctv size={18} className="text-sky-400 animate-pulse" />
+                    </div>
+
+                    <div className="text-[10px] font-mono font-bold text-white tracking-wider">
+                      {isOnline ? 'SEÑAL EN VIVO' : 'SIN CONEXIÓN'}
+                    </div>
+                    <div className="text-[8.5px] font-mono text-zinc-400 truncate max-w-[170px] bg-black/45 px-2 py-0.5 rounded-full mt-1">
+                      {cam.streamUrl}
+                    </div>
+                  </div>
+
+                  <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity z-20">
+                    <div className="px-4 py-1.5 rounded-full bg-white text-[#0C0F14] font-semibold text-xs flex items-center gap-1.5 shadow-lg">
+                      <Play size={12} className="fill-current" />
+                      <span>Monitorear</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Card Info Content */}
                 <div className="p-4 flex-1 flex flex-col justify-between gap-3">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-bold text-[#efede3] truncate">{cam.name}</h3>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <h3 className="text-[13.5px] font-bold text-[var(--text-primary)] truncate tracking-tight" title={cam.name}>
+                        {cam.name}
+                      </h3>
                       {cam.isPublic ? (
-                        <span className="shrink-0 flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1e293b] text-[#38bdf8] border border-[#38bdf8]/20">
-                          <Eye size={10} /> Pública
+                        <span className="shrink-0 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-sky-500/12 text-sky-700 dark:text-sky-300 border border-sky-500/25 font-semibold">
+                          <Eye size={9} /> Pública
                         </span>
                       ) : (
-                        <span className="shrink-0 flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1f1f1f] text-[#888] border border-[#333]">
-                          <EyeOff size={10} /> Privada
+                        <span className="shrink-0 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-overlay)] text-[var(--text-muted)] border border-[var(--border-strong)] font-medium">
+                          <EyeOff size={9} /> Privada
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs text-[#737373] mt-1.5">
-                      <MapPin size={12} className="shrink-0 text-[#a3a3a3]" />
-                      <span className="truncate">{cam.location?.address || 'Sin dirección física especificada'}</span>
+                    <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+                      <MapPin size={12} className="shrink-0 text-[#0EA5E9]" />
+                      <span className="truncate" title={cam.location?.address}>
+                        {cam.location?.address || 'Sin dirección física especificada'}
+                      </span>
                     </div>
 
-                    <div className="text-[10px] font-mono text-[#525252] truncate mt-1">
-                      {cam.streamUrl || 'rtsp://...'}
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px] font-mono">
+                      <div className="bg-[var(--bg-input)] px-2.5 py-1.5 rounded-full border border-[var(--border-strong)] flex items-center gap-1 text-[var(--text-secondary)] truncate">
+                        <Compass size={10} className="shrink-0 text-[#0EA5E9]" />
+                        <span className="truncate">
+                          {lat && lng ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'Sin GPS'}
+                        </span>
+                      </div>
+
+                      <div className="bg-[var(--bg-input)] px-2.5 py-1.5 rounded-full border border-[var(--border-strong)] flex items-center gap-1 text-[var(--text-secondary)] truncate">
+                        <Radio size={10} className="shrink-0 text-[#10B981]" />
+                        <span className="truncate">
+                          {cam.streamUrl.includes('rtsp') ? 'RTSP TCP' : cam.streamUrl.includes('webrtc') ? 'WebRTC' : 'HLS/HTTP'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] font-mono text-[var(--text-muted)] px-1">
+                      <span>ID: {cam.id.slice(0, 8)}</span>
+                      <span>Radio: {cam.coverageRadius || 100} m</span>
                     </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="pt-2 border-t border-[#1d1d1d] flex items-center justify-between gap-2">
+                  <div className="pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between gap-1.5">
                     <button
-                      onClick={() => setViewingCamera(cam)}
-                      className="flex-1 bg-[#181818] hover:bg-[#222222] border border-[#292929] hover:border-[#38bdf8]/50 text-[#efede3] hover:text-[#38bdf8] text-xs font-bold py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all p-0"
+                      onClick={() => handleInspectOnMap(cam)}
+                      title="Ubicar en Mapa Táctico"
+                      className="flex-1 glass-button text-xs font-semibold py-1.5 px-2.5 rounded-full flex items-center justify-center gap-1 cursor-pointer"
                     >
-                      <Video size={13} />
-                      <span>Monitorear</span>
+                      <MapPin size={11} className="text-[#0EA5E9]" />
+                      <span>Mapa</span>
                     </button>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleEditCamera(cam)}
-                        title="Editar configuración"
-                        className="w-8 h-8 rounded-lg bg-[#181818] hover:bg-[#222222] border border-[#292929] text-[#a3a3a3] hover:text-white flex items-center justify-center transition-colors p-0"
-                      >
-                        <Edit3 size={13} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCamera(cam)}
-                        title="Eliminar cámara"
-                        className="w-8 h-8 rounded-lg bg-[#181818] hover:bg-[#2e1316] border border-[#292929] hover:border-[#e11d48]/40 text-[#a3a3a3] hover:text-[#fb7185] flex items-center justify-center transition-colors p-0"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setViewingCamera(cam)}
+                      title="Abrir visor en vivo"
+                      className="flex-1 liquid-pill-obsidian text-xs font-semibold py-1.5 px-2.5 rounded-full flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Video size={11} />
+                      <span>Ver feed</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleEditCamera(cam)}
+                      title="Editar configuración"
+                      className="w-8 h-8 rounded-full glass-button flex items-center justify-center p-0 shrink-0"
+                    >
+                      <Edit3 size={12} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCamera(cam)}
+                      title="Eliminar cámara"
+                      className="w-8 h-8 rounded-full bg-rose-500/12 hover:bg-[#E11D48] text-[#E11D48] hover:text-white border border-rose-500/30 flex items-center justify-center transition-colors p-0 shrink-0"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
                 </div>
-
-              </div>
+              </LiquidGlassCard>
             );
           })}
         </div>
       ) : (
-        <div className="flex-1 bg-[#111111] border border-[#1e1e1e] rounded-2xl flex flex-col items-center justify-center gap-4 text-center p-8 min-h-[360px]">
-          <div className="w-16 h-16 rounded-2xl bg-[#141414] border border-[#262626] flex items-center justify-center text-[#525252]">
-            <Cctv size={36} strokeWidth={1.5} />
+        <LiquidGlassCard className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8 min-h-[360px]">
+          <div className="w-16 h-16 rounded-full bg-[var(--accent-bg)] border border-[var(--accent-border)] flex items-center justify-center text-[#0EA5E9]">
+            <Cctv size={32} strokeWidth={1.6} />
           </div>
           <div className="max-w-md">
-            <h3 className="text-base font-bold text-[#efede3]">No hay cámaras configuradas</h3>
-            <p className="text-xs text-[#737373] mt-1 leading-relaxed">
-              Integra tus cámaras de seguridad mediante RTSP, WebRTC MediaMTX o detección automática en la red local para monitorear el territorio en tiempo real.
+            <h3 className="text-base font-bold text-[var(--text-primary)]">No hay cámaras configuradas</h3>
+            <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
+              Integra tus cámaras de seguridad mediante RTSP o WebRTC MediaMTX para monitorear el territorio en tiempo real.
             </p>
           </div>
-          <button 
-            onClick={handleOpenAddModal}
-            className="flex items-center gap-2 bg-[#0284c7] hover:bg-[#0369a1] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-[0_4px_14px_rgba(2,132,199,0.3)]"
-          >
-            <Plus size={16} /> Configurar Primera Cámara
-          </button>
-        </div>
+          <LiquidPillButton variant="obsidian" onClick={handleOpenAddModal}>
+            <Plus size={16} />
+            <span>Configurar primera cámara</span>
+          </LiquidPillButton>
+        </LiquidGlassCard>
       )}
 
       {/* CAMERA CONFIGURATION MODAL */}
@@ -372,80 +433,74 @@ const AdminCameras: React.FC = () => {
 
       {/* LIVE VIDEO FEED FULL VIEWER MODAL */}
       {viewingCamera && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="bg-[#111111] border border-[#2b2b2b] rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col">
-            
-            {/* Header */}
-            <div className="p-4 bg-[#141414] border-b border-[#222222] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <LiquidGlassCard strong className="w-full max-w-4xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#E11D48] animate-pulse" />
                 <div>
-                  <div className="text-sm font-black text-[#efede3] uppercase tracking-wider flex items-center gap-2">
-                    <span>🔴 EN VIVO • {viewingCamera.name}</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#1e293b] text-[#38bdf8] border border-[#38bdf8]/30">
-                      RADIO {viewingCamera.coverageRadius || 100}M
-                    </span>
+                  <div className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <span>En vivo • {viewingCamera.name}</span>
+                    <StatusPill label={`Radio ${viewingCamera.coverageRadius || 100} m`} tone="aqua" />
                   </div>
-                  <div className="text-xs font-mono text-[#737373]">
+                  <div className="text-xs font-mono text-[var(--text-muted)]">
                     {viewingCamera.location?.address || 'Ubicación sin referencia'} • GPS: {viewingCamera.location?.latitude?.toFixed(4)}, {viewingCamera.location?.longitude?.toFixed(4)}
                   </div>
                 </div>
               </div>
 
-              <button
-                onClick={() => setViewingCamera(null)}
-                className="w-8 h-8 rounded-lg bg-[#1a1a1a] hover:bg-[#262626] text-[#a3a3a3] hover:text-white flex items-center justify-center transition-colors border border-[#2a2a2a] p-0"
-              >
-                <X size={17} />
-              </button>
+              <div className="flex items-center gap-2">
+                <LiquidPillButton
+                  variant="glass"
+                  size="sm"
+                  onClick={() => {
+                    handleInspectOnMap(viewingCamera);
+                    setViewingCamera(null);
+                  }}
+                >
+                  <MapPin size={13} className="text-[#0EA5E9]" />
+                  <span>Ver en mapa</span>
+                </LiquidPillButton>
+
+                <button
+                  onClick={() => setViewingCamera(null)}
+                  className="w-8 h-8 rounded-full glass-button flex items-center justify-center p-0"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
-            {/* Video Viewport */}
             <div className="aspect-video bg-black relative flex items-center justify-center overflow-hidden">
-              {viewingCamera.streamUrl && viewingCamera.streamUrl.startsWith('http') ? (
-                <iframe
-                  src={viewingCamera.streamUrl}
-                  title={viewingCamera.name}
-                  className="w-full h-full border-0 pointer-events-none"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-3 text-center p-6">
-                  <Cctv size={48} className="text-[#38bdf8] animate-pulse" />
-                  <div className="text-sm font-mono font-bold text-[#efede3]">
-                    STREAM RTSP ENTRANTE
-                  </div>
-                  <div className="text-xs font-mono text-[#38bdf8] bg-[#0c1a2e] px-3 py-1 rounded-lg border border-[#1e40af]/40 max-w-md truncate">
-                    {viewingCamera.streamUrl}
-                  </div>
-                  <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-3 py-1 rounded border border-emerald-800">
-                    Transmisión activa con MediaMTX / WHEP WebRTC
-                  </span>
+              <div className="flex flex-col items-center gap-3 text-center p-6 select-none">
+                <Cctv size={48} className="text-sky-400 animate-pulse" />
+                <div className="text-sm font-mono font-bold text-white tracking-wider">
+                  STREAM CCTV EN TIEMPO REAL
                 </div>
-              )}
+                <div className="text-xs font-mono text-sky-300 bg-sky-950/60 px-3.5 py-1 rounded-full border border-sky-800/40 max-w-md truncate">
+                  {viewingCamera.streamUrl}
+                </div>
+                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-800">
+                  Transmisión activa con MediaMTX / WHEP WebRTC
+                </span>
+              </div>
 
-              {/* Tactical HUD Overlay */}
-              <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/70 px-2.5 py-1 rounded text-[10px] font-mono text-emerald-400 border border-emerald-500/30">
+              <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/75 px-3 py-1 rounded-full text-[10px] font-mono text-emerald-400 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 REC • 1080p • 30 FPS
               </div>
-              <div className="absolute bottom-3 right-3 text-[10px] font-mono text-[#8c8c8c] bg-black/70 px-2 py-0.5 rounded">
+              <div className="absolute bottom-3 right-3 text-[10px] font-mono text-zinc-400 bg-black/75 px-2.5 py-0.5 rounded-full">
                 ID: {viewingCamera.id.substring(0, 14)}...
               </div>
             </div>
 
-            {/* Viewer Footer */}
-            <div className="p-3 bg-[#141414] border-t border-[#222222] flex items-center justify-between text-xs text-[#737373]">
-              <span className="font-mono">Protocolo: MediaMTX RTSP / WebRTC Bridge</span>
-              <button
-                onClick={() => setViewingCamera(null)}
-                className="px-4 py-1.5 rounded-lg bg-[#222] hover:bg-[#333] text-white font-bold transition-colors"
-              >
-                Cerrar Visor
-              </button>
+            <div className="p-3.5 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs text-[var(--text-muted)] font-mono">
+              <span>Protocolo: MediaMTX RTSP / WebRTC Bridge</span>
+              <LiquidPillButton variant="obsidian" size="sm" onClick={() => setViewingCamera(null)}>
+                Cerrar visor
+              </LiquidPillButton>
             </div>
-
-          </div>
+          </LiquidGlassCard>
         </div>
       )}
 

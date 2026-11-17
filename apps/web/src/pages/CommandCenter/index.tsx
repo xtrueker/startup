@@ -5,8 +5,13 @@ import { TacticalMap } from '../../components/CommandCenter/TacticalMap';
 import { AlertWizardSidebar } from '../../components/CommandCenter/AlertWizardSidebar';
 import { PoliceSirenBorders } from '../../components/CommandCenter/PoliceSirenBorders';
 import { 
-  ShieldAlert, AlertTriangle, X
+  ShieldAlert, AlertTriangle, X, Cctv
 } from 'lucide-react';
+import {
+  PrismEmblem,
+  StatusPill,
+  TelemetryEqualizer,
+} from '../../components/ui/LiquidPrimitives';
 import { cameraService } from '../../services/cameras';
 import { alertService } from '../../services/alerts';
 
@@ -166,30 +171,42 @@ const CommandCenter: React.FC = () => {
 
   return (
     <div className="flex h-full w-full bg-[var(--bg-app)] overflow-hidden font-sans text-[var(--text-primary)] theme-transition">
-      
-      {/* ── Sidebar Izquierdo ─────────────────────────────────────────── */}
-      
-
       {/* ── Área Principal: Tactical Map ──────────────────────────────── */}
       <main className="flex-1 relative bg-[var(--bg-app)]" style={{ minHeight: 0 }}>
-        {/* KPI Bar */}
+        {/* KPI & Telemetry Pill Bar (Sculpted Liquid Glass HUD) */}
         <div 
-          className="absolute top-6 right-6 z-10 flex gap-4 pointer-events-none"
+          className="absolute top-4 right-6 z-10 flex flex-wrap items-center gap-3 pointer-events-none"
           style={{ 
-            left: sidebarOpen ? 360 : 110, 
+            left: sidebarOpen ? 344 : 92, 
             transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)' 
           }}
         >
-           <div className="bg-[var(--bg-surface)] shadow-sm dark:shadow-md p-4 rounded flex items-center gap-4 pointer-events-auto">
-             <div className="bg-red-500/15 text-red-600 dark:bg-red-950/60 dark:text-red-400 p-2.5 rounded shadow-xs flex items-center justify-center">
-               <AlertTriangle size={24} />
+           <div className="glass-panel px-4 py-2.5 rounded-[22px] flex items-center gap-3.5 pointer-events-auto">
+             <div className="w-10 h-10 rounded-2xl bg-rose-500/12 border border-rose-500/25 text-[#E11D48] dark:text-rose-400 flex items-center justify-center">
+               <AlertTriangle size={19} />
              </div>
              <div>
-               <div className="text-[11px] text-[var(--text-secondary)] uppercase tracking-widest font-black">Alertas Activas</div>
-               <div className="text-2xl font-black text-[var(--text-primary)] tabular-nums">{activeCount ?? '0'}</div>
+               <div className="text-[11px] text-[var(--text-secondary)] font-semibold tracking-tight">Alertas activas</div>
+               <div className="text-2xl font-bold text-[var(--text-primary)] tabular-nums leading-tight">{activeCount ?? '0'}</div>
              </div>
            </div>
 
+           <div className="glass-panel px-4 py-2.5 rounded-[22px] hidden md:flex items-center gap-3.5 pointer-events-auto">
+             <PrismEmblem size={36} activeAlert={activeCount > 0} />
+             <div className="flex flex-col gap-0.5 pr-1">
+               <StatusPill
+                 label={activeCount > 0 ? 'Respuesta activa en mapa' : 'Monitoreo estable'}
+                 tone={activeCount > 0 ? 'crimson' : 'emerald'}
+                 pulsing={activeCount > 0}
+                 className="!py-0.5 !px-2.5 !text-[10.5px]"
+               />
+               <div className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)] font-medium mt-0.5 pl-0.5">
+                 <Cctv size={12} className="text-[#0EA5E9]" />
+                 <span>{systemCameras.length} {systemCameras.length === 1 ? 'cámara en red' : 'cámaras en red'}</span>
+                 <TelemetryEqualizer active={systemCameras.length > 0} />
+               </div>
+             </div>
+           </div>
         </div>
 
         <TacticalMap />
@@ -200,63 +217,54 @@ const CommandCenter: React.FC = () => {
         {/* Nearby Cameras Collage Panel */}
         {focusedAlertId && activeAlerts[focusedAlertId] && (
           <div 
-            className="absolute bottom-6 right-[26rem] z-30 bg-[var(--bg-surface)] shadow-md dark:shadow-lg p-4 rounded flex flex-col gap-3 pointer-events-auto animate-in slide-in-from-bottom-4"
+            className="absolute bottom-6 right-[27rem] z-30 glass-panel p-4 rounded-[24px] flex flex-col gap-3 pointer-events-auto animate-in slide-in-from-bottom-4"
             style={{ 
-              left: sidebarOpen ? 346 : 90, 
+              left: sidebarOpen ? 344 : 92, 
               transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)' 
             }}
           >
             <div className="flex justify-between items-center">
-              <div className="text-xs uppercase text-[var(--text-primary)] font-bold tracking-widest flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[var(--brand)] shadow-[0_0_8px_var(--brand)] animate-pulse"></span>
-                Cámaras de Seguridad Cercanas (Radio 100m)
+              <div className="text-xs text-[var(--text-primary)] font-bold tracking-tight flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#0EA5E9] shadow-[0_0_8px_#0EA5E9] animate-pulse" />
+                Cámaras de seguridad cercanas (Radio 100 m)
               </div>
-              <div className="text-[10px] text-[var(--text-muted)] font-mono font-medium">
+              <div className="text-[11px] text-[var(--text-muted)] font-mono font-medium">
                 {nearbyCameras.length} {nearbyCameras.length === 1 ? 'cámara detectada' : 'cámaras detectadas'}
               </div>
             </div>
             
             {nearbyCameras.length > 0 ? (
-              <div className="flex gap-4 overflow-x-auto pb-1 max-h-[160px] custom-scrollbar">
+              <div className="flex gap-3 overflow-x-auto pb-1 max-h-[168px] custom-scrollbar">
                 {nearbyCameras.map(cam => {
                   const streamUrl = cam.rtspUrl || (cam as any).streamUrl;
                   return (
                     <div 
                       key={cam.id} 
                       onClick={() => setSelectedCamera(cam)}
-                      className="min-w-[200px] max-w-[240px] aspect-video bg-[var(--bg-surface)] rounded overflow-hidden shadow-sm hover:shadow-md flex flex-col relative group transition-all cursor-pointer"
+                      className="min-w-[200px] max-w-[240px] aspect-video bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-[18px] overflow-hidden shadow-sm hover:shadow-md flex flex-col relative group transition-all cursor-pointer"
                     >
-                      <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur px-1.5 py-0.5 rounded text-[8px] font-black uppercase text-white shadow z-10 flex items-center gap-1">
+                      <div className="absolute top-2 right-2 bg-black/70 backdrop-blur px-2 py-0.5 rounded-full text-[9px] font-bold uppercase text-white z-10 flex items-center gap-1">
                         {streamUrl ? (
                           <>
-                            <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse"></span>
+                            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                             LIVE
                           </>
                         ) : (
                           <>
-                            <span className="w-1 h-1 bg-slate-400 rounded-full"></span>
+                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
                             OFFLINE
                           </>
                         )}
                       </div>
-                      <div className="flex-1 bg-black/90 flex items-center justify-center relative overflow-hidden">
-                        {streamUrl ? (
-                          <iframe
-                            src={streamUrl}
-                            title={cam.name}
-                            className="w-full h-full border-0 pointer-events-none"
-                            allowFullScreen
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1 text-[var(--text-muted)] p-2 text-center select-none">
-                            <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-muted)]">Sin Señal</span>
-                            <span className="text-[8px] font-mono max-w-xs truncate">{cam.name}</span>
-                          </div>
-                        )}
+                      <div className="flex-1 bg-neutral-950 flex items-center justify-center relative overflow-hidden">
+                        <div className="flex flex-col items-center gap-1 text-zinc-400 p-2 text-center select-none">
+                          <span className="text-[10px] font-mono font-bold text-sky-400">STREAM CCTV</span>
+                          <span className="text-[9px] font-mono max-w-[160px] truncate">{streamUrl || 'Sin señal'}</span>
+                        </div>
                       </div>
-                      <div className="p-1.5 bg-[var(--bg-surface)] flex items-center justify-between text-[9px] text-[var(--text-secondary)]">
-                        <span className="font-bold truncate max-w-[120px]">{cam.name}</span>
-                        <span className="font-mono text-[8px] text-[var(--text-muted)]">
+                      <div className="px-2.5 py-1.5 bg-[var(--bg-elevated)] flex items-center justify-between text-[10px] text-[var(--text-secondary)]">
+                        <span className="font-semibold truncate max-w-[120px] text-[var(--text-primary)]">{cam.name}</span>
+                        <span className="font-mono text-[9px] text-[var(--text-muted)]">
                           {getHaversineDistance(
                             activeAlerts[focusedAlertId].sourceLocation.lat,
                             activeAlerts[focusedAlertId].sourceLocation.lng,
@@ -270,78 +278,73 @@ const CommandCenter: React.FC = () => {
                           e.stopPropagation();
                           setSelectedCamera(cam);
                         }}
-                        className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-primary)] text-[10px] py-1 font-bold transition-colors cursor-pointer"
+                        className="w-full liquid-pill-obsidian rounded-none text-[10px] py-1.5 font-semibold transition-colors cursor-pointer"
                       >
-                        ABRIR VIDEO FEED
+                        Abrir video feed
                       </button>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="py-4 text-center text-xs text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded shadow-inner">
+              <div className="py-4 text-center text-xs text-[var(--text-secondary)] bg-[var(--bg-input)] rounded-[16px] border border-[var(--border-subtle)]">
                 No se encontraron cámaras de seguridad en un radio de 100 metros.
               </div>
             )}
           </div>
         )}
 
-
-
         {/* ─── GHOST MODE UI: INTERCEPTION BANNER & CAMERA GRID ─── */}
         {Object.keys(ghostVictims || {}).length > 0 && (
           <div 
             className="absolute top-20 right-0 bottom-0 pointer-events-none flex flex-col z-50 p-6 animate-in slide-in-from-top-4"
             style={{ 
-              left: sidebarOpen ? 346 : 90, 
+              left: sidebarOpen ? 344 : 92, 
               transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)' 
             }}
           >
-            {/* Massive Red Banner */}
-            <div className="w-full bg-rose-600/90 backdrop-blur-md border-b-4 border-rose-900 text-white p-4 shadow-[0_10px_50px_rgba(225,29,72,0.5)] flex items-center justify-between rounded-xl pointer-events-auto">
+            <div className="w-full bg-[#E11D48]/90 backdrop-blur-xl border border-rose-300/40 text-white p-5 shadow-2xl flex items-center justify-between rounded-[24px] pointer-events-auto">
               <div className="flex items-center gap-4">
                 <div className="bg-white/20 p-3 rounded-full animate-pulse">
-                  <ShieldAlert size={32} />
+                  <ShieldAlert size={28} />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-black uppercase tracking-widest text-white shadow-sm">
-                    Modo Fantasma Detonado
+                  <h1 className="text-xl font-bold tracking-tight text-white">
+                    Modo Fantasma activado
                   </h1>
-                  <p className="text-rose-100 font-medium">Interceptando ruta mediante motor predictivo de cámaras...</p>
+                  <p className="text-rose-100 text-xs font-medium">Interceptando ruta mediante motor predictivo de cámaras...</p>
                 </div>
               </div>
-              <div className="flex gap-4 items-center">
-                <div className="bg-black/30 px-4 py-2 rounded-lg text-center border border-rose-500/50">
-                  <div className="text-[10px] uppercase text-rose-200 font-bold">Cámaras Armadas</div>
-                  <div className="text-2xl font-black">{predictiveCameras?.length || 0}</div>
+              <div className="flex gap-3 items-center">
+                <div className="bg-black/25 px-4 py-2 rounded-2xl text-center border border-white/20">
+                  <div className="text-[10px] text-rose-100 font-semibold">Cámaras armadas</div>
+                  <div className="text-xl font-bold">{predictiveCameras?.length || 0}</div>
                 </div>
                 <button 
                   onClick={() => {
                     const victimIds = Object.keys(useCommandStore.getState().ghostVictims);
                     victimIds.forEach(id => useCommandStore.getState().clearGhostData(id));
                   }}
-                  className="bg-black/40 hover:bg-black/60 text-white font-bold py-2 px-4 rounded border border-rose-400/50 transition-colors"
+                  className="bg-white text-[#BE123C] hover:bg-rose-50 font-bold py-2.5 px-5 rounded-full text-xs shadow-md transition-colors cursor-pointer"
                 >
-                  ABORTAR INTERCEPCIÓN
+                  Abortar intercepción
                 </button>
               </div>
             </div>
 
             {/* Predictive Cameras Grid */}
-            <div className="flex-1 mt-6 flex gap-4 overflow-x-auto pointer-events-auto pb-6 custom-scrollbar">
+            <div className="flex-1 mt-5 flex gap-4 overflow-x-auto pointer-events-auto pb-6 custom-scrollbar">
               {predictiveCameras?.map(cam => (
-                <div key={cam.id} className="min-w-[320px] max-w-[400px] h-full max-h-[250px] bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-2xl flex flex-col relative group">
-                   <div className="absolute top-2 right-2 bg-rose-600 px-2 py-1 rounded text-[10px] font-black uppercase text-white shadow-lg animate-pulse z-10 flex items-center gap-1">
-                     <span className="w-1.5 h-1.5 bg-white rounded-full"></span> LIVE
+                <div key={cam.id} className="min-w-[300px] max-w-[380px] h-full max-h-[240px] liquid-glass-strong rounded-[24px] overflow-hidden flex flex-col relative group">
+                   <div className="absolute top-3 right-3 bg-[#E11D48] px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow animate-pulse z-10 flex items-center gap-1">
+                     <span className="w-1.5 h-1.5 bg-white rounded-full" /> LIVE
                    </div>
-                   <div className="flex-1 bg-black flex items-center justify-center relative">
-                     {/* Placeholder for Video Feed */}
-                     <div className="absolute inset-0 bg-slate-800 animate-pulse"></div>
-                     <span className="z-10 text-[#737373] font-mono text-xs">Conectando RTSP...<br/>{cam.rtspUrl}</span>
+                   <div className="flex-1 bg-neutral-950 flex items-center justify-center relative">
+                     <span className="z-10 text-sky-400 font-mono text-xs text-center px-4">Conectando RTSP...<br/>{cam.rtspUrl}</span>
                    </div>
-                   <div className="p-3 bg-slate-950 border-t border-slate-800">
-                     <div className="text-sm font-bold text-white truncate">{cam.name}</div>
-                     <div className="text-xs text-slate-400 font-mono flex gap-2">
+                   <div className="p-3.5 bg-[var(--bg-elevated)] border-t border-[var(--border-subtle)]">
+                     <div className="text-sm font-bold text-[var(--text-primary)] truncate">{cam.name}</div>
+                     <div className="text-xs text-[var(--text-muted)] font-mono flex gap-2 mt-0.5">
                        <span>{cam.lat.toFixed(4)}</span>
                        <span>{cam.lng.toFixed(4)}</span>
                      </div>
@@ -351,8 +354,6 @@ const CommandCenter: React.FC = () => {
             </div>
           </div>
         )}
-
-
 
         {/* Wizard Sidebar (Right) */}
         {focusedAlertId && activeAlerts[focusedAlertId] && (
@@ -366,61 +367,54 @@ const CommandCenter: React.FC = () => {
 
         {/* selected camera streaming preview (FULL MODAL) */}
         {selectedCamera && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-[800px] overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] animate-in zoom-in-95 fade-in duration-200">
-              <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
-                <div>
-                  <h3 className="font-black text-white flex items-center gap-2 text-lg uppercase tracking-wider">
-                    <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse"></span>
-                    🔴 EN VIVO - {selectedCamera.name}
-                  </h3>
-                  <span className="text-xs font-mono text-slate-400">TÁCTICA ID: {selectedCamera.id.substring(0, 12)}...</span>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 backdrop-blur-md pointer-events-auto p-4">
+            <div className="liquid-glass-strong rounded-[28px] w-full max-w-[780px] overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+              <div className="p-5 border-b border-[var(--border-subtle)] flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full bg-[#E11D48] animate-pulse" />
+                  <div>
+                    <h3 className="font-bold text-[var(--text-primary)] text-base tracking-tight">
+                      En vivo • {selectedCamera.name}
+                    </h3>
+                    <span className="text-xs font-mono text-[var(--text-muted)]">ID: {selectedCamera.id.substring(0, 12)}...</span>
+                  </div>
                 </div>
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedCamera(null);
                   }}
-                  className="text-slate-400 hover:text-white hover:bg-slate-800 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-700"
+                  className="w-9 h-9 rounded-full glass-button flex items-center justify-center p-0"
                 >
-                  <X size={24} />
+                  <X size={18} />
                 </button>
               </div>
               
-              <div className="aspect-video bg-black relative flex items-center justify-center">
-                {selectedCamera.rtspUrl ? (
-                  <iframe
-                    src={selectedCamera.rtspUrl}
-                    title={selectedCamera.name}
-                    className="w-full h-full border-0 pointer-events-none"
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="flex flex-col items-center gap-4 text-[#737373]">
-                    <span className="animate-pulse text-lg font-mono text-red-500">❌ SEÑAL PERDIDA / CONECTANDO RTSP...</span>
-                    <span className="text-sm text-slate-600 font-mono">Stream URL: {selectedCamera.rtspUrl || 'N/A'}</span>
-                  </div>
-                )}
-                {/* Fake HUD overlay for dramatic effect */}
-                <div className="absolute inset-0 pointer-events-none border-[4px] border-slate-800/30">
-                  <div className="absolute top-4 left-4 text-emerald-500 font-mono text-xs font-bold drop-shadow-md">REC</div>
-                  <div className="absolute top-4 right-4 text-white font-mono text-xs drop-shadow-md">{new Date().toLocaleTimeString()}</div>
-                  <div className="absolute bottom-4 left-4 text-white font-mono text-xs drop-shadow-md">CAM_LAT: {selectedCamera.lat.toFixed(6)}</div>
-                  <div className="absolute bottom-4 right-4 text-white font-mono text-xs drop-shadow-md">CAM_LNG: {selectedCamera.lng.toFixed(6)}</div>
+              <div className="aspect-video bg-neutral-950 relative flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2 text-center p-6">
+                  <span className="text-sm font-mono font-bold text-sky-400">STREAM CCTV ACTIVO</span>
+                  <span className="text-xs text-zinc-400 font-mono bg-black/50 px-3 py-1 rounded-full border border-white/10">
+                    {selectedCamera.rtspUrl || 'Sin URL configurada'}
+                  </span>
+                </div>
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute top-4 left-4 text-emerald-400 font-mono text-xs font-bold">REC</div>
+                  <div className="absolute top-4 right-4 text-white font-mono text-xs">{new Date().toLocaleTimeString()}</div>
+                  <div className="absolute bottom-4 left-4 text-white/80 font-mono text-xs">LAT: {selectedCamera.lat.toFixed(6)}</div>
+                  <div className="absolute bottom-4 right-4 text-white/80 font-mono text-xs">LNG: {selectedCamera.lng.toFixed(6)}</div>
                 </div>
               </div>
   
-              <div className="p-4 bg-slate-950 text-sm flex justify-between text-slate-400">
+              <div className="p-4 flex justify-between items-center text-xs text-[var(--text-secondary)]">
                 <span className="font-mono">Coordenadas: {selectedCamera.lat.toFixed(6)}, {selectedCamera.lng.toFixed(6)}</span>
-                <span className="text-emerald-400 uppercase font-black tracking-widest text-xs flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Conexión Segura
+                <span className="text-[#0D9488] dark:text-emerald-400 font-semibold flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+                  Conexión segura
                 </span>
               </div>
             </div>
           </div>
         )}
-
       </main>
     </div>
   );

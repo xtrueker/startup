@@ -25,6 +25,7 @@ import { EmergencyTeamSection } from './EmergencyTeamSection';
 import { EmergencyCamerasSection } from './EmergencyCamerasSection';
 import { EmergencyRoutesSection } from './EmergencyRoutesSection';
 import { EmergencyEvidenceSection } from './EmergencyEvidenceSection';
+import { LiquidGlassCard, LiquidPillButton } from '../ui/LiquidPrimitives';
 
 interface EmergencyDossierPanelProps {
   alert: ApiAlert;
@@ -54,19 +55,19 @@ export const EmergencyDossierPanel: React.FC<EmergencyDossierPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'summary' | 'team' | 'cameras' | 'routes' | 'evidence'>('summary');
 
   return (
-    <div className="h-full flex flex-col bg-[var(--bg-surface)] border border-[var(--border-base)] rounded overflow-hidden shadow-2xl transition-all text-[var(--text-primary)] theme-transition">
+    <LiquidGlassCard strong className="h-full flex flex-col rounded-[26px] overflow-hidden transition-all text-[var(--text-primary)]">
       {/* Dossier Header */}
-      <div className="p-4 border-b border-[var(--border-base)] bg-[var(--bg-elevated)] flex items-center justify-between gap-3 shrink-0">
+      <div className="p-4 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded bg-red-950/40 border border-red-800/50 flex items-center justify-center text-red-400 shrink-0 shadow-sm">
+          <div className="w-10 h-10 rounded-full bg-rose-500/12 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0 shadow-sm">
             <Siren size={18} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)] truncate">
+              <h2 className="text-sm font-bold text-[var(--text-primary)] truncate">
                 Expediente #{alert.id.substring(0, 8)}
               </h2>
-              <span className="px-2 py-0.5 rounded text-[10px] font-medium uppercase bg-red-950/40 border border-red-800/50 text-red-400 font-mono">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-rose-500/12 border border-rose-500/25 text-rose-600 dark:text-rose-400 font-mono">
                 {stripEmojis(alert.type) || 'Emergencia'}
               </span>
             </div>
@@ -81,7 +82,7 @@ export const EmergencyDossierPanel: React.FC<EmergencyDossierPanelProps> = ({
           <button
             onClick={onToggleExpand}
             title={isExpanded ? 'Vista Dividida' : 'Expandir Expediente'}
-            className="w-8 h-8 rounded bg-[var(--bg-surface)] hover:bg-[var(--bg-overlay)] border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors cursor-pointer"
+            className="glass-button w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
           >
             {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
           </button>
@@ -89,7 +90,7 @@ export const EmergencyDossierPanel: React.FC<EmergencyDossierPanelProps> = ({
           <button
             onClick={onClose}
             title="Cerrar Expediente"
-            className="w-8 h-8 rounded bg-[var(--bg-surface)] hover:bg-[var(--bg-overlay)] border border-[var(--border-base)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors cursor-pointer"
+            className="glass-button w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
           >
             <X size={14} />
           </button>
@@ -97,7 +98,7 @@ export const EmergencyDossierPanel: React.FC<EmergencyDossierPanelProps> = ({
       </div>
 
       {/* Dossier Tabs */}
-      <div className="flex items-center gap-1 px-4 pt-2 border-b border-[var(--border-base)] bg-[var(--bg-surface)] overflow-x-auto shrink-0 custom-scrollbar">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-input)] overflow-x-auto shrink-0 custom-scrollbar">
         {[
           { key: 'summary', label: 'Resumen & Operador', Icon: FileText },
           { key: 'team', label: 'Equipos Asignados', Icon: Users },
@@ -111,13 +112,13 @@ export const EmergencyDossierPanel: React.FC<EmergencyDossierPanelProps> = ({
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`flex items-center gap-2 px-3 py-2 text-xs font-medium border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
-                  ? 'border-[var(--brand)] text-[var(--brand)] bg-[var(--brand)]/10 font-semibold'
-                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]'
+                  ? 'liquid-pill-obsidian shadow-sm'
+                  : 'glass-button text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
-              <TabIcon size={13} className={isActive ? 'text-[var(--brand)]' : 'text-[var(--text-muted)]'} />
+              <TabIcon size={13} />
               <span>{tab.label}</span>
             </button>
           );
@@ -144,32 +145,35 @@ export const EmergencyDossierPanel: React.FC<EmergencyDossierPanelProps> = ({
       </div>
 
       {/* Dossier Footer Actions */}
-      <div className="p-4 border-t border-[var(--border-base)] bg-[var(--bg-elevated)] flex flex-wrap items-center justify-between gap-3 shrink-0">
+      <div className="p-4 border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]/60 flex flex-wrap items-center justify-between gap-3 shrink-0">
         <span className="text-xs font-mono text-[var(--text-muted)]">
           ID Sistema: {alert.id}
         </span>
 
         <div className="flex items-center gap-2">
           {alert.status !== 'resolved' && (
-            <button
+            <LiquidPillButton
+              variant="aqua"
+              size="sm"
               onClick={() => onResolve(alert.id)}
-              className="px-3.5 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-xs font-medium text-white transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+              className="!bg-emerald-500/15 !border-emerald-500/35 !text-emerald-700 dark:!text-emerald-300 hover:!bg-emerald-500/25"
             >
               <CheckCircle2 size={14} />
               <span>Marcar como Resuelta</span>
-            </button>
+            </LiquidPillButton>
           )}
 
-          <button
+          <LiquidPillButton
+            variant="obsidian"
+            size="sm"
             onClick={() => onNavigateToDispatch(alert.id)}
-            className="px-4 py-2 rounded bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <ExternalLink size={14} />
             <span>Ver en Central de Despacho</span>
-          </button>
+          </LiquidPillButton>
         </div>
       </div>
-    </div>
+    </LiquidGlassCard>
   );
 };
 

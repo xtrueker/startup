@@ -3,13 +3,14 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useCommandStore } from '../stores/useCommandStore';
 import { CommandCenterSidebar } from '../components/CommandCenter/CommandCenterSidebar';
+import { AmbientPrismCanvas } from '../components/ui/LiquidPrimitives';
 
 const CommandCenterLayout: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuthStore();
   const location = useLocation();
   const sidebarOpen = useCommandStore(s => s.sidebarOpen);
   
-  if (isLoading) return null; // Let App.tsx handle the loading state screen
+  if (isLoading) return null;
 
   const role = user?.role;
   const canAccess = role === 'admin' || role === 'operator' || role === 'supervisor' || role === 'police';
@@ -22,14 +23,15 @@ const CommandCenterLayout: React.FC = () => {
 
   return (
     <div className="relative h-screen w-screen bg-[var(--bg-app)] text-[var(--text-primary)] overflow-hidden font-sans theme-transition">
+      {!isMapRoute && <AmbientPrismCanvas intensity="subtle" />}
       <CommandCenterSidebar />
       <div 
-        className="h-full w-full relative overflow-hidden flex flex-col min-w-0" 
+        className="h-full w-full relative z-10 overflow-hidden flex flex-col min-w-0" 
         style={{ 
           minHeight: 0,
           ...(isMapRoute ? {} : { 
-            marginLeft: sidebarOpen ? 326 : 70, 
-            width: sidebarOpen ? 'calc(100% - 326px)' : 'calc(100% - 70px)',
+            marginLeft: sidebarOpen ? 336 : 80, 
+            width: sidebarOpen ? 'calc(100% - 336px)' : 'calc(100% - 80px)',
             transition: 'margin-left 0.25s cubic-bezier(0.4,0,0.2,1), width 0.25s cubic-bezier(0.4,0,0.2,1)' 
           }) 
         }}

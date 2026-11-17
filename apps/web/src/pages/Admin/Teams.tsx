@@ -24,7 +24,13 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { teamService } from '../../services/teams';
-import type { Team, TeamMember } from '../../services/teams';
+import type { Team } from '../../services/teams';
+import {
+  LiquidGlassCard,
+  LiquidInput,
+  LiquidPillButton,
+  StatusPill,
+} from '../../components/ui/LiquidPrimitives';
 
 const AdminTeams: React.FC = () => {
   const navigate = useNavigate();
@@ -45,7 +51,7 @@ const AdminTeams: React.FC = () => {
   const [leaderId, setLeaderId] = useState('');
   const [mainVehiclePlate, setMainVehiclePlate] = useState('');
   const [assignedZone, setAssignedZone] = useState('Sector Centro - Distrito Histórico');
-  const [status, setStatus] = useState<'patrullando' | 'disponible' | 'en_incidente' | 'fuera_servicio'>('disponible');
+  const [status] = useState<'patrullando' | 'disponible' | 'en_incidente' | 'fuera_servicio'>('disponible');
 
   // Form states - Members list
   const [members, setMembers] = useState<Array<{ id: string; name: string; identification: string; badgeOrPlate?: string; roleInTeam?: string }>>([]);
@@ -58,7 +64,6 @@ const AdminTeams: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Cargar equipos desde el backend
   const fetchTeams = async () => {
     setLoading(true);
     try {
@@ -83,7 +88,6 @@ const AdminTeams: React.FC = () => {
     setLeaderId('');
     setMainVehiclePlate('');
     setAssignedZone('Sector Centro - Distrito Histórico');
-    setStatus('disponible');
     setMembers([]);
     setMemberName('');
     setMemberId('');
@@ -102,7 +106,6 @@ const AdminTeams: React.FC = () => {
     resetForm();
   };
 
-  // Agregar un integrante a la lista dentro del modal
   const handleAddMember = () => {
     if (!memberName.trim()) {
       setFormError('Escriba el nombre del integrante antes de agregarlo.');
@@ -129,12 +132,10 @@ const AdminTeams: React.FC = () => {
     setFormError('');
   };
 
-  // Quitar un integrante de la lista en el modal
   const handleRemoveMember = (id: string) => {
     setMembers(prev => prev.filter(m => m.id !== id));
   };
 
-  // Crear el equipo completo en la API
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -163,7 +164,6 @@ const AdminTeams: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Si no se agregaron miembros explícitos en la lista dinámica, agregar al líder por defecto
       const finalMembers = members.length > 0 ? members : [
         {
           name: leaderUsername.trim(),
@@ -217,7 +217,7 @@ const AdminTeams: React.FC = () => {
       team.members.some(m => 
         m.name.toLowerCase().includes(search.toLowerCase()) || 
         m.identification.includes(search) || 
-        m.badgeOrPlate.toLowerCase().includes(search.toLowerCase())
+        (m.badgeOrPlate || '').toLowerCase().includes(search.toLowerCase())
       );
 
     if (!matchesSearch) return false;
@@ -230,165 +230,172 @@ const AdminTeams: React.FC = () => {
   const getTeamTypeBadge = (type: string) => {
     switch (type) {
       case 'patrulla':
-        return { label: 'Patrulla Policial', Icon: Siren, bg: 'bg-[#0369a1]/30', text: 'text-[#38bdf8]', border: 'border-[#0284c7]/40' };
+        return { label: 'Patrulla policial', cls: 'bg-sky-500/12 text-sky-700 dark:text-sky-300 border-sky-500/25' };
       case 'ambulancia':
-        return { label: 'Ambulancia Médica', Icon: Ambulance, bg: 'bg-rose-500/20', text: 'text-rose-400', border: 'border-rose-500/40' };
+        return { label: 'Ambulancia médica', cls: 'bg-rose-500/12 text-rose-700 dark:text-rose-300 border-rose-500/25' };
       case 'motorizada':
-        return { label: 'Escuadrón Motorizado', Icon: Siren, bg: 'bg-[#d97706]/20', text: 'text-[#fbbf24]', border: 'border-[#d97706]/40' };
+        return { label: 'Escuadrón motorizado', cls: 'bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/25' };
       case 'tactica':
-        return { label: 'Unidad Táctica Reacción', Icon: Siren, bg: 'bg-[#991b1b]/30', text: 'text-[#f87171]', border: 'border-[#b91c1c]/40' };
+        return { label: 'Unidad táctica', cls: 'bg-rose-500/15 text-rose-800 dark:text-rose-200 border-rose-500/35' };
       default:
-        return { label: 'Cuadrante Vigilancia', Icon: Siren, bg: 'bg-[#065f46]/30', text: 'text-[#34d399]', border: 'border-[#059669]/40' };
+        return { label: 'Cuadrante vigilancia', cls: 'bg-emerald-500/12 text-teal-800 dark:text-emerald-300 border-emerald-500/25' };
     }
   };
 
   const getStatusBadge = (s: string) => {
     switch (s) {
       case 'patrullando':
-        return { label: 'Patrullando', dot: 'bg-[#10b981]', text: 'text-[#34d399]' };
+        return { label: 'Patrullando', dot: 'bg-[#10B981]', text: 'text-[#0D9488] dark:text-emerald-400' };
       case 'disponible':
-        return { label: 'Disponible', dot: 'bg-[#38bdf8]', text: 'text-[#38bdf8]' };
+        return { label: 'Disponible', dot: 'bg-[#0EA5E9]', text: 'text-[#0EA5E9]' };
       case 'en_incidente':
-        return { label: 'En Atención de Incidente', dot: 'bg-[#f43f5e]', text: 'text-[#fb7185]' };
+        return { label: 'En incidente', dot: 'bg-[#E11D48]', text: 'text-[#E11D48]' };
       default:
-        return { label: 'Fuera de Servicio', dot: 'bg-[#6b7280]', text: 'text-[#9ca3af]' };
+        return { label: 'Fuera de servicio', dot: 'bg-[var(--text-muted)]', text: 'text-[var(--text-muted)]' };
     }
   };
 
   const totalMembersCount = teams.reduce((acc, t) => acc + t.members.length, 0);
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-6 lg:p-8 gap-6 overflow-y-auto custom-scrollbar theme-transition">
+    <div className="flex flex-col h-full bg-transparent text-[var(--text-primary)] p-5 lg:p-7 gap-5 overflow-y-auto custom-scrollbar theme-transition">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <LiquidGlassCard strong className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+        <div className="flex items-center gap-3.5">
           <button
             onClick={() => navigate('/command-center')}
             title="Volver al Centro de Mando"
-            className="w-9 h-9 rounded-xl bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] border border-[var(--border-base)] hover:border-[var(--border-strong)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all mr-1 p-0 shrink-0"
+            className="w-10 h-10 rounded-full glass-button flex items-center justify-center shrink-0 p-0"
           >
             <ArrowLeft size={17} />
           </button>
-          <div className="w-10 h-10 rounded-xl bg-[#064e3b]/50 border border-[#065f46]/40 flex items-center justify-center shrink-0">
-            <Users size={20} className="text-[#34d399]" />
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center shrink-0 text-[#0D9488] dark:text-emerald-400">
+            <Users size={21} />
           </div>
           <div>
-            <h1 className="text-xl font-black text-[var(--text-primary)] tracking-tight">Equipos y Unidades en Campo</h1>
-            <p className="text-xs text-[var(--text-muted)] font-mono">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
+                Equipos y unidades en campo
+              </h1>
+              <StatusPill label={`${teams.length} unidades`} tone="emerald" />
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
               Dotación de patrullas, vehículos, personal e identificaciones
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleOpenModal}
-          className="flex items-center gap-2 bg-[#059669] hover:bg-[#047857] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(5,150,105,0.3)] shrink-0"
-        >
-          <Plus size={16} />
-          <span>Nuevo Equipo</span>
-        </button>
-      </div>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={fetchTeams}
+            disabled={loading}
+            title="Actualizar"
+            className="w-9 h-9 rounded-full glass-button flex items-center justify-center p-0"
+          >
+            <RefreshCw size={15} className={loading ? 'animate-spin text-[#0EA5E9]' : ''} />
+          </button>
+          <LiquidPillButton variant="obsidian" size="sm" onClick={handleOpenModal}>
+            <Plus size={15} />
+            <span>Nuevo equipo</span>
+          </LiquidPillButton>
+        </div>
+      </LiquidGlassCard>
 
       {/* Metrics Ribbon */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-[#121212] border border-[#222222] rounded-xl p-3.5 flex items-center justify-between">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 shrink-0">
+        <LiquidGlassCard strong className="p-4 flex items-center justify-between">
           <div>
-            <div className="text-xl font-black text-[#efede3]">{teams.length}</div>
-            <div className="text-[10px] text-[#737373] uppercase tracking-wider font-bold">Total Equipos</div>
+            <div className="text-2xl font-bold text-[var(--text-primary)] tabular-nums">{teams.length}</div>
+            <div className="text-xs text-[var(--text-secondary)] font-medium">Total equipos</div>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-[#064e3b]/30 border border-[#065f46]/40 flex items-center justify-center text-[#34d399]">
-            <Users size={16} />
+          <div className="w-9 h-9 rounded-2xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center text-[#0D9488] dark:text-emerald-400">
+            <Users size={17} />
           </div>
-        </div>
+        </LiquidGlassCard>
 
-        <div className="bg-[#121212] border border-[#222222] rounded-xl p-3.5 flex items-center justify-between">
+        <LiquidGlassCard strong className="p-4 flex items-center justify-between">
           <div>
-            <div className="text-xl font-black text-[#34d399]">
+            <div className="text-2xl font-bold text-[#0D9488] dark:text-emerald-400 tabular-nums">
               {teams.filter(t => t.status === 'patrullando').length}
             </div>
-            <div className="text-[10px] text-[#737373] uppercase tracking-wider font-bold">En Patrullaje</div>
+            <div className="text-xs text-[var(--text-secondary)] font-medium">En patrullaje</div>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-[#064e3b]/30 border border-[#065f46]/40 flex items-center justify-center text-[#34d399]">
-            <Radio size={16} />
+          <div className="w-9 h-9 rounded-2xl bg-emerald-500/12 border border-emerald-500/25 flex items-center justify-center text-[#0D9488] dark:text-emerald-400">
+            <Radio size={17} />
           </div>
-        </div>
+        </LiquidGlassCard>
 
-        <div className="bg-[#121212] border border-[#222222] rounded-xl p-3.5 flex items-center justify-between">
+        <LiquidGlassCard strong className="p-4 flex items-center justify-between">
           <div>
-            <div className="text-xl font-black text-[#38bdf8]">
-              {totalMembersCount}
-            </div>
-            <div className="text-[10px] text-[#737373] uppercase tracking-wider font-bold">Agentes en Dotación</div>
+            <div className="text-2xl font-bold text-[#0EA5E9] tabular-nums">{totalMembersCount}</div>
+            <div className="text-xs text-[var(--text-secondary)] font-medium">Agentes en dotación</div>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-[#0c1a2e] border border-[#1e40af]/40 flex items-center justify-center text-[#38bdf8]">
-            <BadgeCheck size={16} />
+          <div className="w-9 h-9 rounded-2xl bg-sky-500/12 border border-sky-500/25 flex items-center justify-center text-[#0EA5E9]">
+            <BadgeCheck size={17} />
           </div>
-        </div>
+        </LiquidGlassCard>
 
-        <div className="bg-[#121212] border border-[#222222] rounded-xl p-3.5 flex items-center justify-between">
+        <LiquidGlassCard strong className="p-4 flex items-center justify-between">
           <div>
-            <div className="text-xl font-black text-[#fbbf24]">
+            <div className="text-2xl font-bold text-[#D97706] dark:text-amber-400 tabular-nums">
               {teams.filter(t => t.status === 'disponible').length}
             </div>
-            <div className="text-[10px] text-[#737373] uppercase tracking-wider font-bold">Disponibles Base</div>
+            <div className="text-xs text-[var(--text-secondary)] font-medium">Disponibles base</div>
           </div>
-          <div className="w-8 h-8 rounded-lg bg-[#451a03]/30 border border-[#92400e]/40 flex items-center justify-center text-[#fbbf24]">
-            <Shield size={16} />
+          <div className="w-9 h-9 rounded-2xl bg-amber-500/12 border border-amber-500/25 flex items-center justify-center text-[#D97706] dark:text-amber-400">
+            <Shield size={17} />
           </div>
-        </div>
+        </LiquidGlassCard>
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#525252]" />
-          <input
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center shrink-0">
+        <div className="flex-1">
+          <LiquidInput
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por equipo, placa, usuario, correo, identificación o personal integrante..."
-            className="w-full bg-[#121212] border border-[#222222] focus:border-[#059669]/60 rounded-xl pl-9 pr-4 py-2.5 text-sm text-[#e5e5e5] placeholder-[#525252] outline-none transition-colors"
+            placeholder="Buscar por equipo, placa, usuario, correo, identificación o personal..."
+            leftIcon={<Search size={15} />}
           />
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Tipo de equipo */}
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="bg-[#121212] border border-[#222222] text-[#d4d4d4] rounded-xl px-3 py-2 text-xs outline-none cursor-pointer hover:border-[#333333]"
+            className="liquid-input-chamber rounded-full px-4 py-2.5 text-xs font-semibold text-[var(--text-primary)] outline-none cursor-pointer"
           >
-            <option value="all">Todos los Tipos</option>
-            <option value="patrulla">Patrullas Policiales</option>
-            <option value="ambulancia">Ambulancias Médicas</option>
+            <option value="all">Todos los tipos</option>
+            <option value="patrulla">Patrullas policiales</option>
+            <option value="ambulancia">Ambulancias médicas</option>
             <option value="motorizada">Motorizadas</option>
-            <option value="tactica">Unidades Tácticas</option>
-            <option value="vigilancia">Vigilancia a Pie</option>
+            <option value="tactica">Unidades tácticas</option>
+            <option value="vigilancia">Vigilancia a pie</option>
           </select>
 
-          {/* Estado */}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#121212] border border-[#222222] text-[#d4d4d4] rounded-xl px-3 py-2 text-xs outline-none cursor-pointer hover:border-[#333333]"
+            className="liquid-input-chamber rounded-full px-4 py-2.5 text-xs font-semibold text-[var(--text-primary)] outline-none cursor-pointer"
           >
-            <option value="all">Todos los Estados</option>
+            <option value="all">Todos los estados</option>
             <option value="patrullando">Patrullando</option>
             <option value="disponible">Disponible</option>
-            <option value="en_incidente">En Incidente</option>
-            <option value="fuera_servicio">Fuera de Servicio</option>
+            <option value="en_incidente">En incidente</option>
+            <option value="fuera_servicio">Fuera de servicio</option>
           </select>
         </div>
       </div>
 
       {/* Grid de Equipos */}
-      <div className="flex-1">
+      <div className="flex-1 pb-6">
         {filteredTeams.length === 0 ? (
-          <div className="bg-[#111111] border border-[#1e1e1e] rounded-xl flex flex-col items-center justify-center p-12 text-[#404040] gap-3">
-            <Users size={42} strokeWidth={1} />
-            <p className="text-sm font-bold text-[#737373]">No se encontraron equipos registrados</p>
-            <p className="text-xs text-[#525252]">Crea un nuevo equipo con su dotación de personal y placas.</p>
-          </div>
+          <LiquidGlassCard className="flex flex-col items-center justify-center p-12 text-center gap-3">
+            <Users size={40} className="text-[var(--text-muted)] opacity-60" />
+            <p className="text-sm font-bold text-[var(--text-primary)]">No se encontraron equipos registrados</p>
+            <p className="text-xs text-[var(--text-secondary)]">Crea un nuevo equipo con su dotación de personal y placas.</p>
+          </LiquidGlassCard>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {filteredTeams.map((team) => {
@@ -399,72 +406,70 @@ const AdminTeams: React.FC = () => {
               const TypeIcon = isAmbulance ? Ambulance : Siren;
 
               return (
-                <div
+                <LiquidGlassCard
                   key={team.id}
-                  className="bg-[#121212] border border-[#222222] hover:border-[#333333] rounded-2xl p-5 flex flex-col justify-between gap-4 transition-all hover:shadow-xl"
+                  strong
+                  className="p-5 flex flex-col justify-between gap-4"
                 >
-                  {/* Top card */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-base shadow-md ${
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
                         isAmbulance
-                          ? 'bg-gradient-to-br from-[#3b1219] to-[#200a0e] border border-rose-600/40 text-rose-400'
-                          : 'bg-gradient-to-br from-[#0c2340] to-[#071322] border border-sky-600/40 text-sky-400'
+                          ? 'bg-rose-500/12 border-rose-500/25 text-[#E11D48]'
+                          : 'bg-sky-500/12 border-sky-500/25 text-[#0EA5E9]'
                       }`}>
                         <TypeIcon size={22} />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-[#efede3]">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-bold text-[var(--text-primary)] tracking-tight">
                             {team.teamName}
                           </h3>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${typeBadge.bg} ${typeBadge.text} ${typeBadge.border}`}>
+                          <span className={`text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full border ${typeBadge.cls}`}>
                             {typeBadge.label}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-[#a3a3a3] mt-0.5 font-mono">
-                          <MapPin size={12} className="text-[#34d399]" />
+                        <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] mt-0.5">
+                          <MapPin size={12} className="text-[#0EA5E9]" />
                           <span>{team.assignedZone}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleDeleteTeam(team)}
-                        title="Eliminar equipo"
-                        className="text-[#525252] hover:text-[#ef4444] p-1.5 rounded-lg hover:bg-[#1f1f1f] transition-colors"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleDeleteTeam(team)}
+                      title="Eliminar equipo"
+                      className="w-8 h-8 rounded-full bg-rose-500/10 hover:bg-[#E11D48] text-[#E11D48] hover:text-white border border-rose-500/25 flex items-center justify-center transition-colors p-0"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
 
                   {/* Leader and Vehicle details */}
-                  <div className="grid grid-cols-2 gap-2 bg-[#181818] border border-[#262626] rounded-xl p-3 text-xs">
+                  <div className="grid grid-cols-2 gap-3 bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[20px] p-4 text-xs">
                     <div className="space-y-1">
-                      <span className="text-[10px] text-[#737373] uppercase font-bold tracking-wider">
-                        Placa Móvil Principal
+                      <span className="text-[10.5px] text-[var(--text-muted)] font-semibold">
+                        Placa móvil principal
                       </span>
-                      <div className="flex items-center gap-1.5 text-sm font-black text-[#facc15] font-mono">
+                      <div className="flex items-center gap-1.5 text-sm font-bold text-amber-700 dark:text-amber-300 font-mono">
                         <Car size={15} />
                         <span>{team.mainVehiclePlate}</span>
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] text-[#737373] uppercase font-bold tracking-wider">
-                        Usuario Responsable
+                      <span className="text-[10.5px] text-[var(--text-muted)] font-semibold">
+                        Usuario responsable
                       </span>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#efede3] truncate">
-                        <User size={13} className="text-[#34d399] shrink-0" />
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-primary)] truncate">
+                        <User size={13} className="text-[#0D9488] dark:text-emerald-400 shrink-0" />
                         <span className="truncate">@{team.leaderUsername}</span>
                       </div>
                     </div>
 
-                    <div className="col-span-2 pt-1 border-t border-[#262626] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#8c8c8c] font-mono">
+                    <div className="col-span-2 pt-2 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--text-secondary)] font-mono">
                       <span className="flex items-center gap-1">
-                        <IdCard size={12} /> Identificación: {team.leaderId}
+                        <IdCard size={12} /> ID: {team.leaderId}
                       </span>
                       <span className="flex items-center gap-1">
                         <Mail size={12} /> {team.leaderEmail}
@@ -473,42 +478,42 @@ const AdminTeams: React.FC = () => {
                   </div>
 
                   {/* Team Members List */}
-                  <div className="bg-[#161616] border border-[#242424] rounded-xl overflow-hidden">
+                  <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[20px] overflow-hidden">
                     <button
                       onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}
-                      className="w-full px-3.5 py-2.5 flex items-center justify-between text-xs font-bold text-[#a3a3a3] hover:text-white transition-colors"
+                      className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-2">
-                        <Users size={14} className="text-[#34d399]" />
-                        <span>Personal que conforma el equipo ({team.members.length})</span>
+                        <Users size={14} className="text-[#0EA5E9]" />
+                        <span>Personal del equipo ({team.members.length})</span>
                       </div>
-                      <span className="text-[11px] font-mono text-[#737373] flex items-center gap-1">
+                      <span className="text-[11px] font-mono text-[var(--text-muted)] flex items-center gap-1">
                         {isExpanded ? 'Ocultar' : 'Ver detalles'}
                         <ChevronRight size={13} className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                       </span>
                     </button>
 
                     {isExpanded && (
-                      <div className="p-3 border-t border-[#242424] space-y-2 bg-[#141414]">
+                      <div className="p-3 border-t border-[var(--border-subtle)] space-y-2">
                         {team.members.map((member, idx) => (
                           <div
                             key={member.id || idx}
-                            className="bg-[#1c1c1c] border border-[#2b2b2b] rounded-lg p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                            className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-2xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                           >
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-md bg-[#282828] flex items-center justify-center font-bold text-[10px] text-[#34d399]">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded-full bg-[var(--accent-bg)] flex items-center justify-center font-bold text-[10px] text-[#0EA5E9]">
                                 {idx + 1}
                               </div>
                               <div>
-                                <div className="font-bold text-[#efede3]">{member.name}</div>
-                                <div className="text-[11px] text-[#8c8c8c]">{member.roleInTeam}</div>
+                                <div className="font-bold text-[var(--text-primary)]">{member.name}</div>
+                                <div className="text-[11px] text-[var(--text-muted)]">{member.roleInTeam}</div>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3 font-mono text-[11px] text-[#a3a3a3]">
+                            <div className="flex items-center gap-2.5 font-mono text-[11px] text-[var(--text-secondary)]">
                               <span>ID: {member.identification}</span>
-                              <span className="px-1.5 py-0.5 rounded bg-[#262626] text-[#facc15] font-bold">
-                                Placa: {member.badgeOrPlate}
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">
+                                {member.badgeOrPlate}
                               </span>
                             </div>
                           </div>
@@ -518,16 +523,16 @@ const AdminTeams: React.FC = () => {
                   </div>
 
                   {/* Status Footer */}
-                  <div className="pt-2 border-t border-[#1c1c1c] flex items-center justify-between text-xs">
-                    <span className="text-[#737373] font-mono text-[11px]">
+                  <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs">
+                    <span className="text-[var(--text-muted)] font-mono text-[11px]">
                       Registrado: {new Date(team.createdAt).toLocaleDateString('es-ES')}
                     </span>
-                    <div className="flex items-center gap-1.5 font-bold">
+                    <div className="flex items-center gap-1.5 font-semibold">
                       <span className={`w-2 h-2 rounded-full ${statusBadge.dot}`} />
                       <span className={statusBadge.text}>{statusBadge.label}</span>
                     </div>
                   </div>
-                </div>
+                </LiquidGlassCard>
               );
             })}
           </div>
@@ -536,70 +541,63 @@ const AdminTeams: React.FC = () => {
 
       {/* Modal de Creación de Equipo */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#121212] border border-[#2b2b2b] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
-            {/* Modal Header */}
-            <div className="p-5 border-b border-[#222222] flex items-center justify-between bg-[#161616]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/70 backdrop-blur-md animate-in fade-in duration-150">
+          <LiquidGlassCard strong className="w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#064e3b]/80 border border-[#065f46]/40 flex items-center justify-center text-[#34d399]">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-[#0D9488] dark:text-emerald-400">
                   <Users size={20} />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-[#efede3]">
-                    Crear Nuevo Equipo / Unidad de Campo
+                  <h2 className="text-base font-bold text-[var(--text-primary)]">
+                    Nuevo equipo / Unidad de campo
                   </h2>
-                  <p className="text-xs text-[#737373] font-mono">
+                  <p className="text-xs text-[var(--text-muted)]">
                     Datos del líder, vehículo, cuadrante y dotación de agentes
                   </p>
                 </div>
               </div>
               <button
                 onClick={handleCloseModal}
-                className="w-8 h-8 rounded-lg bg-[#202020] hover:bg-[#2c2c2c] border border-[#333] text-[#a3a3a3] hover:text-white flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-full glass-button flex items-center justify-center p-0"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Modal Form */}
             <form onSubmit={handleCreateTeam} className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
               {formError && (
-                <div className="p-3 rounded-xl bg-[#450a0a]/60 border border-[#991b1b]/60 flex items-center gap-2 text-xs text-[#fca5a5]">
-                  <AlertCircle size={15} className="shrink-0" />
+                <div className="p-3.5 rounded-[18px] bg-rose-500/12 border border-rose-500/30 flex items-center gap-2 text-xs text-rose-700 dark:text-rose-300 font-medium">
+                  <AlertCircle size={15} className="shrink-0 text-[#E11D48]" />
                   <span>{formError}</span>
                 </div>
               )}
 
               {/* Sección 1: Datos de la Unidad */}
               <div className="space-y-3">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[#34d399] flex items-center gap-2">
+                <div className="text-xs font-bold text-[#0D9488] dark:text-emerald-400 flex items-center gap-2">
                   <Shield size={13} />
-                  <span>1. Información de la Unidad y Vehículo</span>
+                  <span>1. Información de la unidad y vehículo</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#d4d4d4] uppercase tracking-wider">
-                      Nombre del Equipo / Unidad *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={teamName}
-                      onChange={(e) => setTeamName(e.target.value)}
-                      placeholder="Ej. Patrulla Cuadrante 5"
-                      className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#e5e5e5] placeholder-[#525252] outline-none transition-colors"
-                    />
-                  </div>
+                  <LiquidInput
+                    label="Nombre del equipo *"
+                    type="text"
+                    required
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="Ej. Patrulla Cuadrante 5"
+                  />
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#d4d4d4] uppercase tracking-wider">
-                      Tipo de Unidad *
+                    <label className="text-[13px] font-semibold text-[var(--text-primary)] px-1.5 block">
+                      Tipo de unidad *
                     </label>
                     <select
                       value={teamType}
                       onChange={(e: any) => setTeamType(e.target.value)}
-                      className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#e5e5e5] outline-none transition-colors cursor-pointer"
+                      className="w-full liquid-input-chamber rounded-full px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none cursor-pointer"
                     >
                       <option value="patrulla">Patrulla Policial (Camioneta / Sedán)</option>
                       <option value="ambulancia">Ambulancia Médica / Asistencia SAMU</option>
@@ -611,28 +609,24 @@ const AdminTeams: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#d4d4d4] uppercase tracking-wider">
-                      Placa del Vehículo Principal *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={mainVehiclePlate}
-                      onChange={(e) => setMainVehiclePlate(e.target.value)}
-                      placeholder="Ej. POL-554 o MTO-122"
-                      className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#facc15] font-mono font-bold uppercase placeholder-[#525252] outline-none transition-colors"
-                    />
-                  </div>
+                  <LiquidInput
+                    label="Placa del vehículo principal *"
+                    type="text"
+                    required
+                    value={mainVehiclePlate}
+                    onChange={(e) => setMainVehiclePlate(e.target.value)}
+                    placeholder="Ej. POL-554 o MTO-122"
+                    className="font-mono uppercase font-bold"
+                  />
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#d4d4d4] uppercase tracking-wider">
-                      Sector / Zona Asignada
+                    <label className="text-[13px] font-semibold text-[var(--text-primary)] px-1.5 block">
+                      Sector / Zona asignada
                     </label>
                     <select
                       value={assignedZone}
                       onChange={(e) => setAssignedZone(e.target.value)}
-                      className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#e5e5e5] outline-none transition-colors cursor-pointer"
+                      className="w-full liquid-input-chamber rounded-full px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none cursor-pointer"
                     >
                       <option value="Sector Norte - Cuadrante 1 & 2">Sector Norte - Cuadrante 1 & 2</option>
                       <option value="Sector Centro - Distrito Histórico">Sector Centro - Distrito Histórico</option>
@@ -644,165 +638,130 @@ const AdminTeams: React.FC = () => {
               </div>
 
               {/* Sección 2: Datos del Responsable / Líder */}
-              <div className="space-y-3 pt-3 border-t border-[#222222]">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[#34d399] flex items-center gap-2">
+              <div className="space-y-3 pt-3 border-t border-[var(--border-subtle)]">
+                <div className="text-xs font-bold text-[#0EA5E9] flex items-center gap-2">
                   <User size={13} />
-                  <span>2. Usuario Líder / Responsable del Equipo</span>
+                  <span>2. Usuario líder / Responsable del equipo</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#d4d4d4] uppercase tracking-wider">
-                      Usuario de Acceso *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={leaderUsername}
-                      onChange={(e) => setLeaderUsername(e.target.value)}
-                      placeholder="Ej. oficial_garcia"
-                      className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#e5e5e5] placeholder-[#525252] outline-none transition-colors"
-                    />
-                  </div>
+                  <LiquidInput
+                    label="Usuario *"
+                    type="text"
+                    required
+                    value={leaderUsername}
+                    onChange={(e) => setLeaderUsername(e.target.value)}
+                    placeholder="oficial_garcia"
+                  />
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#d4d4d4] uppercase tracking-wider">
-                      Correo Electrónico *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={leaderEmail}
-                      onChange={(e) => setLeaderEmail(e.target.value)}
-                      placeholder="lider@policia.gov.co"
-                      className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#e5e5e5] placeholder-[#525252] outline-none transition-colors"
-                    />
-                  </div>
+                  <LiquidInput
+                    label="Correo *"
+                    type="email"
+                    required
+                    value={leaderEmail}
+                    onChange={(e) => setLeaderEmail(e.target.value)}
+                    placeholder="lider@policia.gov.co"
+                  />
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#d4d4d4] uppercase tracking-wider">
-                      Identificación / Cédula *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={leaderId}
-                      onChange={(e) => setLeaderId(e.target.value)}
-                      placeholder="Ej. 80491823"
-                      className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#059669] rounded-xl px-3.5 py-2.5 text-sm text-[#e5e5e5] font-mono placeholder-[#525252] outline-none transition-colors"
-                    />
-                  </div>
+                  <LiquidInput
+                    label="Cédula *"
+                    type="text"
+                    required
+                    value={leaderId}
+                    onChange={(e) => setLeaderId(e.target.value)}
+                    placeholder="80491823"
+                    className="font-mono"
+                  />
                 </div>
               </div>
 
-              {/* Sección 3: Personal que conforma el equipo (Dinámico) */}
-              <div className="space-y-3 pt-3 border-t border-[#222222]">
+              {/* Sección 3: Personal que conforma el equipo */}
+              <div className="space-y-3 pt-3 border-t border-[var(--border-subtle)]">
                 <div className="flex items-center justify-between">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#34d399] flex items-center gap-2">
+                  <div className="text-xs font-bold text-[#0D9488] dark:text-emerald-400 flex items-center gap-2">
                     <Users size={13} />
-                    <span>3. Integrantes que conforman el Equipo</span>
+                    <span>3. Integrantes del equipo</span>
                   </div>
-                  <span className="text-xs font-mono text-[#737373]">
-                    {members.length} integrantes añadidos
+                  <span className="text-xs font-mono text-[var(--text-muted)]">
+                    {members.length} añadidos
                   </span>
                 </div>
 
-                {/* Sub-formulario de integrante */}
-                <div className="p-3.5 bg-[#161616] border border-[#262626] rounded-xl space-y-3">
+                <div className="p-4 bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[22px] space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-[#a3a3a3]">
-                        Nombre del Integrante
-                      </label>
-                      <input
-                        type="text"
-                        value={memberName}
-                        onChange={(e) => setMemberName(e.target.value)}
-                        placeholder="Ej. Patrullero Andrés Gómez"
-                        className="w-full bg-[#1e1e1e] border border-[#303030] focus:border-[#059669] rounded-lg px-3 py-2 text-xs text-[#e5e5e5] placeholder-[#525252] outline-none"
-                      />
-                    </div>
+                    <LiquidInput
+                      label="Nombre del integrante"
+                      type="text"
+                      value={memberName}
+                      onChange={(e) => setMemberName(e.target.value)}
+                      placeholder="Ej. Patrullero Andrés Gómez"
+                    />
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-[#a3a3a3]">
-                        Identificación / Cédula
-                      </label>
-                      <input
-                        type="text"
-                        value={memberId}
-                        onChange={(e) => setMemberId(e.target.value)}
-                        placeholder="Ej. 1098234812"
-                        className="w-full bg-[#1e1e1e] border border-[#303030] focus:border-[#059669] rounded-lg px-3 py-2 text-xs text-[#e5e5e5] font-mono placeholder-[#525252] outline-none"
-                      />
-                    </div>
+                    <LiquidInput
+                      label="Identificación / Cédula"
+                      type="text"
+                      value={memberId}
+                      onChange={(e) => setMemberId(e.target.value)}
+                      placeholder="Ej. 1098234812"
+                      className="font-mono"
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-[#a3a3a3]">
-                        Placa / Código Personal o Móvil
-                      </label>
-                      <input
-                        type="text"
-                        value={memberBadgeOrPlate}
-                        onChange={(e) => setMemberBadgeOrPlate(e.target.value)}
-                        placeholder="Ej. PL-9821 o MTO-441"
-                        className="w-full bg-[#1e1e1e] border border-[#303030] focus:border-[#059669] rounded-lg px-3 py-2 text-xs text-[#facc15] font-mono uppercase placeholder-[#525252] outline-none"
-                      />
-                    </div>
+                    <LiquidInput
+                      label="Placa / Código personal"
+                      type="text"
+                      value={memberBadgeOrPlate}
+                      onChange={(e) => setMemberBadgeOrPlate(e.target.value)}
+                      placeholder="Ej. PL-9821 o MTO-441"
+                      className="font-mono uppercase"
+                    />
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-[#a3a3a3]">
-                        Rol en el Equipo
-                      </label>
-                      <input
-                        type="text"
-                        value={memberRole}
-                        onChange={(e) => setMemberRole(e.target.value)}
-                        placeholder="Ej. Conductor, Escolta, Paramédico..."
-                        className="w-full bg-[#1e1e1e] border border-[#303030] focus:border-[#059669] rounded-lg px-3 py-2 text-xs text-[#e5e5e5] placeholder-[#525252] outline-none"
-                      />
-                    </div>
+                    <LiquidInput
+                      label="Rol en el equipo"
+                      type="text"
+                      value={memberRole}
+                      onChange={(e) => setMemberRole(e.target.value)}
+                      placeholder="Ej. Conductor, Escolta..."
+                    />
                   </div>
 
-                  <button
+                  <LiquidPillButton
                     type="button"
+                    variant="aqua"
+                    size="sm"
                     onClick={handleAddMember}
-                    className="w-full py-2 bg-[#1b3326] hover:bg-[#234533] border border-[#065f46] text-[#34d399] rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                    className="w-full"
                   >
                     <UserPlus size={14} />
-                    <span>Agregar Integrante a la Dotación</span>
-                  </button>
+                    <span>Agregar integrante a la dotación</span>
+                  </LiquidPillButton>
                 </div>
 
-                {/* Lista de integrantes agregados */}
                 {members.length > 0 && (
                   <div className="space-y-2 mt-2">
-                    <span className="text-[11px] text-[#737373] uppercase font-bold tracking-wider">
-                      Lista de Personal Asignado
-                    </span>
-                    <div className="divide-y divide-[#222222] bg-[#161616] border border-[#242424] rounded-xl overflow-hidden">
+                    <div className="divide-y divide-[var(--border-subtle)] bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[18px] overflow-hidden">
                       {members.map((m, index) => (
-                        <div key={m.id} className="p-2.5 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-[#202020] text-[#34d399] flex items-center justify-center text-[10px] font-bold">
+                        <div key={m.id} className="p-3 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-5 h-5 rounded-full bg-[var(--accent-bg)] text-[#0EA5E9] flex items-center justify-center text-[10px] font-bold">
                               {index + 1}
                             </span>
                             <div>
-                              <div className="font-bold text-[#efede3]">{m.name}</div>
-                              <div className="text-[10px] text-[#8c8c8c]">{m.roleInTeam}</div>
+                              <div className="font-bold text-[var(--text-primary)]">{m.name}</div>
+                              <div className="text-[10.5px] text-[var(--text-muted)]">{m.roleInTeam}</div>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-[#a3a3a3]">ID: {m.identification}</span>
-                            <span className="font-mono text-[#facc15] bg-[#222222] px-1.5 py-0.5 rounded text-[11px]">
+                          <div className="flex items-center gap-2.5">
+                            <span className="font-mono text-[var(--text-secondary)]">ID: {m.identification}</span>
+                            <span className="font-mono text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full text-[10.5px] font-semibold">
                               {m.badgeOrPlate}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleRemoveMember(m.id)}
-                              className="text-[#737373] hover:text-[#ef4444] p-1 transition-colors"
+                              className="text-[var(--text-muted)] hover:text-[#E11D48] p-1 transition-colors"
                             >
                               <X size={14} />
                             </button>
@@ -815,24 +774,17 @@ const AdminTeams: React.FC = () => {
               </div>
 
               {/* Footer Buttons */}
-              <div className="pt-4 border-t border-[#222222] flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2.5 rounded-xl bg-[#202020] hover:bg-[#282828] text-xs font-bold text-[#a3a3a3] hover:text-white transition-colors"
-                >
+              <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center justify-end gap-3">
+                <LiquidPillButton type="button" variant="glass" size="sm" onClick={handleCloseModal}>
                   Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 bg-[#059669] hover:bg-[#047857] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md"
-                >
+                </LiquidPillButton>
+                <LiquidPillButton type="submit" variant="obsidian" size="sm" loading={isSubmitting}>
                   <Check size={14} />
-                  <span>Crear Equipo</span>
-                </button>
+                  <span>{isSubmitting ? 'Creando...' : 'Crear equipo'}</span>
+                </LiquidPillButton>
               </div>
             </form>
-          </div>
+          </LiquidGlassCard>
         </div>
       )}
     </div>

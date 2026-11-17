@@ -1,5 +1,6 @@
 import React from 'react';
 import { Siren, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { LiquidGlassCard } from '../ui/LiquidPrimitives';
 
 interface EmergencyKPIBarProps {
   total: number;
@@ -19,81 +20,77 @@ export const EmergencyKPIBar: React.FC<EmergencyKPIBarProps> = ({
   onSelectFilter
 }) => {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 shrink-0">
       {/* Total */}
-      <div 
+      <LiquidGlassCard
+        strong={statusFilter === 'all'}
         onClick={() => onSelectFilter('all')}
-        className={`cursor-pointer rounded p-3.5 flex items-center justify-between transition-all ${
-          statusFilter === 'all' 
-            ? 'bg-[var(--bg-elevated)] shadow-md ring-2 ring-[var(--brand)]/40 scale-[1.01]' 
-            : 'bg-[var(--bg-surface)] shadow-sm hover:shadow-md hover:bg-[var(--bg-elevated)]'
+        className={`cursor-pointer p-4 rounded-[24px] flex items-center justify-between transition-all hover:-translate-y-0.5 ${
+          statusFilter === 'all' ? 'ring-2 ring-[#0EA5E9]/50' : ''
         }`}
       >
         <div>
-          <div className="text-xl font-bold text-[var(--text-primary)]">{total}</div>
-          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold">Total Registradas</div>
+          <div className="text-2xl font-bold text-[var(--text-primary)] tabular-nums">{total}</div>
+          <div className="text-[11px] text-[var(--text-secondary)] font-semibold mt-0.5">Total registradas</div>
         </div>
-        <div className="w-8 h-8 rounded bg-[var(--bg-elevated)] shadow-xs flex items-center justify-center text-[var(--text-secondary)]">
-          <Siren size={15} />
+        <div className="w-11 h-11 rounded-2xl bg-[var(--accent-bg)] border border-[var(--accent-border)] flex items-center justify-center text-[#0EA5E9]">
+          <Siren size={19} />
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Críticas / Pendientes */}
-      <div 
+      <LiquidGlassCard
+        strong={statusFilter === 'pending'}
         onClick={() => onSelectFilter('pending')}
-        className={`cursor-pointer rounded p-3.5 flex items-center justify-between transition-all ${
-          statusFilter === 'pending' 
-            ? 'bg-[var(--bg-elevated)] shadow-md ring-2 ring-red-500/40 scale-[1.01]' 
-            : 'bg-[var(--bg-surface)] shadow-sm hover:shadow-md hover:bg-[var(--bg-elevated)]'
+        className={`cursor-pointer p-4 rounded-[24px] flex items-center justify-between transition-all hover:-translate-y-0.5 ${
+          statusFilter === 'pending' ? 'ring-2 ring-rose-500/55' : ''
         }`}
       >
         <div>
-          <div className="text-xl font-black text-red-600 dark:text-red-400 flex items-center gap-2">
+          <div className="text-2xl font-bold text-[#E11D48] dark:text-rose-400 flex items-center gap-2 tabular-nums">
             <span>{pending}</span>
-            {pending > 0 && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
+            {pending > 0 && <span className="w-2 h-2 rounded-full bg-[#E11D48] animate-pulse" />}
           </div>
-          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold">Críticas / Pendientes</div>
+          <div className="text-[11px] text-[var(--text-secondary)] font-semibold mt-0.5">Críticas / Pendientes</div>
         </div>
-        <div className="w-8 h-8 rounded bg-red-500/15 text-red-600 dark:bg-red-950/60 dark:text-red-400 shadow-xs flex items-center justify-center">
-          <Clock size={15} />
+        <div className="w-11 h-11 rounded-2xl bg-rose-500/12 border border-rose-500/25 text-[#E11D48] dark:text-rose-400 flex items-center justify-center">
+          <Clock size={19} />
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* En Revisión / Despacho */}
-      <div 
+      <LiquidGlassCard
+        strong={statusFilter === 'reviewing'}
         onClick={() => onSelectFilter('reviewing')}
-        className={`cursor-pointer rounded p-3.5 flex items-center justify-between transition-all ${
-          statusFilter === 'reviewing' 
-            ? 'bg-[var(--bg-elevated)] shadow-md ring-2 ring-amber-500/40 scale-[1.01]' 
-            : 'bg-[var(--bg-surface)] shadow-sm hover:shadow-md hover:bg-[var(--bg-elevated)]'
+        className={`cursor-pointer p-4 rounded-[24px] flex items-center justify-between transition-all hover:-translate-y-0.5 ${
+          statusFilter === 'reviewing' ? 'ring-2 ring-amber-500/55' : ''
         }`}
       >
         <div>
-          <div className="text-xl font-black text-amber-600 dark:text-amber-400">{reviewing}</div>
-          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold">En Despacho / Revisión</div>
+          <div className="text-2xl font-bold text-[#D97706] dark:text-amber-400 tabular-nums">{reviewing}</div>
+          <div className="text-[11px] text-[var(--text-secondary)] font-semibold mt-0.5">En despacho / Revisión</div>
         </div>
-        <div className="w-8 h-8 rounded bg-amber-500/15 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 shadow-xs flex items-center justify-center">
-          <AlertCircle size={15} />
+        <div className="w-11 h-11 rounded-2xl bg-amber-500/12 border border-amber-500/25 text-[#D97706] dark:text-amber-400 flex items-center justify-center">
+          <AlertCircle size={19} />
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Resueltas */}
-      <div 
+      <LiquidGlassCard
+        strong={statusFilter === 'resolved'}
         onClick={() => onSelectFilter('resolved')}
-        className={`cursor-pointer rounded p-3.5 flex items-center justify-between transition-all ${
-          statusFilter === 'resolved' 
-            ? 'bg-[var(--bg-elevated)] shadow-md ring-2 ring-emerald-500/40 scale-[1.01]' 
-            : 'bg-[var(--bg-surface)] shadow-sm hover:shadow-md hover:bg-[var(--bg-elevated)]'
+        className={`cursor-pointer p-4 rounded-[24px] flex items-center justify-between transition-all hover:-translate-y-0.5 ${
+          statusFilter === 'resolved' ? 'ring-2 ring-emerald-500/55' : ''
         }`}
       >
         <div>
-          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{resolved}</div>
-          <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold">Atendidas / Resueltas</div>
+          <div className="text-2xl font-bold text-[#0D9488] dark:text-emerald-400 tabular-nums">{resolved}</div>
+          <div className="text-[11px] text-[var(--text-secondary)] font-semibold mt-0.5">Atendidas / Resueltas</div>
         </div>
-        <div className="w-8 h-8 rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 shadow-xs flex items-center justify-center">
-          <CheckCircle2 size={15} />
+        <div className="w-11 h-11 rounded-2xl bg-emerald-500/12 border border-emerald-500/25 text-[#0D9488] dark:text-emerald-400 flex items-center justify-center">
+          <CheckCircle2 size={19} />
         </div>
-      </div>
+      </LiquidGlassCard>
     </div>
   );
 };

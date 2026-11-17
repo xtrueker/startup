@@ -32,6 +32,12 @@ import type {
   AssignedTeamInfo, 
   RouteCameraCoverage 
 } from '../../components/Emergencies/types';
+import {
+  LiquidGlassCard,
+  LiquidInput,
+  LiquidPillButton,
+  StatusPill,
+} from '../../components/ui/LiquidPrimitives';
 
 // Helper de distancia Haversine (en metros)
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -137,17 +143,17 @@ export const AdminEmergencies: React.FC = () => {
     const key = getAlertTypeKey(alert);
     switch (key) {
       case 'homicidio':
-        return { Icon: Skull, label: 'Homicidio', iconColor: 'text-rose-400', badgeClass: 'bg-rose-950/40 border-rose-800/50 text-rose-300' };
+        return { Icon: Skull, label: 'Homicidio', iconColor: 'text-rose-600 dark:text-rose-400', badgeClass: 'bg-rose-500/12 border-rose-500/25 text-rose-700 dark:text-rose-300' };
       case 'atentado':
-        return { Icon: Bomb, label: 'Atentado', iconColor: 'text-red-400', badgeClass: 'bg-red-950/40 border-red-800/50 text-red-300' };
+        return { Icon: Bomb, label: 'Atentado', iconColor: 'text-red-600 dark:text-red-400', badgeClass: 'bg-red-500/12 border-red-500/25 text-red-700 dark:text-red-300' };
       case 'accidente':
-        return { Icon: Car, label: 'Accidente', iconColor: 'text-amber-400', badgeClass: 'bg-amber-950/40 border-amber-800/50 text-amber-300' };
+        return { Icon: Car, label: 'Accidente', iconColor: 'text-amber-600 dark:text-amber-400', badgeClass: 'bg-amber-500/12 border-amber-500/25 text-amber-700 dark:text-amber-300' };
       case 'incendio':
-        return { Icon: Flame, label: 'Incendio', iconColor: 'text-orange-400', badgeClass: 'bg-orange-950/40 border-orange-800/50 text-orange-300' };
+        return { Icon: Flame, label: 'Incendio', iconColor: 'text-orange-600 dark:text-orange-400', badgeClass: 'bg-orange-500/12 border-orange-500/25 text-orange-700 dark:text-orange-300' };
       case 'robo':
-        return { Icon: Crosshair, label: 'Robo', iconColor: 'text-yellow-400', badgeClass: 'bg-yellow-950/40 border-yellow-800/50 text-yellow-300' };
+        return { Icon: Crosshair, label: 'Robo', iconColor: 'text-yellow-600 dark:text-yellow-400', badgeClass: 'bg-yellow-500/12 border-yellow-500/25 text-yellow-700 dark:text-yellow-300' };
       default:
-        return { Icon: Siren, label: 'Emergencia', iconColor: 'text-rose-400', badgeClass: 'bg-rose-950/40 border-rose-800/50 text-rose-300' };
+        return { Icon: Siren, label: 'Emergencia', iconColor: 'text-rose-600 dark:text-rose-400', badgeClass: 'bg-rose-500/12 border-rose-500/25 text-rose-700 dark:text-rose-300' };
     }
   };
 
@@ -322,47 +328,57 @@ export const AdminEmergencies: React.FC = () => {
   }, [selectedAlert]);
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-app)] text-[var(--text-primary)] p-5 lg:p-7 gap-5 overflow-hidden theme-transition">
+    <div className="flex flex-col h-full bg-transparent text-[var(--text-primary)] p-5 lg:p-7 gap-5 overflow-hidden theme-transition">
       
-      {/* Header Superior */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-3">
+      {/* Header Superior Floating Liquid Glass */}
+      <LiquidGlassCard strong className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+        <div className="flex items-center gap-3.5">
           <button
             onClick={() => navigate('/command-center')}
             title="Volver al Centro de Mando"
-            className="w-9 h-9 rounded-xl bg-[#141416] hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors mr-1 p-0 shrink-0 cursor-pointer"
+            className="w-10 h-10 rounded-full glass-button flex items-center justify-center shrink-0 p-0 cursor-pointer"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={17} />
           </button>
-          <div className="w-9 h-9 rounded-lg bg-red-950/40 border border-red-800/50 flex items-center justify-center shrink-0 text-red-400 shadow-sm">
-            <Siren size={18} />
+          <div className="w-11 h-11 rounded-2xl bg-rose-500/12 border border-rose-500/25 flex items-center justify-center shrink-0 text-[#E11D48] dark:text-rose-400">
+            <Siren size={21} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-zinc-100 tracking-tight">Consola de Gestión de Emergencias</h1>
-            <p className="text-xs text-zinc-500 font-mono">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
+                Consola de gestión de emergencias
+              </h1>
+              <StatusPill
+                label={pendingCount > 0 ? `${pendingCount} pendientes` : 'Control activo'}
+                tone={pendingCount > 0 ? 'crimson' : 'emerald'}
+                pulsing={pendingCount > 0}
+              />
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
               Monitoreo, trazabilidad forense y despacho en tiempo real
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={fetchEmergenciesAndCameras}
             disabled={loading}
-            className="flex items-center gap-2 bg-[#141416] hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+            title="Actualizar emergencias"
+            className="w-9 h-9 rounded-full glass-button flex items-center justify-center p-0 cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw size={13} className={loading ? 'animate-spin text-zinc-400' : 'text-zinc-400'} />
-            <span>Actualizar</span>
+            <RefreshCw size={15} className={loading ? 'animate-spin text-[#0EA5E9]' : ''} />
           </button>
-          <button
+          <LiquidPillButton
+            variant="obsidian"
+            size="sm"
             onClick={() => navigate('/command-center')}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
           >
             <ShieldAlert size={14} />
-            <span>Central de Despacho</span>
-          </button>
+            <span>Central de despacho</span>
+          </LiquidPillButton>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* KPI Ribbon */}
       <EmergencyKPIBar
@@ -375,34 +391,33 @@ export const AdminEmergencies: React.FC = () => {
       />
 
       {/* Barra de Búsqueda y Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center shrink-0">
+        <div className="flex-1">
+          <LiquidInput
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por ID, tipo de delito, dirección o descripción..."
-            className="w-full bg-[#121214] border border-[#222226] focus:border-blue-500/60 rounded-xl pl-9 pr-4 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
+            leftIcon={<Search size={15} />}
           />
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 bg-[#121214] border border-[#222226] rounded-xl px-3 py-1.5 text-xs text-zinc-400">
-            <Filter size={13} className="text-blue-400" />
-            <span className="font-medium">Tipo:</span>
+          <div className="liquid-input-chamber rounded-full px-4 py-2.5 text-xs text-[var(--text-secondary)] flex items-center gap-2">
+            <Filter size={13} className="text-[#0EA5E9]" />
+            <span className="font-semibold">Tipo:</span>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="bg-transparent text-zinc-200 outline-none cursor-pointer"
+              className="bg-transparent text-[var(--text-primary)] font-semibold outline-none cursor-pointer"
             >
-              <option value="all" className="bg-[#18181b] text-zinc-200">Todos los tipos</option>
-              <option value="panico" className="bg-[#18181b] text-zinc-200">Botón de Pánico</option>
-              <option value="robo" className="bg-[#18181b] text-zinc-200">Robo / Hurto</option>
-              <option value="homicidio" className="bg-[#18181b] text-zinc-200">Homicidio</option>
-              <option value="atentado" className="bg-[#18181b] text-zinc-200">Atentado</option>
-              <option value="accidente" className="bg-[#18181b] text-zinc-200">Accidente de Tránsito</option>
-              <option value="incendio" className="bg-[#18181b] text-zinc-200">Incendio</option>
+              <option value="all">Todos los tipos</option>
+              <option value="panico">Botón de Pánico</option>
+              <option value="robo">Robo / Hurto</option>
+              <option value="homicidio">Homicidio</option>
+              <option value="atentado">Atentado</option>
+              <option value="accidente">Accidente de Tránsito</option>
+              <option value="incendio">Incendio</option>
             </select>
           </div>
         </div>
@@ -416,32 +431,33 @@ export const AdminEmergencies: React.FC = () => {
         {/* PANEL IZQUIERDO: LISTA DE EMERGENCIAS (Se adapta si hay una seleccionada) */}
         {(!selectedAlert || !isDossierExpanded) && (
           <div 
-            className={`flex flex-col bg-[#111113] border border-zinc-800 rounded-2xl overflow-hidden transition-all duration-300 shadow-xl ${
+            className={`relative flex flex-col liquid-glass-strong rounded-[26px] overflow-hidden transition-all duration-300 ${
               selectedAlert ? 'w-full lg:w-[38%] shrink-0' : 'flex-1 min-w-0'
             }`}
           >
-            <div className="p-3.5 border-b border-zinc-800 flex items-center justify-between bg-[#141416] shrink-0">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-semibold text-zinc-400">
-                <Siren size={14} className="text-red-400" />
+            <div className="pointer-events-none absolute top-0 left-[8%] right-[8%] h-[1.5px] bg-[var(--specular-rim)] opacity-90" />
+            <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-elevated)]/60 shrink-0">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-bold text-[var(--text-secondary)]">
+                <Siren size={14} className="text-rose-500" />
                 <span>Bitácora ({filteredAlerts.length})</span>
               </div>
-              <span className="text-[11px] font-mono text-zinc-500">
+              <span className="text-[11px] font-mono text-[var(--text-muted)]">
                 {selectedAlert ? '1 Seleccionada' : 'Selecciona para inspeccionar'}
               </span>
             </div>
 
             {loading ? (
-              <div className="flex flex-col items-center justify-center flex-1 gap-3 text-zinc-500 p-12">
-                <RefreshCw size={22} className="animate-spin text-blue-400" />
+              <div className="flex flex-col items-center justify-center flex-1 gap-3 text-[var(--text-muted)] p-12">
+                <RefreshCw size={22} className="animate-spin text-[#0EA5E9]" />
                 <span className="text-xs font-mono">Cargando emergencias...</span>
               </div>
             ) : filteredAlerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center flex-1 text-zinc-500 gap-3 p-8">
-                <Siren size={28} strokeWidth={1.5} className="text-zinc-600" />
-                <p className="text-xs text-zinc-500">Sin incidentes con estos filtros</p>
+              <div className="flex flex-col items-center justify-center flex-1 text-[var(--text-muted)] gap-3 p-8">
+                <Siren size={28} strokeWidth={1.5} className="text-[var(--text-muted)]" />
+                <p className="text-xs text-[var(--text-muted)]">Sin incidentes con estos filtros</p>
               </div>
             ) : (
-              <div className="divide-y divide-zinc-800/80 overflow-y-auto custom-scrollbar flex-1">
+              <div className="divide-y divide-[var(--border-subtle)] overflow-y-auto custom-scrollbar flex-1">
                 {filteredAlerts.map((alert) => {
                   const meta = getTypeMeta(alert);
                   const TypeIcon = meta.Icon;
@@ -454,36 +470,36 @@ export const AdminEmergencies: React.FC = () => {
                       onClick={() => setSelectedAlert(alert)}
                       className={`p-3.5 sm:p-4 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
                         isSelected 
-                          ? 'bg-blue-950/25 border-l-2 border-l-blue-500 ring-1 ring-blue-500/20 shadow-sm' 
+                          ? 'bg-[#0EA5E9]/12 border-l-4 border-l-[#0EA5E9]' 
                           : isResolved 
-                          ? 'hover:bg-[#151517] opacity-60 border-l-2 border-l-emerald-500/50' 
-                          : 'hover:bg-[#151517] border-l-2 border-l-rose-500/60'
+                          ? 'hover:bg-[var(--bg-elevated)] opacity-65 border-l-4 border-l-emerald-500/60' 
+                          : 'hover:bg-[var(--bg-elevated)] border-l-4 border-l-rose-500/75'
                       }`}
                     >
                       <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <div className={`w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700/80 flex items-center justify-center shrink-0 mt-0.5 ${meta.iconColor}`}>
+                        <div className={`w-9 h-9 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-strong)] flex items-center justify-center shrink-0 mt-0.5 ${meta.iconColor}`}>
                           <TypeIcon size={15} />
                         </div>
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                            <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded border font-mono ${meta.badgeClass}`}>
+                            <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full border font-mono ${meta.badgeClass}`}>
                               {meta.label}
                             </span>
-                            <span className="text-[11px] font-mono text-zinc-500">
+                            <span className="text-[11px] font-mono text-[var(--text-muted)]">
                               #{alert.id.substring(0, 6)}
                             </span>
-                            <span className="text-[10px] text-zinc-500 ml-auto font-mono flex items-center gap-1">
+                            <span className="text-[10px] text-[var(--text-muted)] ml-auto font-mono flex items-center gap-1">
                               <Clock size={10} /> {formatTimeAgo(alert.createdAt)}
                             </span>
                           </div>
 
-                          <h3 className="text-xs font-semibold text-zinc-200 truncate">
+                          <h3 className="text-xs font-bold text-[var(--text-primary)] truncate">
                             {stripEmojis(alert.description) || 'Alerta de Emergencia'}
                           </h3>
 
-                          <div className="flex items-center gap-1 text-[11px] text-zinc-400 font-mono truncate mt-0.5">
-                            <MapPin size={11} className="text-sky-400 shrink-0" />
+                          <div className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)] font-mono truncate mt-0.5">
+                            <MapPin size={11} className="text-[#0EA5E9] shrink-0" />
                             <span className="truncate">
                               {stripEmojis(alert.location?.address) || `${alert.location?.latitude?.toFixed(4)}, ${alert.location?.longitude?.toFixed(4)}`}
                             </span>
@@ -493,9 +509,9 @@ export const AdminEmergencies: React.FC = () => {
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         {isSelected ? (
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-sm" />
+                          <span className="w-2 h-2 rounded-full bg-[#0EA5E9] shadow-sm" />
                         ) : (
-                          <ChevronRight size={14} className="text-zinc-600" />
+                          <ChevronRight size={14} className="text-[var(--text-muted)]" />
                         )}
                       </div>
                     </div>
@@ -529,14 +545,15 @@ export const AdminEmergencies: React.FC = () => {
 
         {/* Si no hay emergencia seleccionada y estamos en pantalla ancha: placeholder táctico */}
         {!selectedAlert && (
-          <div className="hidden lg:flex w-[260px] xl:w-[290px] shrink-0 flex-col items-center justify-center bg-[#111113] border border-zinc-800 rounded-2xl p-6 text-center gap-3 shadow-xl">
-            <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400">
+          <div className="relative hidden lg:flex w-[260px] xl:w-[290px] shrink-0 flex-col items-center justify-center liquid-glass-strong rounded-[26px] p-6 text-center gap-3">
+            <div className="pointer-events-none absolute top-0 left-[12%] right-[12%] h-[1.5px] bg-[var(--specular-rim)] opacity-90" />
+            <div className="w-12 h-12 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-strong)] flex items-center justify-center text-[var(--text-secondary)]">
               <Siren size={22} strokeWidth={1.5} />
             </div>
-            <h3 className="text-sm font-semibold text-zinc-200">
+            <h3 className="text-sm font-bold text-[var(--text-primary)]">
               Consola de Inspección
             </h3>
-            <p className="text-xs text-zinc-500 max-w-sm leading-relaxed">
+            <p className="text-xs text-[var(--text-muted)] max-w-sm leading-relaxed">
               Selecciona cualquier emergencia de la bitácora izquierda para abrir su expediente: cámaras perimetrales, rutas tácticas, patrulla y operador enlazado.
             </p>
           </div>

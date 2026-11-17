@@ -14,7 +14,7 @@ const applyTheme = (t: Theme) => {
     root.setAttribute('data-theme', 'light');
     root.classList.remove('dark');
   } else {
-    root.removeAttribute('data-theme');
+    root.setAttribute('data-theme', 'dark');
     root.classList.add('dark');
   }
 };

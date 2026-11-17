@@ -1,58 +1,103 @@
 import { useState } from 'react';
-import { Search, CheckCircle, ShieldAlert, Info } from 'lucide-react';
+import { Search, CheckCircle, Info, Sun, Moon } from 'lucide-react';
 import { AlertTimeline } from '../../components/CommandCenter/AlertTimeline';
+import { useThemeStore } from '../../stores/useThemeStore';
+import {
+  AmbientPrismCanvas,
+  LiquidGlassCard,
+  LiquidInput,
+  LiquidPillButton,
+  PrismEmblem,
+  StatusPill,
+} from '../../components/ui/LiquidPrimitives';
 
 export default function CitizenTracker() {
   const [trackingId, setTrackingId] = useState('');
   const [searchedId, setSearchedId] = useState('');
+  const { theme, toggleTheme } = useThemeStore();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center pt-20 px-4 font-sans text-slate-900">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
-        <div className="bg-indigo-600 p-8 text-white text-center">
-          <ShieldAlert size={48} className="mx-auto mb-4 drop-shadow-md" />
-          <h1 className="text-2xl font-black tracking-tight">Seguimiento de Reporte</h1>
-          <p className="text-indigo-100 text-sm mt-2 font-medium">Consulta el estado operativo de tu alerta en tiempo real.</p>
+    <div className="relative min-h-screen w-full flex flex-col items-center pt-10 pb-16 px-4 font-sans overflow-y-auto">
+      <AmbientPrismCanvas intensity="normal" />
+
+      <div className="relative z-10 w-full max-w-md flex flex-col gap-5">
+        {/* Top bar */}
+        <div className="liquid-glass-strong rounded-full px-4 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <PrismEmblem size={34} />
+            <span className="text-sm font-bold tracking-tight text-[var(--text-primary)]">
+              Red Ciudadana
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Tema Perla Claro' : 'Tema Obsidiana'}
+              className="w-8 h-8 rounded-full glass-button flex items-center justify-center p-0"
+            >
+              {theme === 'dark' ? (
+                <Sun size={14} className="text-amber-400" />
+              ) : (
+                <Moon size={14} className="text-sky-600" />
+              )}
+            </button>
+            <StatusPill label="Seguimiento" tone="aqua" />
+          </div>
         </div>
-        
-        <div className="p-6">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Código de Seguimiento</label>
-          <div className="flex gap-2">
-            <input 
-              type="text" 
-              placeholder="Ej: d8a7b-39cf-..." 
+
+        <LiquidGlassCard strong className="p-7">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+              Seguimiento de reporte
+            </h1>
+            <p className="text-[var(--text-secondary)] text-sm mt-1.5 leading-relaxed">
+              Consulta el estado operativo de tu alerta ciudadana en tiempo real.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <LiquidInput
+              label="Código de seguimiento"
+              type="text"
+              placeholder="Ej: d8a7b-39cf-..."
               value={trackingId}
-              onChange={e => setTrackingId(e.target.value)}
-              className="flex-1 border-2 border-slate-200 rounded-lg px-4 py-3 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-mono text-sm transition-all"
+              onChange={(e) => setTrackingId(e.target.value)}
+              leftIcon={<Search size={16} />}
             />
-            <button 
+
+            <LiquidPillButton
+              variant="obsidian"
+              size="md"
               onClick={() => setSearchedId(trackingId)}
               disabled={trackingId.length < 5}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+              className="w-full"
             >
-              <Search size={20} />
-            </button>
+              <Search size={16} />
+              <span>Consultar reporte</span>
+            </LiquidPillButton>
           </div>
 
           {searchedId && (
-            <div className="mt-8 animate-in fade-in slide-in-from-bottom-4">
-              <div className="flex items-center gap-2 text-emerald-700 font-bold mb-4 bg-emerald-50 p-3 rounded-lg border border-emerald-200 shadow-sm">
-                <CheckCircle size={20} />
-                Reporte Encontrado en el Sistema
+            <div className="mt-7 animate-in fade-in slide-in-from-bottom-4">
+              <div className="flex items-center gap-2 text-teal-800 dark:text-emerald-300 font-semibold text-sm mb-4 bg-emerald-500/12 px-4 py-3 rounded-[18px] border border-emerald-500/30">
+                <CheckCircle size={18} className="text-[#10B981] shrink-0" />
+                <span>Reporte encontrado en el sistema</span>
               </div>
-              
-              <div className="bg-slate-900 rounded-xl p-6 shadow-inner border border-slate-800">
-                {/* Reutilizamos el timeline pero le pasamos el prop de diseño oscuro */}
+
+              <div className="bg-[var(--bg-input)] rounded-[20px] p-5 border border-[var(--border-strong)]">
                 <AlertTimeline alertId={searchedId} />
               </div>
-              
-              <p className="text-[11px] text-slate-500 mt-4 text-center flex items-center justify-center gap-1 bg-slate-100 p-2 rounded">
-                <Info size={14} className="text-indigo-500" />
-                Por seguridad y privacidad de la investigación, ciertas notas operativas policiales permanecen ocultas.
+
+              <p className="text-[11px] text-[var(--text-muted)] mt-4 text-center flex items-center justify-center gap-1.5 bg-[var(--bg-input)] border border-[var(--border-subtle)] p-2.5 rounded-[14px]">
+                <Info size={14} className="text-[#0EA5E9] shrink-0" />
+                <span>
+                  Por seguridad de la investigación, ciertas notas operativas policiales permanecen ocultas.
+                </span>
               </p>
             </div>
           )}
-        </div>
+        </LiquidGlassCard>
       </div>
     </div>
   );
