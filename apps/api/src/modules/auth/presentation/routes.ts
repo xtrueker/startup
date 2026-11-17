@@ -16,6 +16,35 @@ const router = Router();
 
 /**
  * @swagger
+ * /api/auth/analyze-document:
+ *   post:
+ *     summary: Analizar documento con IA (OCR + detección de retrato en cédula colombiana)
+ *     tags: [Auth]
+ *     security: []
+ */
+router.post('/analyze-document', async (req: Request, res: Response) => {
+  try {
+    const { imageBase64, side } = req.body;
+    const result = await KycVerificationService.analyzeIdDocumentPreview({
+      imageBase64,
+      side,
+    });
+    return res.status(200).json({
+      success: true,
+      message: 'Documento procesado por IA',
+      data: result,
+    });
+  } catch (error: any) {
+    const status = error?.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: error?.message || 'No fue posible analizar el documento',
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/auth/verify-biometrics:
  *   post:
  *     summary: Pre-verificar en tiempo real la coincidencia facial entre selfie y frente de cédula

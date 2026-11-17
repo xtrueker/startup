@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +24,7 @@ import {
   PrismEmblem,
   PrismIcon,
   StatusPill,
+  TelemetryEqualizer,
 } from '../components/ui/PrismPrimitives';
 
 interface RegisterScreenProps {
@@ -30,49 +32,61 @@ interface RegisterScreenProps {
   onGoLogin: () => void;
 }
 
-const STEP_META: { id: 1 | 2 | 3 | 4; label: string }[] = [
-  { id: 1, label: 'Datos' },
-  { id: 2, label: 'Documento' },
-  { id: 3, label: 'Rostro' },
-  { id: 4, label: 'Confirmar' },
+const STEP_META: { id: 1 | 2 | 3; label: string }[] = [
+  { id: 1, label: '1. Cédula IA' },
+  { id: 2, label: '2. Biometría' },
+  { id: 3, label: '3. Activar' },
 ];
 
 const LIVENESS_CHALLENGES = [
-  { instruction: 'Sonríe con naturalidad mirando hacia el frente.' },
-  { instruction: 'Gira suavemente tu rostro un poco hacia la derecha.' },
-  { instruction: 'Gira suavemente tu rostro un poco hacia la izquierda.' },
-  { instruction: 'Entreabre ligeramente la boca mirando a la cámara.' },
-  { instruction: 'Parpadea una vez despacio y mira al frente.' },
+  { instruction: 'Mira al frente con naturalidad y buena iluminación.' },
+  { instruction: 'Gira muy levemente tu rostro hacia la derecha.' },
+  { instruction: 'Gira muy levemente tu rostro hacia la izquierda.' },
+  { instruction: 'Sonríe con naturalidad mirando a la cámara.' },
 ];
 
 export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreenProps) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Paso 1: Datos Personales
+  // Datos extraídos automáticamente por IA + completados en Paso 3
   const [fullName, setFullName] = useState('');
   const [cedula, setCedula] = useState('');
+  const [aiExtractedName, setAiExtractedName] = useState(false);
+  const [aiExtractedCedula, setAiExtractedCedula] = useState(false);
+  const [detectedDocType, setDetectedDocType] = useState<string>('Cédula de Ciudadanía');
+  const [docFaceConfidence, setDocFaceConfidence] = useState<number | null>(null);
+
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Paso 2: Cédula
+  // Paso 1: Captura y análisis IA de Cédula
   const [idCardFront, setIdCardFront] = useState<string | null>(null);
   const [idCardBack, setIdCardBack] = useState<string | null>(null);
+  const [analyzingSide, setAnalyzingSide] = useState<'front' | 'back' | null>(null);
 
-  // Paso 3: Rostro y Verificación Biométrica en Vivo
+  // Paso 2: Cruce Biométrico Facial en Vivo
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
   const [verifyingBiometrics, setVerifyingBiometrics] = useState(false);
   const [biometricVerified, setBiometricVerified] = useState(false);
   const [biometricScore, setBiometricScore] = useState<number | null>(null);
-  const [livenessChallenge, setLivenessChallenge] = useState<(typeof LIVENESS_CHALLENGES)[0] | null>(
-    null
+  const [livenessChallenge, setLivenessChallenge] = useState(
+    () => LIVENESS_CHALLENGES[Math.floor(Math.random() * LIVENESS_CHALLENGES.length)]
   );
 
-  // Paso 4: Confirmación
+  // Paso 3: Confirmación final
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stepError, setStepError] = useState<string | null>(null);
+
+  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+    };
+  }, []);
 
   const reportError = (title: string, message: string) => {
     setStepError(message);
@@ -81,13 +95,9 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
     }
   };
 
-  const startLivenessChallenge = () => {
-    const random = LIVENESS_CHALLENGES[Math.floor(Math.random() * LIVENESS_CHALLENGES.length)];
-    setLivenessChallenge(random);
-  };
-
-  const confirmLivenessAndCapture = async () => {
-    await handleCapturePhoto('selfie', true);
+  const rotateChallenge = () => {
+    const next = LIVENESS_CHALLENGES[Math.floor(Math.random() * LIVENESS_CHALLENGES.length)];
+    setLivenessChallenge(next);
   };
 
   const requestCameraPermission = async () => {
@@ -96,12 +106,41 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
       if (status !== 'granted') {
         reportError(
           'Permiso de cámara',
-          'Necesitamos acceso a tu cámara para verificar tu identidad de forma segura.'
+          'Necesitamos acceso a tu cámara para escanear tu documento y validar tu rostro.'
         );
         return false;
       }
     }
     return true;
+  };
+
+  const normalizeWebImage = async (uri: string): Promise<string> => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return uri;
+    return new Promise<string>((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const maxDim = 1600;
+        let w = img.naturalWidth || img.width;
+        let h = img.naturalHeight || img.height;
+        if (w > maxDim || h > maxDim) {
+          const ratio = Math.min(maxDim / w, maxDim / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(uri);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.88));
+      };
+      img.onerror = () => resolve(uri);
+      img.src = uri;
+    });
   };
 
   const handleCapturePhoto = async (
@@ -113,116 +152,160 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
     if (!hasPermission) return;
 
     try {
-      const options: ImagePicker.ImagePickerOptions = {
-        // En iOS, allowsEditing fuerza un recorte cuadrado 1:1 que corta los bordes de la cédula;
-        // capturar completo a calidad 0.8 preserva la nitidez del retrato impreso para AWS Rekognition.
+      const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
         quality: 0.8,
         base64: true,
         cameraType: useFrontCamera
           ? ImagePicker.CameraType.front
           : ImagePicker.CameraType.back,
-      };
+      });
 
-      const result = await ImagePicker.launchCameraAsync(options);
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        let dataUri = asset.base64
-          ? `data:image/jpeg;base64,${asset.base64}`
-          : asset.uri;
+      const asset = result.assets[0];
+      let dataUri = asset.base64
+        ? `data:image/jpeg;base64,${asset.base64}`
+        : asset.uri;
 
-        // En navegadores móviles/escritorio, normalizar y comprimir a JPEG <=1600px
-        if (Platform.OS === 'web' && asset.uri && typeof document !== 'undefined') {
-          try {
-            dataUri = await new Promise<string>((resolve, reject) => {
-              const img = new window.Image();
-              img.onload = () => {
-                const maxDim = 1600;
-                let w = img.naturalWidth || img.width;
-                let h = img.naturalHeight || img.height;
-                if (w > maxDim || h > maxDim) {
-                  const ratio = Math.min(maxDim / w, maxDim / h);
-                  w = Math.round(w * ratio);
-                  h = Math.round(h * ratio);
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                  resolve(dataUri);
-                  return;
-                }
-                ctx.drawImage(img, 0, 0, w, h);
-                resolve(canvas.toDataURL('image/jpeg', 0.88));
-              };
-              img.onerror = () => reject(new Error('Image decode failed'));
-              img.src = asset.uri;
-            });
-          } catch {
-            // Conservar dataUri original si canvas falla
+      if (Platform.OS === 'web' && asset.uri) {
+        dataUri = await normalizeWebImage(asset.uri);
+      }
+
+      // 1. FRENTE DE CÉDULA: OCR + Detección de Retrato con IA en vivo
+      if (target === 'idFront') {
+        setAnalyzingSide('front');
+        setSelfiePhoto(null);
+        setBiometricVerified(false);
+        setBiometricScore(null);
+
+        try {
+          const analysis = await authService.analyzeDocument({
+            imageBase64: dataUri,
+            side: 'front',
+          });
+
+          setIdCardFront(dataUri);
+          setDetectedDocType(analysis.documentType || 'Cédula de Ciudadanía');
+          setDocFaceConfidence(analysis.faceConfidence);
+
+          if (analysis.detectedFullName) {
+            setFullName(analysis.detectedFullName);
+            setAiExtractedName(true);
           }
+          if (analysis.detectedCedula) {
+            setCedula(analysis.detectedCedula);
+            setAiExtractedCedula(true);
+          }
+
+          if (Platform.OS !== 'web') Vibration.vibrate(45);
+
+          // Si ya tenía reverso capturado, avanzar automáticamente al cruce facial
+          if (idCardBack) {
+            autoAdvanceTimer.current = setTimeout(() => setStep(2), 500);
+          }
+        } catch (err: any) {
+          setIdCardFront(null);
+          const msg =
+            err?.response?.data?.message ||
+            'No logramos leer el frente de tu cédula. Asegúrate de enfocar el lado con tu fotografía y buena luz.';
+          reportError('Lectura de documento', msg);
+        } finally {
+          setAnalyzingSide(null);
+        }
+        return;
+      }
+
+      // 2. REVERSO DE CÉDULA: Verificación óptica + Auto-avance al Paso 2
+      if (target === 'idBack') {
+        setAnalyzingSide('back');
+        try {
+          const backAnalysis = await authService.analyzeDocument({
+            imageBase64: dataUri,
+            side: 'back',
+          });
+
+          setIdCardBack(dataUri);
+
+          // Respaldo: si el frente tenía brillo parcial y el reverso trae MRZ/datos legibles, completarlos
+          if (!fullName && backAnalysis.detectedFullName) {
+            setFullName(backAnalysis.detectedFullName);
+            setAiExtractedName(true);
+          }
+          if (!cedula && backAnalysis.detectedCedula) {
+            setCedula(backAnalysis.detectedCedula);
+            setAiExtractedCedula(true);
+          }
+
+          if (Platform.OS !== 'web') Vibration.vibrate(45);
+
+          if (idCardFront) {
+            autoAdvanceTimer.current = setTimeout(() => setStep(2), 550);
+          }
+        } catch (err: any) {
+          setIdCardBack(null);
+          const msg =
+            err?.response?.data?.message ||
+            'No logramos validar el reverso del documento. Acerca un poco más la cámara sin reflejos.';
+          reportError('Reverso no legible', msg);
+        } finally {
+          setAnalyzingSide(null);
+        }
+        return;
+      }
+
+      // 3. SELFIE EN VIVO: Comparación Biométrica contra Retrato de Cédula + Auto-avance al Paso 3
+      if (target === 'selfie') {
+        if (!idCardFront) {
+          setStep(1);
+          return;
         }
 
-        if (target === 'idFront') {
-          setIdCardFront(dataUri);
-          // Si se reemplaza el frente de la cédula, obligar a re-verificar el rostro
-          setSelfiePhoto(null);
-          setBiometricVerified(false);
-          setBiometricScore(null);
-        } else if (target === 'idBack') {
-          setIdCardBack(dataUri);
-        } else if (target === 'selfie') {
-          if (!idCardFront) {
+        setVerifyingBiometrics(true);
+        setBiometricVerified(false);
+        setBiometricScore(null);
+
+        try {
+          const verification = await authService.verifyBiometrics({
+            idCardFront,
+            selfiePhoto: dataUri,
+          });
+
+          if (!verification?.verified) {
+            setSelfiePhoto(null);
             reportError(
-              'Documento requerido',
-              'Primero captura el frente de tu cédula en el paso anterior.'
+              'Identidad no coincide',
+              'El rostro capturado no corresponde al titular del documento.'
             );
             return;
           }
 
-          setVerifyingBiometrics(true);
+          setSelfiePhoto(dataUri);
+          setBiometricVerified(true);
+          setBiometricScore(verification.similarityScore);
+
+          if (Platform.OS !== 'web') Vibration.vibrate([0, 50, 60, 50]);
+
+          // Avance automático fluido al Paso 3 tras confirmar identidad
+          autoAdvanceTimer.current = setTimeout(() => setStep(3), 700);
+        } catch (bioErr: any) {
+          setSelfiePhoto(null);
           setBiometricVerified(false);
           setBiometricScore(null);
-
-          try {
-            const verification = await authService.verifyBiometrics({
-              idCardFront,
-              selfiePhoto: dataUri,
-            });
-
-            if (!verification?.verified) {
-              setSelfiePhoto(null);
-              setBiometricVerified(false);
-              reportError(
-                'Identidad no coincide',
-                'El rostro capturado no coincide con el documento de identidad.'
-              );
-              return;
-            }
-
-            setSelfiePhoto(dataUri);
-            setBiometricVerified(true);
-            setBiometricScore(verification.similarityScore);
-          } catch (bioErr: any) {
-            setSelfiePhoto(null);
-            setBiometricVerified(false);
-            setBiometricScore(null);
-            const serverMsg =
-              bioErr?.response?.data?.message ||
-              'No fue posible validar tu identidad facial contra tu documento. Asegúrate de tener buena iluminación y que seas el titular de la cédula.';
-            reportError('Verificación facial rechazada', serverMsg);
-          } finally {
-            setVerifyingBiometrics(false);
-          }
+          const serverMsg =
+            bioErr?.response?.data?.message ||
+            'El rostro capturado no coincide con el documento de identidad.';
+          reportError('Verificación facial rechazada', serverMsg);
+        } finally {
+          setVerifyingBiometrics(false);
         }
       }
-    } catch (err) {
-      console.warn('Error al abrir la cámara:', err);
+    } catch {
       reportError(
         'Cámara no disponible',
-        'No se pudo abrir la cámara. Revisa los permisos de tu navegador o teléfono.'
+        'No se pudo abrir la cámara. Verifica los permisos del dispositivo.'
       );
     }
   };
@@ -254,22 +337,23 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
     return { level: score, label: 'Excelente', color: palette.emeraldBright };
   };
 
-  const handleNextStep1 = () => {
+  const handleFinalSubmit = async () => {
     setStepError(null);
+    if (!idCardFront || !idCardBack || !selfiePhoto || !biometricVerified) {
+      reportError('Verificación incompleta', 'Completa primero el escaneo documental y facial.');
+      return;
+    }
     if (!fullName.trim() || !cedula.trim() || !email.trim() || !password) {
-      reportError('Datos incompletos', 'Por favor completa los campos marcados con asterisco.');
+      reportError('Datos pendientes', 'Completa tu correo electrónico y contraseña.');
       return;
     }
     if (!/^\d{6,10}$/.test(cedula.trim())) {
-      reportError(
-        'Cédula inválida',
-        'Ingresa entre 6 y 10 dígitos numéricos, sin puntos ni espacios.'
-      );
+      reportError('Cédula inválida', 'Verifica los dígitos de tu número de documento.');
       return;
     }
     const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(email.trim())) {
-      reportError('Correo inválido', 'Revisa el formato de tu correo electrónico.');
+      reportError('Correo inválido', 'Ingresa un correo electrónico válido.');
       return;
     }
     const passError = validatePassword(password);
@@ -277,84 +361,37 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
       reportError('Contraseña insegura', passError);
       return;
     }
-    if (phone.trim() && !/^\d{7,10}$/.test(phone.trim().replace(/[\s\-\+]/g, ''))) {
-      reportError('Teléfono inválido', 'Ingresa un número de entre 7 y 10 dígitos.');
-      return;
-    }
-    setStep(2);
-  };
-
-  const handleNextStep2 = () => {
-    setStepError(null);
-    if (!idCardFront || !idCardBack) {
-      reportError(
-        'Fotos pendientes',
-        'Toma la foto frontal y posterior de tu cédula para continuar.'
-      );
-      return;
-    }
-    setStep(3);
-  };
-
-  const handleNextStep3 = () => {
-    setStepError(null);
-    if (!selfiePhoto || !biometricVerified) {
-      reportError(
-        'Biometría pendiente',
-        'Debes superar la verificación facial contra tu cédula antes de continuar.'
-      );
-      return;
-    }
-    setStep(4);
-  };
-
-  const handleFinalSubmit = async () => {
-    setStepError(null);
     if (!acceptedTerms) {
       reportError(
-        'Confirmación pendiente',
-        'Acepta la declaración de autenticidad para enviar tu registro.'
+        'Consentimiento requerido',
+        'Acepta la autorización de tratamiento biométrico (Ley 1581) para activar tu cuenta.'
       );
       return;
     }
 
     setLoading(true);
     try {
-      const registeredUser = await authService.register({
+      await authService.register({
         fullName: fullName.trim(),
         cedula: cedula.trim(),
         email: email.trim().toLowerCase(),
         password,
         phone: phone.trim() || undefined,
-        idCardFront: idCardFront || undefined,
-        idCardBack: idCardBack || undefined,
-        selfiePhoto: selfiePhoto || undefined,
+        idCardFront,
+        idCardBack,
+        selfiePhoto,
       });
 
-      const autoVerified = Boolean(registeredUser?.isVerified);
-      const successMsg = autoVerified
-        ? 'Tu identidad biométrica fue validada automáticamente y tus documentos quedaron cifrados de forma segura.'
-        : 'Tus documentos fueron validados ópticamente y cifrados en bóveda segura (AES-256).\n\nYa puedes acceder mientras un supervisor confirma tu sello de verificación.';
-
-      if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined') {
-          window.alert(successMsg);
-        }
-        onRegister();
-      } else {
-        Alert.alert('Cuenta creada', successMsg, [
-          { text: 'Entendido', onPress: onRegister },
-        ]);
-      }
+      if (Platform.OS !== 'web') Vibration.vibrate(60);
+      onRegister();
     } catch (e: any) {
-      console.error('Error de registro KYC:', e);
       let msg = 'No se pudo completar el registro.';
       if (!e.response) {
         msg = 'No fue posible conectar con el servidor. Revisa tu conexión.';
       } else if (e.response?.data?.message) {
         msg = e.response.data.message;
       }
-      reportError('Error en el envío', msg);
+      reportError('No se pudo activar la cuenta', msg);
     } finally {
       setLoading(false);
     }
@@ -388,12 +425,12 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
               </TouchableOpacity>
 
               <View style={styles.brandMini}>
-                <PrismEmblem size={30} />
-                <Text style={styles.brandMiniText}>Red Ciudadana</Text>
+                <PrismEmblem size={28} />
+                <Text style={styles.brandMiniText}>Verificación IA</Text>
               </View>
             </View>
 
-            {/* Clean Sculpted Stepper Pills */}
+            {/* 3-Step Stepper */}
             <View style={[styles.stepperBar, glassSurfaceStyle(22, false)]}>
               {STEP_META.map((item) => {
                 const isCurrent = step === item.id;
@@ -414,7 +451,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         isDone && styles.stepPillTextDone,
                       ]}
                     >
-                      {item.id}. {item.label}
+                      {item.label}
                     </Text>
                   </View>
                 );
@@ -429,152 +466,88 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
             ) : null}
 
             {/* ============================================================== */}
-            {/* PASO 1: DATOS PERSONALES                                       */}
+            {/* PASO 1: LECTURA AUTOMÁTICA DE CÉDULA CON IA                     */}
             {/* ============================================================== */}
             {step === 1 && (
               <LiquidGlassCard strong blurPx={34}>
-                <Text style={styles.cardTitle}>Crea tu cuenta verificada</Text>
+                <Text style={styles.cardTitle}>Escaneo inteligente</Text>
                 <Text style={styles.cardSubtitle}>
-                  Escribe tus datos tal como aparecen en tu documento de identidad.
+                  Enfoca tu cédula; el sistema extraerá tus datos automáticamente sin escribirlos a mano.
                 </Text>
 
-                <LiquidInput
-                  label="Nombre completo *"
-                  icon="user"
-                  placeholder="Ej. Andrés Felipe Guillén"
-                  value={fullName}
-                  onChangeText={setFullName}
-                  autoCapitalize="words"
-                />
-
-                <LiquidInput
-                  label="Número de cédula *"
-                  hint="Sin puntos"
-                  icon="idCard"
-                  placeholder="Ej. 1096123456"
-                  value={cedula}
-                  onChangeText={setCedula}
-                  keyboardType="number-pad"
-                />
-
-                <LiquidInput
-                  label="Teléfono móvil"
-                  hint="Opcional"
-                  icon="phone"
-                  placeholder="Ej. 3001234567"
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                />
-
-                <LiquidInput
-                  label="Correo electrónico *"
-                  icon="mail"
-                  placeholder="nombre@correo.com"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-
-                <LiquidInput
-                  label="Contraseña *"
-                  hint="Mín. 8 y un símbolo"
-                  icon="lock"
-                  placeholder="Crea una contraseña segura"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  rightElement={
-                    <TouchableOpacity
-                      onPress={() => setShowPassword((prev) => !prev)}
-                      style={{ padding: 2 }}
-                    >
-                      <PrismIcon
-                        name={showPassword ? 'eyeOff' : 'eye'}
-                        size={17}
-                        color={palette.textSecondary}
-                      />
-                    </TouchableOpacity>
-                  }
-                />
-
-                {password.length > 0 && (
-                  <View style={styles.strengthRow}>
-                    <View style={styles.strengthTrack}>
-                      {[1, 2, 3, 4, 5].map((lvl) => (
-                        <View
-                          key={lvl}
-                          style={[
-                            styles.strengthSegment,
-                            lvl <= strength.level && { backgroundColor: strength.color },
-                          ]}
-                        />
-                      ))}
-                    </View>
-                    <Text style={[styles.strengthText, { color: strength.color }]}>
-                      {strength.label}
-                    </Text>
-                  </View>
-                )}
-
-                <LiquidPillButton
-                  label="Continuar"
-                  variant="obsidian"
-                  size="lg"
-                  icon="arrowRight"
-                  onPress={handleNextStep1}
-                  style={{ marginTop: 12 }}
-                />
-              </LiquidGlassCard>
-            )}
-
-            {/* ============================================================== */}
-            {/* PASO 2: DOCUMENTO DE IDENTIDAD                                 */}
-            {/* ============================================================== */}
-            {step === 2 && (
-              <LiquidGlassCard strong blurPx={34}>
-                <Text style={styles.cardTitle}>Documento de identidad</Text>
-                <Text style={styles.cardSubtitle}>
-                  Toma una foto clara de ambos lados de tu cédula usando la cámara en vivo.
-                </Text>
-
-                {/* Frente */}
+                {/* Frente de la cédula */}
                 <View style={styles.docBox}>
                   <View style={styles.docHeader}>
-                    <Text style={styles.docTitle}>Frente de la cédula</Text>
+                    <Text style={styles.docTitle}>1. Frente del documento</Text>
                     <StatusPill
-                      label={idCardFront ? 'Lista' : 'Pendiente'}
-                      tone={idCardFront ? 'emerald' : 'neutral'}
+                      label={
+                        analyzingSide === 'front'
+                          ? 'Leyendo IA...'
+                          : idCardFront
+                          ? 'Extraído'
+                          : 'Requerido'
+                      }
+                      tone={
+                        analyzingSide === 'front'
+                          ? 'aqua'
+                          : idCardFront
+                          ? 'emerald'
+                          : 'neutral'
+                      }
                     />
                   </View>
 
-                  {idCardFront ? (
+                  {analyzingSide === 'front' ? (
+                    <View style={styles.aiScanBox}>
+                      <TelemetryEqualizer color={palette.aqua} active />
+                      <Text style={styles.aiScanTitle}>
+                        Extrayendo nombres, número y retrato facial...
+                      </Text>
+                    </View>
+                  ) : idCardFront ? (
                     <View style={styles.previewWrap}>
                       <Image
                         source={{ uri: idCardFront }}
                         style={styles.previewImg}
                         resizeMode="cover"
                       />
+
+                      {/* Tarjeta de telemetría extraída automáticamente por IA */}
+                      <View style={styles.extractedTelemetryCard}>
+                        <View style={styles.extractedHeaderRow}>
+                          <PrismIcon name="scan" size={14} color={palette.aqua} />
+                          <Text style={styles.extractedTypeText}>{detectedDocType}</Text>
+                          {docFaceConfidence ? (
+                            <Text style={styles.extractedConfText}>
+                              Retrato {docFaceConfidence}%
+                            </Text>
+                          ) : null}
+                        </View>
+                        {fullName ? (
+                          <Text style={styles.extractedPrimaryText}>{fullName}</Text>
+                        ) : null}
+                        {cedula ? (
+                          <Text style={styles.extractedSubText}>No. {cedula}</Text>
+                        ) : null}
+                      </View>
+
                       <LiquidPillButton
-                        label="Repetir foto"
+                        label="Reescanear frente"
                         variant="glass"
                         size="sm"
                         icon="refresh"
                         iconPosition="left"
                         onPress={() => handleCapturePhoto('idFront')}
-                        style={{ marginTop: 10 }}
                       />
                     </View>
                   ) : (
                     <View style={styles.captureWell}>
-                      <PrismIcon name="idCard" size={26} color={palette.aqua} />
+                      <PrismIcon name="idCard" size={28} color={palette.aqua} />
                       <Text style={styles.captureHint}>
-                        Ubica tu documento sobre una superficie bien iluminada
+                        Ubica el frente donde aparece tu fotografía con buena luz
                       </Text>
                       <LiquidPillButton
-                        label="Tomar foto frontal"
+                        label="Escanear frente"
                         variant="obsidian"
                         size="sm"
                         icon="camera"
@@ -585,17 +558,36 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                   )}
                 </View>
 
-                {/* Reverso */}
+                {/* Reverso de la cédula */}
                 <View style={styles.docBox}>
                   <View style={styles.docHeader}>
-                    <Text style={styles.docTitle}>Reverso de la cédula</Text>
+                    <Text style={styles.docTitle}>2. Reverso del documento</Text>
                     <StatusPill
-                      label={idCardBack ? 'Lista' : 'Pendiente'}
-                      tone={idCardBack ? 'emerald' : 'neutral'}
+                      label={
+                        analyzingSide === 'back'
+                          ? 'Validando...'
+                          : idCardBack
+                          ? 'Validado'
+                          : 'Pendiente'
+                      }
+                      tone={
+                        analyzingSide === 'back'
+                          ? 'aqua'
+                          : idCardBack
+                          ? 'emerald'
+                          : 'neutral'
+                      }
                     />
                   </View>
 
-                  {idCardBack ? (
+                  {analyzingSide === 'back' ? (
+                    <View style={styles.aiScanBox}>
+                      <TelemetryEqualizer color={palette.aqua} active />
+                      <Text style={styles.aiScanTitle}>
+                        Verificando respaldo y código documental...
+                      </Text>
+                    </View>
+                  ) : idCardBack ? (
                     <View style={styles.previewWrap}>
                       <Image
                         source={{ uri: idCardBack }}
@@ -603,73 +595,64 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         resizeMode="cover"
                       />
                       <LiquidPillButton
-                        label="Repetir foto"
+                        label="Reescanear reverso"
                         variant="glass"
                         size="sm"
                         icon="refresh"
                         iconPosition="left"
                         onPress={() => handleCapturePhoto('idBack')}
-                        style={{ marginTop: 10 }}
                       />
                     </View>
                   ) : (
                     <View style={styles.captureWell}>
                       <PrismIcon name="scan" size={26} color={palette.aqua} />
                       <Text style={styles.captureHint}>
-                        Asegúrate de que la firma y el código posterior se vean nítidos
+                        Al validar el reverso pasarás automáticamente a biometría
                       </Text>
                       <LiquidPillButton
-                        label="Tomar foto posterior"
+                        label="Escanear reverso"
                         variant="obsidian"
                         size="sm"
                         icon="camera"
                         iconPosition="left"
+                        disabled={!idCardFront || analyzingSide !== null}
                         onPress={() => handleCapturePhoto('idBack')}
                       />
                     </View>
                   )}
                 </View>
 
-                <View style={styles.navRow}>
+                {idCardFront && idCardBack && analyzingSide === null ? (
                   <LiquidPillButton
-                    label="Atrás"
-                    variant="glass"
-                    icon="arrowLeft"
-                    iconPosition="left"
-                    onPress={() => {
-                      setStepError(null);
-                      setStep(1);
-                    }}
-                  />
-                  <LiquidPillButton
-                    label="Continuar"
+                    label="Continuar a biometría"
                     variant="obsidian"
+                    size="lg"
                     icon="arrowRight"
-                    disabled={!idCardFront || !idCardBack}
-                    onPress={handleNextStep2}
-                    style={styles.flex}
+                    onPress={() => setStep(2)}
                   />
-                </View>
+                ) : null}
               </LiquidGlassCard>
             )}
 
             {/* ============================================================== */}
-            {/* PASO 3: CONFIRMACIÓN FACIAL                                    */}
+            {/* PASO 2: CRUCE BIOMÉTRICO FACIAL EN UN TOQUE                     */}
             {/* ============================================================== */}
-            {step === 3 && (
+            {step === 2 && (
               <LiquidGlassCard strong blurPx={34}>
-                <Text style={styles.cardTitle}>Confirmación facial</Text>
+                <Text style={styles.cardTitle}>Reconocimiento facial</Text>
                 <Text style={styles.cardSubtitle}>
-                  Una breve foto en vivo nos ayuda a proteger a toda la comunidad contra cuentas falsas.
+                  {fullName
+                    ? `Confirmando en vivo la identidad de ${fullName.split(' ')[0]}.`
+                    : 'Comparamos tus rasgos faciales en vivo contra el retrato de tu cédula.'}
                 </Text>
 
                 <View style={styles.selfieCenterStage}>
                   {verifyingBiometrics ? (
                     <View style={[styles.sculptedSelfieOrb, sculptedShadow()]}>
                       <ActivityIndicator size="large" color={palette.aqua} />
-                      <Text style={styles.orbTitle}>Verificando biometría</Text>
+                      <Text style={styles.orbTitle}>Analizando geometría facial</Text>
                       <Text style={styles.orbHint}>
-                        Comparando tus rasgos faciales con el frente de tu cédula...
+                        Cruzando vectores biométricos con tu documento...
                       </Text>
                     </View>
                   ) : selfiePhoto && biometricVerified ? (
@@ -685,14 +668,14 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         <StatusPill
                           label={
                             biometricScore !== null
-                              ? `Identidad verificada · ${Math.round(biometricScore)}%`
-                              : 'Identidad verificada'
+                              ? `Titular confirmado · ${Math.round(biometricScore)}%`
+                              : 'Titular confirmado'
                           }
                           tone="emerald"
                         />
                       </View>
                       <LiquidPillButton
-                        label="Tomar otra foto"
+                        label="Repetir captura"
                         variant="glass"
                         size="sm"
                         icon="refresh"
@@ -701,67 +684,49 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                           setSelfiePhoto(null);
                           setBiometricVerified(false);
                           setBiometricScore(null);
-                          setLivenessChallenge(null);
+                          rotateChallenge();
                         }}
                         style={{ marginTop: 10 }}
                       />
                     </View>
-                  ) : livenessChallenge ? (
+                  ) : (
                     <View style={[styles.sculptedSelfieOrb, sculptedShadow()]}>
-                      <Text style={styles.challengeSmallLabel}>Gesto rápido</Text>
+                      <PrismIcon name="scan" size={32} color={palette.aqua} />
                       <Text style={styles.challengeCopy}>
                         {livenessChallenge.instruction}
                       </Text>
                       <LiquidPillButton
-                        label="Abrir cámara"
+                        label="Iniciar escaneo facial"
                         variant="obsidian"
                         size="sm"
                         icon="camera"
                         iconPosition="left"
-                        onPress={confirmLivenessAndCapture}
+                        onPress={() => handleCapturePhoto('selfie', true)}
                       />
-                      <TouchableOpacity
-                        onPress={startLivenessChallenge}
-                        style={{ marginTop: 10 }}
-                      >
-                        <Text style={styles.otherGestureLink}>Probar otro gesto</Text>
+                      <TouchableOpacity onPress={rotateChallenge} style={{ marginTop: 8 }}>
+                        <Text style={styles.otherGestureLink}>Cambiar indicación</Text>
                       </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <View style={[styles.sculptedSelfieOrb, sculptedShadow()]}>
-                      <PrismIcon name="scan" size={34} color={palette.aqua} />
-                      <Text style={styles.orbTitle}>Encuadra tu rostro</Text>
-                      <Text style={styles.orbHint}>
-                        Busca buena luz natural sin gafas oscuras
-                      </Text>
-                      <LiquidPillButton
-                        label="Comenzar"
-                        variant="obsidian"
-                        size="sm"
-                        icon="arrowRight"
-                        onPress={startLivenessChallenge}
-                      />
                     </View>
                   )}
                 </View>
 
                 <View style={styles.navRow}>
                   <LiquidPillButton
-                    label="Atrás"
+                    label="Documento"
                     variant="glass"
                     icon="arrowLeft"
                     iconPosition="left"
                     onPress={() => {
                       setStepError(null);
-                      setStep(2);
+                      setStep(1);
                     }}
                   />
                   <LiquidPillButton
-                    label="Revisar"
+                    label="Siguiente"
                     variant="obsidian"
                     icon="arrowRight"
                     disabled={!selfiePhoto || !biometricVerified || verifyingBiometrics}
-                    onPress={handleNextStep3}
+                    onPress={() => setStep(3)}
                     style={styles.flex}
                   />
                 </View>
@@ -769,59 +734,109 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
             )}
 
             {/* ============================================================== */}
-            {/* PASO 4: REVISIÓN Y ENVÍO                                       */}
+            {/* PASO 3: DATOS AUTOCOMPLETADOS + CREDENCIAL DE ACCESO           */}
             {/* ============================================================== */}
-            {step === 4 && (
+            {step === 3 && (
               <LiquidGlassCard strong blurPx={34}>
-                <Text style={styles.cardTitle}>Revisa tu solicitud</Text>
+                <View style={styles.step3BadgeRow}>
+                  <StatusPill
+                    label={
+                      biometricScore !== null
+                        ? `Biometría ${Math.round(biometricScore)}% aprobada`
+                        : 'Biometría aprobada'
+                    }
+                    tone="emerald"
+                  />
+                  {(aiExtractedName || aiExtractedCedula) && (
+                    <StatusPill label="Autocompletado IA" tone="aqua" />
+                  )}
+                </View>
+
+                <Text style={styles.cardTitle}>Finaliza tu acceso</Text>
                 <Text style={styles.cardSubtitle}>
-                  Confirma que tus datos estén correctos antes de finalizar.
+                  Verifica los datos leídos de tu cédula y define tu correo y clave.
                 </Text>
 
-                <View style={styles.summaryCard}>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryKey}>Nombre</Text>
-                    <Text style={styles.summaryVal}>{fullName}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryKey}>Cédula</Text>
-                    <Text style={styles.summaryVal}>{cedula}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryKey}>Correo</Text>
-                    <Text style={styles.summaryVal}>{email.toLowerCase()}</Text>
-                  </View>
-                  {phone.trim() ? (
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryKey}>Teléfono</Text>
-                      <Text style={styles.summaryVal}>{phone}</Text>
-                    </View>
-                  ) : null}
-                </View>
+                <LiquidInput
+                  label="Nombre completo *"
+                  hint={aiExtractedName ? 'Leído por IA' : undefined}
+                  icon="user"
+                  placeholder="Nombre y apellidos como en tu cédula"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  autoCapitalize="words"
+                />
 
-                <View style={styles.thumbsRow}>
-                  {idCardFront ? (
-                    <Image
-                      source={{ uri: idCardFront }}
-                      style={styles.thumbRect}
-                      resizeMode="cover"
-                    />
-                  ) : null}
-                  {idCardBack ? (
-                    <Image
-                      source={{ uri: idCardBack }}
-                      style={styles.thumbRect}
-                      resizeMode="cover"
-                    />
-                  ) : null}
-                  {selfiePhoto ? (
-                    <Image
-                      source={{ uri: selfiePhoto }}
-                      style={styles.thumbCircle}
-                      resizeMode="cover"
-                    />
-                  ) : null}
-                </View>
+                <LiquidInput
+                  label="Número de cédula *"
+                  hint={aiExtractedCedula ? 'Leído por IA' : undefined}
+                  icon="idCard"
+                  placeholder="6 a 10 dígitos sin puntos"
+                  value={cedula}
+                  onChangeText={(t) => setCedula(t.replace(/[^\d]/g, ''))}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+
+                <LiquidInput
+                  label="Correo electrónico *"
+                  icon="mail"
+                  placeholder="nombre@correo.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+
+                <LiquidInput
+                  label="Teléfono celular (opcional)"
+                  icon="phone"
+                  placeholder="3001234567"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+
+                <LiquidInput
+                  label="Contraseña segura *"
+                  icon="lock"
+                  placeholder="Mínimo 8 caracteres, mayúscula y símbolo"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  rightElement={
+                    <TouchableOpacity
+                      onPress={() => setShowPassword((prev) => !prev)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <PrismIcon
+                        name={showPassword ? 'eyeOff' : 'eye'}
+                        size={17}
+                        color={palette.textMuted}
+                      />
+                    </TouchableOpacity>
+                  }
+                />
+
+                {password.length > 0 && (
+                  <View style={styles.strengthRow}>
+                    <View style={styles.strengthTrack}>
+                      {[1, 2, 3, 4, 5].map((idx) => (
+                        <View
+                          key={idx}
+                          style={[
+                            styles.strengthSegment,
+                            idx <= strength.level && { backgroundColor: strength.color },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    <Text style={[styles.strengthText, { color: strength.color }]}>
+                      {strength.label}
+                    </Text>
+                  </View>
+                )}
 
                 <TouchableOpacity
                   style={[
@@ -842,7 +857,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                     ) : null}
                   </View>
                   <Text style={styles.declarationText}>
-                    Autorizo el tratamiento cifrado de mis datos biométricos conforme a la Ley 1581 de 2012 (Habeas Data) y declaro que los documentos entregados me pertenecen.
+                    Autorizo el cifrado AES-256 de mis datos biométricos conforme a la Ley 1581 de 2012 (Habeas Data).
                   </Text>
                 </TouchableOpacity>
 
@@ -854,11 +869,11 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                     iconPosition="left"
                     onPress={() => {
                       setStepError(null);
-                      setStep(3);
+                      setStep(2);
                     }}
                   />
                   <LiquidPillButton
-                    label="Enviar solicitud"
+                    label="Activar protección"
                     variant="obsidian"
                     icon="check"
                     loading={loading}
@@ -887,7 +902,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingVertical: 22,
   },
   shell: {
     width: '100%',
@@ -984,21 +999,191 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.6,
     color: palette.textPrimary,
-    marginBottom: 6,
+    marginBottom: 5,
   },
   cardSubtitle: {
     fontFamily: fontSans,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13.5,
+    lineHeight: 19,
     color: palette.textSecondary,
-    marginBottom: 20,
+    marginBottom: 18,
+  },
+  docBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.65)',
+    padding: 15,
+    marginBottom: 14,
+  },
+  docHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  docTitle: {
+    fontFamily: fontSans,
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  aiScanBox: {
+    paddingVertical: 26,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  aiScanTitle: {
+    fontFamily: fontSans,
+    fontSize: 13,
+    fontWeight: '600',
+    color: palette.textSecondary,
+    textAlign: 'center',
+  },
+  captureWell: {
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(148, 163, 184, 0.55)',
+    backgroundColor: 'rgba(248, 250, 252, 0.72)',
+    alignItems: 'center',
+    gap: 10,
+  },
+  captureHint: {
+    fontFamily: fontSans,
+    fontSize: 12.5,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    maxWidth: 260,
+  },
+  previewWrap: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  previewImg: {
+    width: '100%',
+    height: 152,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+  },
+  extractedTelemetryCard: {
+    width: '100%',
+    backgroundColor: 'rgba(240, 249, 255, 0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    gap: 3,
+  },
+  extractedHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  extractedTypeText: {
+    flex: 1,
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  extractedConfText: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
+    color: palette.emerald,
+  },
+  extractedPrimaryText: {
+    fontFamily: fontSans,
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    marginTop: 2,
+  },
+  extractedSubText: {
+    fontFamily: fontSans,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: palette.textSecondary,
+  },
+  selfieCenterStage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  sculptedSelfieOrb: {
+    width: 248,
+    minHeight: 248,
+    borderRadius: 124,
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 22,
+    gap: 12,
+  },
+  orbTitle: {
+    fontFamily: fontSans,
+    fontSize: 16.5,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    textAlign: 'center',
+  },
+  orbHint: {
+    fontFamily: fontSans,
+    fontSize: 12.5,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  challengeCopy: {
+    fontFamily: fontSans,
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: palette.textPrimary,
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  otherGestureLink: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.textSecondary,
+  },
+  selfieCapturedWrap: {
+    alignItems: 'center',
+  },
+  selfieBezel: {
+    width: 194,
+    height: 194,
+    borderRadius: 97,
+    padding: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  selfieImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 92,
+  },
+  step3BadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
   },
   strengthRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginTop: -4,
-    marginBottom: 8,
+    marginBottom: 10,
     paddingHorizontal: 6,
   },
   strengthTrack: {
@@ -1017,184 +1202,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  docBox: {
-    backgroundColor: 'rgba(255, 255, 255, 0.62)',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(203, 213, 225, 0.65)',
-    padding: 15,
-    marginBottom: 14,
-  },
-  docHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  docTitle: {
-    fontFamily: fontSans,
-    fontSize: 14,
-    fontWeight: '600',
-    color: palette.textPrimary,
-  },
-  captureWell: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(148, 163, 184, 0.55)',
-    backgroundColor: 'rgba(248, 250, 252, 0.72)',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    gap: 10,
-  },
-  captureHint: {
-    fontFamily: fontSans,
-    fontSize: 12.5,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  previewWrap: {
-    alignItems: 'center',
-  },
-  previewImg: {
-    width: '100%',
-    height: 148,
-    borderRadius: 14,
-  },
-  navRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 14,
-  },
-  selfieCenterStage: {
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  sculptedSelfieOrb: {
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  orbTitle: {
-    fontFamily: fontSans,
-    fontSize: 16,
-    fontWeight: '700',
-    color: palette.textPrimary,
-    marginTop: 10,
-  },
-  orbHint: {
-    fontFamily: fontSans,
-    fontSize: 12.5,
-    color: palette.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  challengeSmallLabel: {
-    fontFamily: fontSans,
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: palette.aqua,
-    marginBottom: 6,
-  },
-  challengeCopy: {
-    fontFamily: fontSans,
-    fontSize: 13,
-    lineHeight: 18,
-    color: palette.textPrimary,
-    textAlign: 'center',
-    marginBottom: 14,
-  },
-  otherGestureLink: {
-    fontFamily: fontSans,
-    fontSize: 12,
-    color: palette.textMuted,
-  },
-  selfieCapturedWrap: {
-    alignItems: 'center',
-  },
-  selfieBezel: {
-    padding: 5,
-    borderRadius: 102,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: palette.emeraldBorder,
-  },
-  selfieImg: {
-    width: 188,
-    height: 188,
-    borderRadius: 94,
-  },
-  summaryCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(203, 213, 225, 0.6)',
-    padding: 16,
-    gap: 10,
-    marginBottom: 14,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  summaryKey: {
-    fontFamily: fontSans,
-    fontSize: 13,
-    color: palette.textMuted,
-  },
-  summaryVal: {
-    fontFamily: fontSans,
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: palette.textPrimary,
-    flexShrink: 1,
-    textAlign: 'right',
-  },
-  thumbsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  thumbRect: {
-    flex: 1,
-    height: 70,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  thumbCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
   declarationCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    padding: 15,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.68)',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(203, 213, 225, 0.75)',
-    marginBottom: 6,
+    borderColor: 'rgba(203, 213, 225, 0.7)',
+    padding: 14,
+    marginTop: 4,
+    marginBottom: 16,
   },
   declarationCardActive: {
-    borderColor: palette.aquaBorder,
+    borderColor: 'rgba(14, 165, 233, 0.55)',
     backgroundColor: 'rgba(240, 249, 255, 0.85)',
   },
   checkCircle: {
@@ -1202,9 +1223,9 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: 'rgba(148, 163, 184, 0.8)',
-    justifyContent: 'center',
+    borderColor: '#94A3B8',
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 1,
   },
   checkCircleActive: {
@@ -1217,5 +1238,11 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 18,
     color: palette.textSecondary,
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
   },
 });

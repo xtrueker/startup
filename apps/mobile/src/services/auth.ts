@@ -121,6 +121,21 @@ export const authService = {
     return user;
   },
 
+  analyzeDocument: async (payload: {
+    imageBase64: string;
+    side: 'front' | 'back';
+  }): Promise<{
+    valid: boolean;
+    side: 'front' | 'back';
+    documentType: string;
+    detectedCedula: string | null;
+    detectedFullName: string | null;
+    faceConfidence: number | null;
+  }> => {
+    const res = await api.post('/auth/analyze-document', payload);
+    return res.data.data;
+  },
+
   verifyBiometrics: async (payload: {
     idCardFront: string;
     selfiePhoto: string;
