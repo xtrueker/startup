@@ -96,6 +96,7 @@ export interface RegisterData {
   idCardFront?: string;
   idCardBack?: string;
   selfiePhoto?: string;
+  livenessProofToken?: string;
 }
 
 export const authService = {
@@ -136,10 +137,26 @@ export const authService = {
     return res.data.data;
   },
 
+  getLivenessChallenge: async (): Promise<{
+    challengeType: 'smile' | 'turn_head' | 'open_mouth';
+    step1Prompt: string;
+    step2Prompt: string;
+    challengeToken: string;
+  }> => {
+    const res = await api.get('/auth/liveness-challenge');
+    return res.data.data;
+  },
+
   verifyBiometrics: async (payload: {
     idCardFront: string;
+    selfieNeutral: string;
     selfiePhoto: string;
-  }): Promise<{ verified: boolean; similarityScore: number }> => {
+    challengeToken: string;
+  }): Promise<{
+    verified: boolean;
+    similarityScore: number;
+    livenessProofToken: string;
+  }> => {
     const res = await api.post('/auth/verify-biometrics', payload);
     return res.data.data;
   },

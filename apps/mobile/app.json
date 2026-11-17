@@ -57,6 +57,12 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Necesitamos acceso a tu cámara frontal en vivo para verificar tu prueba de vida antisuplantación."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "cameraPermission": "Necesitamos acceso a tu cámara para capturar tu documento y verificar tu identidad biométrica.",

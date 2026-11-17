@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, CameraViewProps, useCameraPermissions } from 'expo-camera';
 import { authService } from '../services/auth';
 import { palette, fontSans, glassSurfaceStyle, sculptedShadow } from '../theme/prismTheme';
 import {
@@ -27,6 +28,10 @@ import {
   TelemetryEqualizer,
 } from '../components/ui/PrismPrimitives';
 
+const FrontLiveCamera = CameraView as unknown as React.ComponentType<
+  CameraViewProps & { ref?: any }
+>;
+
 interface RegisterScreenProps {
   onRegister: () => void;
   onGoLogin: () => void;
@@ -34,19 +39,15 @@ interface RegisterScreenProps {
 
 const STEP_META: { id: 1 | 2 | 3; label: string }[] = [
   { id: 1, label: '1. Cédula IA' },
-  { id: 2, label: '2. Biometría' },
+  { id: 2, label: '2. Vida Real' },
   { id: 3, label: '3. Activar' },
 ];
 
-const LIVENESS_CHALLENGES = [
-  { instruction: 'Mira al frente con naturalidad y buena iluminación.' },
-  { instruction: 'Gira muy levemente tu rostro hacia la derecha.' },
-  { instruction: 'Gira muy levemente tu rostro hacia la izquierda.' },
-  { instruction: 'Sonríe con naturalidad mirando a la cámara.' },
-];
+type LivePhase = 'idle' | 'phase1_neutral' | 'phase2_action' | 'verifying';
 
 export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreenProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [camPermission, requestCamPermission] = useCameraPermissions();
 
   // Datos extraídos automáticamente por IA + completados en Paso 3
   const [fullName, setFullName] = useState('');
@@ -66,27 +67,45 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
   const [idCardBack, setIdCardBack] = useState<string | null>(null);
   const [analyzingSide, setAnalyzingSide] = useState<'front' | 'back' | null>(null);
 
-  // Paso 2: Cruce Biométrico Facial en Vivo
+  // Paso 2: Prueba de Vida Activa (Cámara Frontal Bloqueada + Reto Dinámico en 2 Fotogramas)
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [livePhase, setLivePhase] = useState<LivePhase>('idle');
+  const [liveInstruction, setLiveInstruction] = useState<string>(
+    'Centra tu rostro dentro del óvalo'
+  );
+  const [countdownSec, setCountdownSec] = useState<number | null>(null);
+
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
-  const [verifyingBiometrics, setVerifyingBiometrics] = useState(false);
+  const [livenessProofToken, setLivenessProofToken] = useState<string | null>(null);
   const [biometricVerified, setBiometricVerified] = useState(false);
   const [biometricScore, setBiometricScore] = useState<number | null>(null);
-  const [livenessChallenge, setLivenessChallenge] = useState(
-    () => LIVENESS_CHALLENGES[Math.floor(Math.random() * LIVENESS_CHALLENGES.length)]
-  );
 
   // Paso 3: Confirmación final
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stepError, setStepError] = useState<string | null>(null);
 
-  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cameraRef = useRef<CameraView | null>(null);
+  const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const sequenceRunningRef = useRef(false);
+
+  const clearAllTimers = useCallback(() => {
+    timersRef.current.forEach((t) => clearTimeout(t));
+    timersRef.current = [];
+  }, []);
 
   useEffect(() => {
     return () => {
-      if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+      clearAllTimers();
     };
-  }, []);
+  }, [clearAllTimers]);
+
+  const schedule = (fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms);
+    timersRef.current.push(id);
+    return id;
+  };
 
   const reportError = (title: string, message: string) => {
     setStepError(message);
@@ -95,23 +114,17 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
     }
   };
 
-  const rotateChallenge = () => {
-    const next = LIVENESS_CHALLENGES[Math.floor(Math.random() * LIVENESS_CHALLENGES.length)];
-    setLivenessChallenge(next);
-  };
-
-  const requestCameraPermission = async () => {
-    if (Platform.OS !== 'web') {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        reportError(
-          'Permiso de cámara',
-          'Necesitamos acceso a tu cámara para escanear tu documento y validar tu rostro.'
-        );
-        return false;
-      }
-    }
-    return true;
+  const resetBiometrics = () => {
+    clearAllTimers();
+    sequenceRunningRef.current = false;
+    setScannerOpen(false);
+    setCameraReady(false);
+    setLivePhase('idle');
+    setCountdownSec(null);
+    setSelfiePhoto(null);
+    setLivenessProofToken(null);
+    setBiometricVerified(false);
+    setBiometricScore(null);
   };
 
   const normalizeWebImage = async (uri: string): Promise<string> => {
@@ -136,51 +149,43 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
           return;
         }
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.88));
+        resolve(canvas.toDataURL('image/jpeg', 0.86));
       };
       img.onerror = () => resolve(uri);
       img.src = uri;
     });
   };
 
-  const handleCapturePhoto = async (
-    target: 'idFront' | 'idBack' | 'selfie',
-    useFrontCamera = false
-  ) => {
+  // Escaneo de Cédula (Paso 1 — cámara trasera)
+  const handleCaptureDocument = async (target: 'idFront' | 'idBack') => {
     setStepError(null);
-    const hasPermission = await requestCameraPermission();
-    if (!hasPermission) return;
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        reportError('Permiso requerido', 'Activa el acceso a la cámara para leer tu cédula.');
+        return;
+      }
+    }
 
     try {
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
         quality: 0.8,
         base64: true,
-        cameraType: useFrontCamera
-          ? ImagePicker.CameraType.front
-          : ImagePicker.CameraType.back,
+        cameraType: ImagePicker.CameraType.back,
       });
 
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        return;
-      }
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
 
       const asset = result.assets[0];
-      let dataUri = asset.base64
-        ? `data:image/jpeg;base64,${asset.base64}`
-        : asset.uri;
-
+      let dataUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
       if (Platform.OS === 'web' && asset.uri) {
         dataUri = await normalizeWebImage(asset.uri);
       }
 
-      // 1. FRENTE DE CÉDULA: OCR + Detección de Retrato con IA en vivo
       if (target === 'idFront') {
         setAnalyzingSide('front');
-        setSelfiePhoto(null);
-        setBiometricVerified(false);
-        setBiometricScore(null);
-
+        resetBiometrics();
         try {
           const analysis = await authService.analyzeDocument({
             imageBase64: dataUri,
@@ -201,114 +206,178 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
           }
 
           if (Platform.OS !== 'web') Vibration.vibrate(45);
-
-          // Si ya tenía reverso capturado, avanzar automáticamente al cruce facial
           if (idCardBack) {
-            autoAdvanceTimer.current = setTimeout(() => setStep(2), 500);
+            schedule(() => setStep(2), 500);
           }
         } catch (err: any) {
           setIdCardFront(null);
-          const msg =
+          reportError(
+            'Lectura de documento',
             err?.response?.data?.message ||
-            'No logramos leer el frente de tu cédula. Asegúrate de enfocar el lado con tu fotografía y buena luz.';
-          reportError('Lectura de documento', msg);
+              'No se pudo leer el frente de tu cédula. Enfoca el lado donde aparece tu foto.'
+          );
         } finally {
           setAnalyzingSide(null);
         }
         return;
       }
 
-      // 2. REVERSO DE CÉDULA: Verificación óptica + Auto-avance al Paso 2
-      if (target === 'idBack') {
-        setAnalyzingSide('back');
-        try {
-          const backAnalysis = await authService.analyzeDocument({
-            imageBase64: dataUri,
-            side: 'back',
-          });
+      setAnalyzingSide('back');
+      try {
+        const backAnalysis = await authService.analyzeDocument({
+          imageBase64: dataUri,
+          side: 'back',
+        });
 
-          setIdCardBack(dataUri);
-
-          // Respaldo: si el frente tenía brillo parcial y el reverso trae MRZ/datos legibles, completarlos
-          if (!fullName && backAnalysis.detectedFullName) {
-            setFullName(backAnalysis.detectedFullName);
-            setAiExtractedName(true);
-          }
-          if (!cedula && backAnalysis.detectedCedula) {
-            setCedula(backAnalysis.detectedCedula);
-            setAiExtractedCedula(true);
-          }
-
-          if (Platform.OS !== 'web') Vibration.vibrate(45);
-
-          if (idCardFront) {
-            autoAdvanceTimer.current = setTimeout(() => setStep(2), 550);
-          }
-        } catch (err: any) {
-          setIdCardBack(null);
-          const msg =
-            err?.response?.data?.message ||
-            'No logramos validar el reverso del documento. Acerca un poco más la cámara sin reflejos.';
-          reportError('Reverso no legible', msg);
-        } finally {
-          setAnalyzingSide(null);
+        setIdCardBack(dataUri);
+        if (!fullName && backAnalysis.detectedFullName) {
+          setFullName(backAnalysis.detectedFullName);
+          setAiExtractedName(true);
         }
-        return;
-      }
-
-      // 3. SELFIE EN VIVO: Comparación Biométrica contra Retrato de Cédula + Auto-avance al Paso 3
-      if (target === 'selfie') {
-        if (!idCardFront) {
-          setStep(1);
-          return;
+        if (!cedula && backAnalysis.detectedCedula) {
+          setCedula(backAnalysis.detectedCedula);
+          setAiExtractedCedula(true);
         }
 
-        setVerifyingBiometrics(true);
-        setBiometricVerified(false);
-        setBiometricScore(null);
-
-        try {
-          const verification = await authService.verifyBiometrics({
-            idCardFront,
-            selfiePhoto: dataUri,
-          });
-
-          if (!verification?.verified) {
-            setSelfiePhoto(null);
-            reportError(
-              'Identidad no coincide',
-              'El rostro capturado no corresponde al titular del documento.'
-            );
-            return;
-          }
-
-          setSelfiePhoto(dataUri);
-          setBiometricVerified(true);
-          setBiometricScore(verification.similarityScore);
-
-          if (Platform.OS !== 'web') Vibration.vibrate([0, 50, 60, 50]);
-
-          // Avance automático fluido al Paso 3 tras confirmar identidad
-          autoAdvanceTimer.current = setTimeout(() => setStep(3), 700);
-        } catch (bioErr: any) {
-          setSelfiePhoto(null);
-          setBiometricVerified(false);
-          setBiometricScore(null);
-          const serverMsg =
-            bioErr?.response?.data?.message ||
-            'El rostro capturado no coincide con el documento de identidad.';
-          reportError('Verificación facial rechazada', serverMsg);
-        } finally {
-          setVerifyingBiometrics(false);
+        if (Platform.OS !== 'web') Vibration.vibrate(45);
+        if (idCardFront) {
+          schedule(() => setStep(2), 550);
         }
+      } catch (err: any) {
+        setIdCardBack(null);
+        reportError(
+          'Reverso no legible',
+          err?.response?.data?.message ||
+            'No logramos validar el reverso del documento. Evita reflejos directos.'
+        );
+      } finally {
+        setAnalyzingSide(null);
       }
     } catch {
-      reportError(
-        'Cámara no disponible',
-        'No se pudo abrir la cámara. Verifica los permisos del dispositivo.'
-      );
+      reportError('Cámara no disponible', 'No se pudo iniciar el lector de documentos.');
     }
   };
+
+  // Abrir escáner biométrico frontal bloqueado (sin botón de voltear cámara ni galería)
+  const openFrontLiveScanner = async () => {
+    setStepError(null);
+    if (!idCardFront) {
+      setStep(1);
+      return;
+    }
+
+    if (!camPermission?.granted) {
+      const perm = await requestCamPermission();
+      if (!perm.granted) {
+        reportError(
+          'Cámara frontal requerida',
+          'Debes permitir la cámara frontal en vivo para realizar la prueba antisuplantación.'
+        );
+        return;
+      }
+    }
+
+    setCameraReady(false);
+    setLivePhase('idle');
+    setCountdownSec(null);
+    setLiveInstruction('Preparando sensor biométrico frontal...');
+    setScannerOpen(true);
+  };
+
+  const snapLiveFrame = async (): Promise<string> => {
+    if (!cameraRef.current) {
+      throw new Error('Sensor frontal no inicializado');
+    }
+    const snap = await cameraRef.current.takePictureAsync({
+      quality: 0.75,
+      base64: true,
+    });
+    if (snap?.base64) {
+      return `data:image/jpeg;base64,${snap.base64}`;
+    }
+    if (snap?.uri) {
+      return Platform.OS === 'web' ? await normalizeWebImage(snap.uri) : snap.uri;
+    }
+    throw new Error('No se pudo capturar el fotograma en vivo');
+  };
+
+  // Ejecuta automáticamente la secuencia de 2 fotogramas en vivo apenas la cámara frontal está lista
+  const runAutomatedLivenessSequence = useCallback(async () => {
+    if (sequenceRunningRef.current || !idCardFront) return;
+    sequenceRunningRef.current = true;
+
+    try {
+      const challenge = await authService.getLivenessChallenge();
+
+      // FASE 1: Rostro neutro mirando al frente
+      setLivePhase('phase1_neutral');
+      setLiveInstruction(challenge.step1Prompt);
+      setCountdownSec(2);
+
+      await new Promise<void>((res) => schedule(res, 900));
+      setCountdownSec(1);
+      await new Promise<void>((res) => schedule(res, 900));
+      setCountdownSec(null);
+
+      const frame1Neutral = await snapLiveFrame();
+      if (Platform.OS !== 'web') Vibration.vibrate(40);
+
+      // FASE 2: Gesto biomecánico aleatorio revelado en tiempo real
+      setLivePhase('phase2_action');
+      setLiveInstruction(challenge.step2Prompt);
+      setCountdownSec(2);
+
+      await new Promise<void>((res) => schedule(res, 1100));
+      setCountdownSec(1);
+      await new Promise<void>((res) => schedule(res, 1100));
+      setCountdownSec(null);
+
+      const frame2Action = await snapLiveFrame();
+      if (Platform.OS !== 'web') Vibration.vibrate([0, 45, 50, 45]);
+
+      // Apagar cámara inmediatamente para ahorrar 100% de batería/GPU mientras AWS Rekognition valida
+      setScannerOpen(false);
+      setCameraReady(false);
+      setLivePhase('verifying');
+
+      const verification = await authService.verifyBiometrics({
+        idCardFront,
+        selfieNeutral: frame1Neutral,
+        selfiePhoto: frame2Action,
+        challengeToken: challenge.challengeToken,
+      });
+
+      setSelfiePhoto(frame1Neutral);
+      setLivenessProofToken(verification.livenessProofToken);
+      setBiometricVerified(true);
+      setBiometricScore(verification.similarityScore);
+      setLivePhase('idle');
+
+      schedule(() => setStep(3), 700);
+    } catch (err: any) {
+      setScannerOpen(false);
+      setCameraReady(false);
+      setLivePhase('idle');
+      setSelfiePhoto(null);
+      setLivenessProofToken(null);
+      setBiometricVerified(false);
+      setBiometricScore(null);
+
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'No se superó la prueba de vida en tiempo real. Asegúrate de mostrar tu rostro real sin usar fotos ni documentos.';
+      reportError('Prueba de vida rechazada', msg);
+    } finally {
+      sequenceRunningRef.current = false;
+    }
+  }, [idCardFront]);
+
+  useEffect(() => {
+    if (scannerOpen && cameraReady && !sequenceRunningRef.current) {
+      runAutomatedLivenessSequence();
+    }
+  }, [scannerOpen, cameraReady, runAutomatedLivenessSequence]);
 
   const validatePassword = (pass: string): string | null => {
     if (pass.length < 8) return 'Usa al menos 8 caracteres.';
@@ -339,8 +408,8 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 
   const handleFinalSubmit = async () => {
     setStepError(null);
-    if (!idCardFront || !idCardBack || !selfiePhoto || !biometricVerified) {
-      reportError('Verificación incompleta', 'Completa primero el escaneo documental y facial.');
+    if (!idCardFront || !idCardBack || !selfiePhoto || !biometricVerified || !livenessProofToken) {
+      reportError('Verificación incompleta', 'Supera primero la prueba de vida biométrica activa.');
       return;
     }
     if (!fullName.trim() || !cedula.trim() || !email.trim() || !password) {
@@ -380,6 +449,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
         idCardFront,
         idCardBack,
         selfiePhoto,
+        livenessProofToken,
       });
 
       if (Platform.OS !== 'web') Vibration.vibrate(60);
@@ -416,7 +486,10 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
             {/* Top Frosted Pill Bar */}
             <View style={[styles.topBar, glassSurfaceStyle(24, true)]}>
               <TouchableOpacity
-                onPress={onGoLogin}
+                onPress={() => {
+                  resetBiometrics();
+                  onGoLogin();
+                }}
                 activeOpacity={0.75}
                 style={styles.backChip}
               >
@@ -512,7 +585,6 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         resizeMode="cover"
                       />
 
-                      {/* Tarjeta de telemetría extraída automáticamente por IA */}
                       <View style={styles.extractedTelemetryCard}>
                         <View style={styles.extractedHeaderRow}>
                           <PrismIcon name="scan" size={14} color={palette.aqua} />
@@ -537,7 +609,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         size="sm"
                         icon="refresh"
                         iconPosition="left"
-                        onPress={() => handleCapturePhoto('idFront')}
+                        onPress={() => handleCaptureDocument('idFront')}
                       />
                     </View>
                   ) : (
@@ -552,7 +624,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         size="sm"
                         icon="camera"
                         iconPosition="left"
-                        onPress={() => handleCapturePhoto('idFront')}
+                        onPress={() => handleCaptureDocument('idFront')}
                       />
                     </View>
                   )}
@@ -600,14 +672,14 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         size="sm"
                         icon="refresh"
                         iconPosition="left"
-                        onPress={() => handleCapturePhoto('idBack')}
+                        onPress={() => handleCaptureDocument('idBack')}
                       />
                     </View>
                   ) : (
                     <View style={styles.captureWell}>
                       <PrismIcon name="scan" size={26} color={palette.aqua} />
                       <Text style={styles.captureHint}>
-                        Al validar el reverso pasarás automáticamente a biometría
+                        Al validar el reverso pasarás automáticamente a la prueba de vida
                       </Text>
                       <LiquidPillButton
                         label="Escanear reverso"
@@ -616,7 +688,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         icon="camera"
                         iconPosition="left"
                         disabled={!idCardFront || analyzingSide !== null}
-                        onPress={() => handleCapturePhoto('idBack')}
+                        onPress={() => handleCaptureDocument('idBack')}
                       />
                     </View>
                   )}
@@ -624,7 +696,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 
                 {idCardFront && idCardBack && analyzingSide === null ? (
                   <LiquidPillButton
-                    label="Continuar a biometría"
+                    label="Continuar a prueba de vida"
                     variant="obsidian"
                     size="lg"
                     icon="arrowRight"
@@ -635,24 +707,79 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
             )}
 
             {/* ============================================================== */}
-            {/* PASO 2: CRUCE BIOMÉTRICO FACIAL EN UN TOQUE                     */}
+            {/* PASO 2: PRUEBA DE VIDA ACTIVA ANTISUPLANTACIÓN (ISO 30107-3)    */}
             {/* ============================================================== */}
             {step === 2 && (
               <LiquidGlassCard strong blurPx={34}>
-                <Text style={styles.cardTitle}>Reconocimiento facial</Text>
+                <Text style={styles.cardTitle}>Prueba de vida real</Text>
                 <Text style={styles.cardSubtitle}>
                   {fullName
-                    ? `Confirmando en vivo la identidad de ${fullName.split(' ')[0]}.`
-                    : 'Comparamos tus rasgos faciales en vivo contra el retrato de tu cédula.'}
+                    ? `Sensor frontal bloqueado: verificando que ${fullName.split(' ')[0]} está físicamente presente (bloquea fotos, pantallas y cédulas).`
+                    : 'Sensor frontal bloqueado en vivo: las fotografías, pantallas y documentos físicos son rechazados automáticamente.'}
                 </Text>
 
                 <View style={styles.selfieCenterStage}>
-                  {verifyingBiometrics ? (
+                  {scannerOpen ? (
+                    <View style={styles.liveScannerStage}>
+                      <View
+                        style={[
+                          styles.liveOvalFrame,
+                          livePhase === 'phase2_action' && styles.liveOvalFrameAction,
+                          sculptedShadow(),
+                        ]}
+                      >
+                        <FrontLiveCamera
+                          ref={(r: CameraView | null) => {
+                            cameraRef.current = r;
+                          }}
+                          style={StyleSheet.absoluteFill}
+                          facing="front"
+                          mute={true}
+                          onCameraReady={() => setCameraReady(true)}
+                        />
+
+                        {countdownSec !== null ? (
+                          <View style={styles.countdownBadge}>
+                            <Text style={styles.countdownText}>{countdownSec}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      <View
+                        style={[
+                          styles.livePromptCard,
+                          livePhase === 'phase2_action' && styles.livePromptCardAction,
+                        ]}
+                      >
+                        <StatusPill
+                          label={
+                            livePhase === 'phase2_action'
+                              ? 'Paso 2 de 2 · Gesto en vivo'
+                              : 'Paso 1 de 2 · Captura base'
+                          }
+                          tone={livePhase === 'phase2_action' ? 'aqua' : 'neutral'}
+                        />
+                        <Text style={styles.livePromptText}>{liveInstruction}</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          clearAllTimers();
+                          sequenceRunningRef.current = false;
+                          setScannerOpen(false);
+                          setLivePhase('idle');
+                        }}
+                        style={{ marginTop: 6 }}
+                      >
+                        <Text style={styles.otherGestureLink}>Cancelar escaneo</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : livePhase === 'verifying' ? (
                     <View style={[styles.sculptedSelfieOrb, sculptedShadow()]}>
                       <ActivityIndicator size="large" color={palette.aqua} />
-                      <Text style={styles.orbTitle}>Analizando geometría facial</Text>
+                      <Text style={styles.orbTitle}>Verificando persona viva</Text>
                       <Text style={styles.orbHint}>
-                        Cruzando vectores biométricos con tu documento...
+                        Validando movimiento muscular 3D, ausencia de pantallas/documentos y cruce con cédula...
                       </Text>
                     </View>
                   ) : selfiePhoto && biometricVerified ? (
@@ -668,44 +795,37 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         <StatusPill
                           label={
                             biometricScore !== null
-                              ? `Titular confirmado · ${Math.round(biometricScore)}%`
-                              : 'Titular confirmado'
+                              ? `Persona viva confirmada · ${Math.round(biometricScore)}%`
+                              : 'Persona viva confirmada'
                           }
                           tone="emerald"
                         />
                       </View>
                       <LiquidPillButton
-                        label="Repetir captura"
+                        label="Repetir prueba de vida"
                         variant="glass"
                         size="sm"
                         icon="refresh"
                         iconPosition="left"
-                        onPress={() => {
-                          setSelfiePhoto(null);
-                          setBiometricVerified(false);
-                          setBiometricScore(null);
-                          rotateChallenge();
-                        }}
+                        onPress={resetBiometrics}
                         style={{ marginTop: 10 }}
                       />
                     </View>
                   ) : (
                     <View style={[styles.sculptedSelfieOrb, sculptedShadow()]}>
-                      <PrismIcon name="scan" size={32} color={palette.aqua} />
-                      <Text style={styles.challengeCopy}>
-                        {livenessChallenge.instruction}
+                      <PrismIcon name="scan" size={34} color={palette.aqua} />
+                      <Text style={styles.orbTitle}>Cámara frontal directa</Text>
+                      <Text style={styles.orbHint}>
+                        Mirarás de frente 2 segundos y realizarás un gesto aleatorio en tiempo real. Sin gafas oscuras.
                       </Text>
                       <LiquidPillButton
-                        label="Iniciar escaneo facial"
+                        label="Iniciar prueba en vivo"
                         variant="obsidian"
                         size="sm"
                         icon="camera"
                         iconPosition="left"
-                        onPress={() => handleCapturePhoto('selfie', true)}
+                        onPress={openFrontLiveScanner}
                       />
-                      <TouchableOpacity onPress={rotateChallenge} style={{ marginTop: 8 }}>
-                        <Text style={styles.otherGestureLink}>Cambiar indicación</Text>
-                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -716,7 +836,9 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                     variant="glass"
                     icon="arrowLeft"
                     iconPosition="left"
+                    disabled={scannerOpen || livePhase === 'verifying'}
                     onPress={() => {
+                      resetBiometrics();
                       setStepError(null);
                       setStep(1);
                     }}
@@ -725,7 +847,13 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                     label="Siguiente"
                     variant="obsidian"
                     icon="arrowRight"
-                    disabled={!selfiePhoto || !biometricVerified || verifyingBiometrics}
+                    disabled={
+                      !selfiePhoto ||
+                      !biometricVerified ||
+                      !livenessProofToken ||
+                      scannerOpen ||
+                      livePhase === 'verifying'
+                    }
                     onPress={() => setStep(3)}
                     style={styles.flex}
                   />
@@ -742,8 +870,8 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                   <StatusPill
                     label={
                       biometricScore !== null
-                        ? `Biometría ${Math.round(biometricScore)}% aprobada`
-                        : 'Biometría aprobada'
+                        ? `Vida real + Cédula ${Math.round(biometricScore)}%`
+                        : 'Vida real verificada'
                     }
                     tone="emerald"
                   />
@@ -1114,12 +1242,68 @@ const styles = StyleSheet.create({
   selfieCenterStage: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
+  },
+  liveScannerStage: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+  },
+  liveOvalFrame: {
+    width: 232,
+    height: 288,
+    borderRadius: 116,
+    overflow: 'hidden',
+    borderWidth: 3.5,
+    borderColor: '#FFFFFF',
+    backgroundColor: '#0F172A',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  liveOvalFrameAction: {
+    borderColor: palette.aqua,
+  },
+  countdownBadge: {
+    marginBottom: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countdownText: {
+    fontFamily: fontSans,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  livePromptCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.7)',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    alignItems: 'center',
+    gap: 6,
+  },
+  livePromptCardAction: {
+    borderColor: palette.aqua,
+    backgroundColor: 'rgba(240, 249, 255, 0.96)',
+  },
+  livePromptText: {
+    fontFamily: fontSans,
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    textAlign: 'center',
   },
   sculptedSelfieOrb: {
-    width: 248,
-    minHeight: 248,
-    borderRadius: 124,
+    width: 252,
+    minHeight: 252,
+    borderRadius: 126,
     backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderWidth: 2,
     borderColor: '#FFFFFF',
@@ -1127,7 +1311,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 22,
-    gap: 12,
+    gap: 11,
   },
   orbTitle: {
     fontFamily: fontSans,
@@ -1143,17 +1327,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  challengeCopy: {
-    fontFamily: fontSans,
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: palette.textPrimary,
-    textAlign: 'center',
-    lineHeight: 19,
-  },
   otherGestureLink: {
     fontFamily: fontSans,
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '600',
     color: palette.textSecondary,
   },

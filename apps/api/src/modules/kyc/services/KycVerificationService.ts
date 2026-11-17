@@ -7,11 +7,15 @@ import {
   sha256Hex,
 } from '../../../shared/utils/cryptoVault';
 import { logger } from '../../../shared/utils/logger';
+import { env } from '../../../config/env';
+
+export type LivenessChallengeType = 'smile' | 'turn_head' | 'open_mouth';
 
 export interface KycInputBundle {
   idCardFront?: string;
   idCardBack?: string;
   selfiePhoto?: string;
+  livenessProofToken?: string;
 }
 
 export interface KycEvaluationResult {
@@ -85,7 +89,7 @@ async function inspectAndNormalizeImage(buf: Buffer, label: string) {
 }
 
 async function invokeAwsRekognition(
-  action: 'CompareFaces' | 'DetectText' | 'DetectFaces',
+  action: 'CompareFaces' | 'DetectText' | 'DetectFaces' | 'DetectLabels',
   payloadObj: Record<string, unknown>
 ): Promise<{ ok: boolean; status: number; data: any; rawText: string }> {
   const accessKey = (process.env.AWS_ACCESS_KEY_ID || '').trim().replace(/^["']|["']$/g, '');
@@ -335,7 +339,8 @@ function extractColombianIdIntelligence(lines: string[]): {
  */
 async function compareFacesAwsRekognition(
   sourceSelfie: Buffer,
-  targetIdFront: Buffer
+  targetIdFront: Buffer,
+  minThreshold = MIN_SIMILARITY_THRESHOLD
 ): Promise<{ matched: boolean; similarity: number; unmatchedFacesCount: number }> {
   const resp = await invokeAwsRekognition('CompareFaces', {
     SourceImage: { Bytes: sourceSelfie.toString('base64') },
@@ -347,7 +352,7 @@ async function compareFacesAwsRekognition(
     const errCode = resp.data?.Code || resp.data?.__type || '';
     if (errCode.includes('InvalidParameterException')) {
       const noFaceErr: any = new Error(
-        'No se detectó un rostro humano claro en tu selfie o en el frente de tu cédula. Asegúrate de fotografiar el frente de tu documento (donde aparece tu foto) y encuadrar bien tu rostro con buena luz.'
+        'No se detectó un rostro humano claro en la captura facial o en el frente de tu cédula.'
       );
       noFaceErr.statusCode = 422;
       noFaceErr.code = 'NO_FACE_DETECTED';
@@ -371,13 +376,277 @@ async function compareFacesAwsRekognition(
   const similarity = topMatch?.Similarity ? Math.round(Number(topMatch.Similarity) * 100) / 100 : 0;
 
   return {
-    matched: similarity >= MIN_SIMILARITY_THRESHOLD,
+    matched: similarity >= minThreshold,
     similarity,
     unmatchedFacesCount: unmatched.length,
   };
 }
 
+const SPOOF_DOCUMENT_LABELS = new Set([
+  'Id Cards',
+  'Document',
+  'Driving License',
+  'Passport',
+  'Credit Card',
+  'Business Card',
+  'Paper',
+  'Page',
+  'Poster',
+  'Flyer',
+  'Postcard',
+  'Picture Frame',
+  'Sticker',
+]);
+
+const SPOOF_SCREEN_LABELS = new Set([
+  'Mobile Phone',
+  'Cell Phone',
+  'Phone',
+  'Screen',
+  'Monitor',
+  'Display',
+  'Laptop',
+  'Tablet Computer',
+  'Television',
+  'Computer Hardware',
+]);
+
+const ID_SPOOF_TEXT_KEYWORDS = [
+  'COLOMBIA',
+  'REPUBLICA',
+  'CEDULA',
+  'CIUDADANIA',
+  'IDENTIFICACION',
+  'APELLIDO',
+  'NOMBRE',
+  'NUMERO',
+  'NUIP',
+  'REGISTRADURIA',
+  'NACIMIENTO',
+  'EXPEDICION',
+  'ESTATURA',
+  'INDICE',
+];
+
+interface LiveFrameBioProfile {
+  smile: boolean;
+  smileScore: number;
+  mouthOpen: boolean;
+  mouthOpenScore: number;
+  eyesOpen: boolean;
+  yaw: number;
+  pitch: number;
+  roll: number;
+  boxHeight: number;
+  boxWidth: number;
+}
+
+/**
+ * Presentation Attack Detection (PAD - ISO 30107-3):
+ * Bloquea el uso de una cédula física, fotografía impresa o pantalla de otro celular/monitor
+ * frente a la cámara de selfie, y extrae la geometría 3D/muscular del rostro humano en vivo.
+ */
+async function analyzeLiveFrameAntiSpoofing(
+  normalizedJpeg: Buffer,
+  frameLabel: string
+): Promise<LiveFrameBioProfile> {
+  const b64 = normalizedJpeg.toString('base64');
+
+  const [labelsResp, textResp, facesResp] = await Promise.all([
+    invokeAwsRekognition('DetectLabels', {
+      Image: { Bytes: b64 },
+      MaxLabels: 25,
+      MinConfidence: 62,
+    }),
+    invokeAwsRekognition('DetectText', {
+      Image: { Bytes: b64 },
+    }),
+    invokeAwsRekognition('DetectFaces', {
+      Image: { Bytes: b64 },
+      Attributes: ['ALL'],
+    }),
+  ]);
+
+  // 1. Bloquear documentos físicos, papel, marcos o pantallas electrónicas frente al lente
+  const labels: any[] = Array.isArray(labelsResp.data?.Labels) ? labelsResp.data.Labels : [];
+  for (const lbl of labels) {
+    const name = String(lbl?.Name || '');
+    const conf = Number(lbl?.Confidence || 0);
+
+    if (SPOOF_DOCUMENT_LABELS.has(name) && conf >= 65) {
+      logger.warn(`🚫 [PAD Anti-Spoof] Documento/foto física detectada en ${frameLabel}: ${name} (${conf.toFixed(1)}%)`);
+      const err: any = new Error(
+        'Alerta antifraude: Se detectó una cédula, fotografía impresa o documento frente a la cámara. Debes mostrar únicamente tu rostro real en vivo.'
+      );
+      err.statusCode = 422;
+      err.code = 'SPOOF_DOCUMENT_DETECTED';
+      throw err;
+    }
+
+    if (SPOOF_SCREEN_LABELS.has(name) && conf >= 68) {
+      logger.warn(`🚫 [PAD Anti-Spoof] Pantalla/dispositivo detectado en ${frameLabel}: ${name} (${conf.toFixed(1)}%)`);
+      const err: any = new Error(
+        'Alerta antifraude: Se detectó la pantalla de otro teléfono o monitor frente a la cámara. Realiza el escaneo con tu rostro real en vivo.'
+      );
+      err.statusCode = 422;
+      err.code = 'SPOOF_SCREEN_DETECTED';
+      throw err;
+    }
+  }
+
+  // 2. Bloquear texto propio de cédulas/documentos dentro de la captura facial en vivo
+  const textLines: any[] = Array.isArray(textResp.data?.TextDetections)
+    ? textResp.data.TextDetections.filter((t: any) => t?.Type === 'LINE' && Number(t?.Confidence || 0) >= 75)
+    : [];
+
+  const upperAllText = textLines.map((t) => String(t.DetectedText || '').toUpperCase()).join(' ');
+  const matchedIdKeyword = ID_SPOOF_TEXT_KEYWORDS.find((kw) => upperAllText.includes(kw));
+
+  if (matchedIdKeyword || textLines.length >= 4) {
+    logger.warn(
+      `🚫 [PAD Anti-Spoof] Texto documental detectado en selfie (${frameLabel}): kw=${matchedIdKeyword || 'multi-line'}`
+    );
+    const err: any = new Error(
+      'Alerta antifraude: No se permite usar la foto de la cédula ni imágenes con texto en la prueba de rostro en vivo.'
+    );
+    err.statusCode = 422;
+    err.code = 'SPOOF_ID_CARD_IN_SELFIE';
+    throw err;
+  }
+
+  // 3. Validar anatomía y proporción real de rostro humano frente a cámara frontal
+  const faces: any[] = Array.isArray(facesResp.data?.FaceDetails) ? facesResp.data.FaceDetails : [];
+  if (faces.length === 0) {
+    const err: any = new Error(
+      'No se detectó un rostro humano frente a la cámara. Encuadra tu cara dentro del óvalo con buena iluminación.'
+    );
+    err.statusCode = 422;
+    err.code = 'NO_LIVE_FACE';
+    throw err;
+  }
+
+  // Seleccionar rostro principal por área
+  faces.sort(
+    (a, b) =>
+      Number(b?.BoundingBox?.Width || 0) * Number(b?.BoundingBox?.Height || 0) -
+      Number(a?.BoundingBox?.Width || 0) * Number(a?.BoundingBox?.Height || 0)
+  );
+  const f = faces[0];
+  const boxH = Number(f?.BoundingBox?.Height || 0);
+  const boxW = Number(f?.BoundingBox?.Width || 0);
+
+  if (boxH < 0.16 || boxW < 0.12) {
+    const err: any = new Error(
+      'Tu rostro se ve demasiado pequeño o lejano (típico de retratos impresos). Acerca tu rostro al óvalo de la cámara frontal.'
+    );
+    err.statusCode = 422;
+    err.code = 'FACE_TOO_SMALL_OR_PRINTED';
+    throw err;
+  }
+
+  if (f?.Sunglasses?.Value === true && Number(f?.Sunglasses?.Confidence || 0) >= 80) {
+    const err: any = new Error('Por favor retira las gafas oscuras para validar tus rasgos en vivo.');
+    err.statusCode = 422;
+    throw err;
+  }
+
+  const smileVal = Boolean(f?.Smile?.Value);
+  const smileConf = Number(f?.Smile?.Confidence || 0);
+  // Puntuación continua [0..100] de sonrisa (0 = completamente serio, 100 = sonrisa amplia)
+  const smileScore = smileVal ? smileConf : Math.max(0, 100 - smileConf);
+
+  const mouthVal = Boolean(f?.MouthOpen?.Value);
+  const mouthConf = Number(f?.MouthOpen?.Confidence || 0);
+  const mouthOpenScore = mouthVal ? mouthConf : Math.max(0, 100 - mouthConf);
+
+  return {
+    smile: smileVal,
+    smileScore,
+    mouthOpen: mouthVal,
+    mouthOpenScore,
+    eyesOpen: f?.EyesOpen?.Value !== false,
+    yaw: Number(f?.Pose?.Yaw || 0),
+    pitch: Number(f?.Pose?.Pitch || 0),
+    roll: Number(f?.Pose?.Roll || 0),
+    boxHeight: boxH,
+    boxWidth: boxW,
+  };
+}
+
+function signTokenPayload(payload: Record<string, unknown>): string {
+  const jsonB64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const sig = crypto
+    .createHmac('sha256', env.JWT_SECRET)
+    .update(jsonB64, 'utf8')
+    .digest('base64url');
+  return `${jsonB64}.${sig}`;
+}
+
+function verifyTokenPayload<T = any>(token?: string): T | null {
+  if (!token || !token.includes('.')) return null;
+  const [jsonB64, sig] = token.split('.');
+  const expected = crypto
+    .createHmac('sha256', env.JWT_SECRET)
+    .update(jsonB64, 'utf8')
+    .digest('base64url');
+  if (sig !== expected) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(jsonB64, 'base64url').toString('utf8'));
+    if (parsed.exp && Date.now() > Number(parsed.exp)) return null;
+    return parsed as T;
+  } catch {
+    return null;
+  }
+}
+
 export class KycVerificationService {
+  /**
+   * Emite un reto biomecánico aleatorio firmado criptográficamente (expira en 5 min)
+   * que una fotografía fija o cédula física jamás puede ejecutar entre el Frame 1 y el Frame 2.
+   */
+  static issueLivenessChallenge(): {
+    challengeType: LivenessChallengeType;
+    step1Prompt: string;
+    step2Prompt: string;
+    challengeToken: string;
+  } {
+    const challenges: Array<{
+      type: LivenessChallengeType;
+      step1: string;
+      step2: string;
+    }> = [
+      {
+        type: 'smile',
+        step1: 'Mantén expresión seria mirando al frente',
+        step2: '¡Ahora sonríe ampliamente!',
+      },
+      {
+        type: 'open_mouth',
+        step1: 'Mira al frente con los labios cerrados',
+        step2: '¡Ahora abre la boca claramente!',
+      },
+      {
+        type: 'turn_head',
+        step1: 'Mira totalmente de frente al lente',
+        step2: '¡Ahora gira un poco tu rostro hacia un lado!',
+      },
+    ];
+
+    const chosen = challenges[Math.floor(Math.random() * challenges.length)];
+    const challengeToken = signTokenPayload({
+      challengeType: chosen.type,
+      nonce: crypto.randomBytes(8).toString('hex'),
+      exp: Date.now() + 5 * 60 * 1000,
+    });
+
+    return {
+      challengeType: chosen.type,
+      step1Prompt: chosen.step1,
+      step2Prompt: chosen.step2,
+      challengeToken,
+    };
+  }
+
   /**
    * Analiza el documento de identidad con IA (AWS Rekognition DetectText + DetectFaces en paralelo):
    * - En el frente: exige que haya retrato facial impreso y extrae automáticamente Nombres, Apellidos y Cédula/NUIP.
@@ -479,64 +748,178 @@ export class KycVerificationService {
   }
 
   /**
-   * Pre-validación biométrica en tiempo real durante el Paso 3 del registro:
-   * compara el rostro en vivo (selfie) contra el retrato del frente de la cédula antes de dejar avanzar.
+   * Prueba de Vida Activa en 2 Fotogramas + PAD Antisuplantación (ISO 30107-3):
+   * 1. Bloquea cédulas, fotos impresas y pantallas de celular (DetectLabels + DetectText).
+   * 2. Exige transición biomecánica real entre Fotograma 1 (neutro) y Fotograma 2 (reto firmado).
+   * 3. Exige continuidad de identidad (Frame 1 vs Frame 2 >= 88%) + cruce con Cédula (Frame 1 vs Cédula >= 85%).
+   * 4. Emite livenessProofToken firmado para autorizar el registro final.
    */
   static async verifyFaceMatchPreview(input: {
     idCardFront?: string;
+    selfieNeutral?: string;
     selfiePhoto?: string;
-  }): Promise<{ verified: boolean; similarityScore: number }> {
-    if (!input.idCardFront || !input.selfiePhoto) {
+    challengeToken?: string;
+  }): Promise<{
+    verified: boolean;
+    similarityScore: number;
+    livenessProofToken: string;
+  }> {
+    if (!input.idCardFront || !input.selfieNeutral || !input.selfiePhoto || !input.challengeToken) {
       const err: any = new Error(
-        'Se requiere la foto frontal de tu cédula y tu captura facial en vivo para verificar tu identidad.'
+        'Debes completar la prueba de vida interactiva en cámara frontal en vivo para verificar tu identidad.'
       );
       err.statusCode = 422;
+      err.code = 'LIVENESS_INCOMPLETE';
+      throw err;
+    }
+
+    const challengePayload = verifyTokenPayload<{ challengeType: LivenessChallengeType }>(
+      input.challengeToken
+    );
+    if (!challengePayload?.challengeType) {
+      const err: any = new Error(
+        'El reto de prueba de vida expiró. Toca nuevamente iniciar escaneo en vivo.'
+      );
+      err.statusCode = 422;
+      err.code = 'CHALLENGE_EXPIRED';
       throw err;
     }
 
     const rawFront = decodeBase64Image(input.idCardFront);
-    const rawSelfie = decodeBase64Image(input.selfiePhoto);
+    const rawNeutral = decodeBase64Image(input.selfieNeutral);
+    const rawAction = decodeBase64Image(input.selfiePhoto);
 
-    if (sha256Hex(rawFront) === sha256Hex(rawSelfie)) {
+    const hashFront = sha256Hex(rawFront);
+    const hashNeutral = sha256Hex(rawNeutral);
+    const hashAction = sha256Hex(rawAction);
+
+    if (
+      hashFront === hashNeutral ||
+      hashFront === hashAction ||
+      hashNeutral === hashAction
+    ) {
       const err: any = new Error(
-        'La fotografía del documento y la captura de rostro no pueden ser la misma imagen.'
+        'Las capturas de prueba de vida deben ser fotogramas en tiempo real distintos.'
       );
       err.statusCode = 422;
       throw err;
     }
 
-    const [frontInfo, selfieInfo] = await Promise.all([
+    const [frontInfo, neutralInfo, actionInfo] = await Promise.all([
       inspectAndNormalizeImage(rawFront, 'frente de cédula'),
-      inspectAndNormalizeImage(rawSelfie, 'rostro en vivo'),
+      inspectAndNormalizeImage(rawNeutral, 'fotograma base en vivo'),
+      inspectAndNormalizeImage(rawAction, 'fotograma de gesto en vivo'),
     ]);
 
-    const bio = await compareFacesAwsRekognition(selfieInfo.normalized, frontInfo.normalized);
+    // 1. PAD Anti-Spoofing + Geometría facial en AMBOS fotogramas en vivo
+    const [frame1Bio, frame2Bio] = await Promise.all([
+      analyzeLiveFrameAntiSpoofing(neutralInfo.normalized, 'frame_1_base'),
+      analyzeLiveFrameAntiSpoofing(actionInfo.normalized, 'frame_2_action'),
+    ]);
 
-    if (!bio.matched) {
+    if (!frame1Bio.eyesOpen && !frame2Bio.eyesOpen) {
+      const err: any = new Error(
+        'Mantén los ojos abiertos mirando a la cámara durante la prueba de vida.'
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+
+    // 2. Validar transición muscular / rotación 3D real entre Fotograma 1 y Fotograma 2
+    const cType = challengePayload.challengeType;
+    let passedLivenessAction = false;
+
+    if (cType === 'smile') {
+      const deltaSmile = frame2Bio.smileScore - frame1Bio.smileScore;
+      passedLivenessAction =
+        frame2Bio.smile && frame2Bio.smileScore >= 72 && deltaSmile >= 24;
+      if (!passedLivenessAction) {
+        const err: any = new Error(
+          'Prueba de vida no superada: primero debes mantener expresión seria y luego sonreír claramente en vivo (las fotografías o cédulas quedan bloqueadas).'
+        );
+        err.statusCode = 422;
+        err.code = 'LIVENESS_SMILE_FAILED';
+        throw err;
+      }
+    } else if (cType === 'open_mouth') {
+      const deltaMouth = frame2Bio.mouthOpenScore - frame1Bio.mouthOpenScore;
+      passedLivenessAction =
+        frame2Bio.mouthOpen && frame2Bio.mouthOpenScore >= 70 && deltaMouth >= 24;
+      if (!passedLivenessAction) {
+        const err: any = new Error(
+          'Prueba de vida no superada: primero mantén los labios cerrados y luego abre la boca claramente frente a la cámara.'
+        );
+        err.statusCode = 422;
+        err.code = 'LIVENESS_MOUTH_FAILED';
+        throw err;
+      }
+    } else if (cType === 'turn_head') {
+      const deltaYaw = Math.abs(frame2Bio.yaw - frame1Bio.yaw);
+      const deltaRoll = Math.abs(frame2Bio.roll - frame1Bio.roll);
+      passedLivenessAction =
+        Math.abs(frame1Bio.yaw) <= 18 && deltaYaw >= 11 && deltaRoll <= 22;
+      if (!passedLivenessAction) {
+        const err: any = new Error(
+          'Prueba de vida no superada: gira suavemente tu cabeza hacia un lado sin inclinar el celular (una imagen plana no tiene rotación 3D real).'
+        );
+        err.statusCode = 422;
+        err.code = 'LIVENESS_YAW_FAILED';
+        throw err;
+      }
+    }
+
+    // 3. Continuidad biométrica (Frame 1 === Frame 2) + Identidad contra Cédula (Frame 1 === Cédula)
+    const [continuityMatch, idCardMatch] = await Promise.all([
+      compareFacesAwsRekognition(actionInfo.normalized, neutralInfo.normalized, 88),
+      compareFacesAwsRekognition(neutralInfo.normalized, frontInfo.normalized, MIN_SIMILARITY_THRESHOLD),
+    ]);
+
+    if (!continuityMatch.matched) {
+      const err: any = new Error(
+        'Alerta antifraude: Se detectó un cambio de rostro entre el inicio y el fin de la prueba de vida.'
+      );
+      err.statusCode = 422;
+      err.code = 'LIVENESS_CONTINUITY_BROKEN';
+      throw err;
+    }
+
+    if (!idCardMatch.matched) {
       logger.warn(
-        `🚫 Intento de registro bloqueado por no coincidencia facial (similitud: ${bio.similarity}%)`
+        `🚫 Intento bloqueado: persona viva NO coincide con titular de cédula (${idCardMatch.similarity}%)`
       );
       const mismatchErr: any = new Error(
-        `Verificación facial rechazada: El rostro capturado no coincide con la fotografía de la cédula (${bio.similarity.toFixed(
+        `Identidad rechazada: Tu rostro en vivo no coincide con el titular de la cédula (${idCardMatch.similarity.toFixed(
           1
-        )}% de coincidencia; mínimo requerido ${MIN_SIMILARITY_THRESHOLD}%).`
+        )}% de similitud; mínimo requerido ${MIN_SIMILARITY_THRESHOLD}%).`
       );
       mismatchErr.statusCode = 422;
       mismatchErr.code = 'BIOMETRIC_MISMATCH';
-      mismatchErr.similarityScore = bio.similarity;
+      mismatchErr.similarityScore = idCardMatch.similarity;
       throw mismatchErr;
     }
 
-    logger.info(`✅ Biometría facial aprobada en Paso 3 (similitud: ${bio.similarity}%)`);
+    const livenessProofToken = signTokenPayload({
+      frontHash: hashFront,
+      selfieHash: hashNeutral,
+      similarity: idCardMatch.similarity,
+      challengeType: cType,
+      exp: Date.now() + 15 * 60 * 1000,
+    });
+
+    logger.info(
+      `✅ Prueba de vida activa (${cType}) + PAD antisuplantación superada (similitud: ${idCardMatch.similarity}%)`
+    );
+
     return {
       verified: true,
-      similarityScore: bio.similarity,
+      similarityScore: idCardMatch.similarity,
+      livenessProofToken,
     };
   }
 
   /**
    * Valida autenticidad estructural de imágenes KYC (resolución, entropía, anti-duplicado),
-   * exige coincidencia biométrica facial >= 85% con AWS Rekognition (bloqueando suplantaciones),
+   * exige token criptográfico de Prueba de Vida Activa + PAD antisuplantación,
    * y cifra los documentos con AES-256-GCM conforme a la Ley 1581.
    */
   static async evaluateAndEncryptKyc(
@@ -544,7 +927,7 @@ export class KycVerificationService {
   ): Promise<KycEvaluationResult> {
     if (!bundle.idCardFront || !bundle.idCardBack || !bundle.selfiePhoto) {
       const err: any = new Error(
-        'La verificación documental (frente y respaldo de cédula) y biométrica facial es obligatoria para crear una cuenta.'
+        'La verificación documental (frente y respaldo de cédula) y la prueba de rostro en vivo son obligatorias.'
       );
       err.statusCode = 422;
       throw err;
@@ -571,14 +954,32 @@ export class KycVerificationService {
       throw err;
     }
 
-    // 2. Inspección óptica real con Sharp + auto-rotación EXIF
+    // 2. Exigir certificado criptográfico de Prueba de Vida Activa emitido por verifyFaceMatchPreview
+    const proof = verifyTokenPayload<{
+      frontHash: string;
+      selfieHash: string;
+      similarity: number;
+      challengeType: string;
+    }>(bundle.livenessProofToken);
+
+    if (!proof || proof.frontHash !== hashFront || proof.selfieHash !== hashSelfie) {
+      const err: any = new Error(
+        'Debes superar la prueba de vida activa en tiempo real antes de registrar la cuenta. No se aceptan fotografías estáticas ni documentos.'
+      );
+      err.statusCode = 422;
+      err.code = 'LIVENESS_PROOF_REQUIRED';
+      throw err;
+    }
+
+    // 3. Inspección óptica + verificación final PAD en servidor
     const [frontInfo, backInfo, selfieInfo] = await Promise.all([
       inspectAndNormalizeImage(rawFront, 'anverso de cédula'),
       inspectAndNormalizeImage(rawBack, 'reverso de cédula'),
       inspectAndNormalizeImage(rawSelfie, 'rostro biométrico'),
     ]);
 
-    // 3. Comparación biométrica obligatoria (AWS Rekognition CompareFaces >= 85%)
+    await analyzeLiveFrameAntiSpoofing(selfieInfo.normalized, 'register_final_selfie');
+
     const bio = await compareFacesAwsRekognition(
       selfieInfo.normalized,
       frontInfo.normalized
@@ -589,9 +990,9 @@ export class KycVerificationService {
         `🚫 Registro bloqueado en servidor: suplantación o rostro distinto (${bio.similarity}% < ${MIN_SIMILARITY_THRESHOLD}%)`
       );
       const rejectErr: any = new Error(
-        `Identidad biométrica rechazada: El rostro de la selfie no coincide con el documento de identidad (${bio.similarity.toFixed(
+        `Identidad biométrica rechazada: El rostro en vivo no coincide con el documento de identidad (${bio.similarity.toFixed(
           1
-        )}% de similitud). Por seguridad no se creó la cuenta.`
+        )}% de similitud).`
       );
       rejectErr.statusCode = 422;
       rejectErr.code = 'BIOMETRIC_MISMATCH';

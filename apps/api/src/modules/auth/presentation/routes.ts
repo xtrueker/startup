@@ -45,22 +45,40 @@ router.post('/analyze-document', async (req: Request, res: Response) => {
 
 /**
  * @swagger
+ * /api/auth/liveness-challenge:
+ *   get:
+ *     summary: Emitir reto biomecánico aleatorio firmado para prueba de vida en 2 fotogramas
+ *     tags: [Auth]
+ *     security: []
+ */
+router.get('/liveness-challenge', (_req: Request, res: Response) => {
+  const challenge = KycVerificationService.issueLivenessChallenge();
+  return res.status(200).json({
+    success: true,
+    data: challenge,
+  });
+});
+
+/**
+ * @swagger
  * /api/auth/verify-biometrics:
  *   post:
- *     summary: Pre-verificar en tiempo real la coincidencia facial entre selfie y frente de cédula
+ *     summary: Prueba de vida activa (2 fotogramas) + detección antisuplantación (PAD) contra cédula
  *     tags: [Auth]
  *     security: []
  */
 router.post('/verify-biometrics', async (req: Request, res: Response) => {
   try {
-    const { idCardFront, selfiePhoto } = req.body;
+    const { idCardFront, selfieNeutral, selfiePhoto, challengeToken } = req.body;
     const result = await KycVerificationService.verifyFaceMatchPreview({
       idCardFront,
+      selfieNeutral,
       selfiePhoto,
+      challengeToken,
     });
     return res.status(200).json({
       success: true,
-      message: 'Coincidencia biométrica verificada',
+      message: 'Prueba de vida e identidad biométrica confirmadas',
       data: result,
     });
   } catch (error: any) {
@@ -125,7 +143,7 @@ router.post('/verify-biometrics', async (req: Request, res: Response) => {
  */
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { fullName, cedula, email, password, role, phone, ciudad, idCardFront, idCardBack, selfiePhoto } = req.body;
+    const { fullName, cedula, email, password, role, phone, ciudad, idCardFront, idCardBack, selfiePhoto, livenessProofToken } = req.body;
 
     if (!fullName || !cedula || !email || !password) {
       return res.status(400).json({ success: false, message: 'Faltan datos obligatorios' });
@@ -146,6 +164,7 @@ router.post('/register', async (req: Request, res: Response) => {
       idCardFront,
       idCardBack,
       selfiePhoto,
+      livenessProofToken,
     });
 
     if (!kycEvaluation.isVerified || kycEvaluation.facialVerificationStatus !== 'verified') {
