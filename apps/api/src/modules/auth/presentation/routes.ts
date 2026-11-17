@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { User } from '../../../infrastructure/database/models';
 import { env } from '../../../config/env';
 import { requireAuth } from '../../../shared/middlewares/auth';
+import { KycVerificationService } from '../../kyc/services/KycVerificationService';
 
 const router = Router();
 
@@ -80,6 +81,13 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(409).json({ success: false, message: 'Ya existe un usuario con ese email' });
     }
 
+    // Evaluar autenticidad óptica, anti-duplicado y biometría facial + cifrado AES-256-GCM (Ley 1581)
+    const kycEvaluation = await KycVerificationService.evaluateAndEncryptKyc({
+      idCardFront,
+      idCardBack,
+      selfiePhoto,
+    });
+
     const user = await User.create({
       fullName,
       cedula,
@@ -88,10 +96,17 @@ router.post('/register', async (req: Request, res: Response) => {
       phone,
       ciudad,
       role: 'citizen', // La autoregistración pública siempre asigna rol citizen para prevenir escalado de privilegios
-      idCardFront,
-      idCardBack,
-      selfiePhoto
+      isVerified: kycEvaluation.isVerified,
+      facialVerificationStatus: kycEvaluation.facialVerificationStatus,
     });
+
+    if (kycEvaluation.encryptedVault) {
+      await KycVerificationService.persistEncryptedKycForUser(
+        user.id,
+        kycEvaluation,
+        req.ip
+      );
+    }
 
     const token = jwt.sign(
       { userId: user.id, role: user.role, cedula: user.cedula },
@@ -104,14 +119,24 @@ router.post('/register', async (req: Request, res: Response) => {
       message: 'Usuario registrado exitosamente',
       data: {
         user: {
-          id: user.id, fullName: user.full_name, cedula: user.cedula,
-          email: user.email, role: user.role, phone: user.phone, ciudad: user.ciudad, isVerified: user.is_verified,
-          facialVerificationStatus: user.facial_verification_status,
+          id: user.id,
+          fullName: user.full_name,
+          cedula: user.cedula,
+          email: user.email,
+          role: user.role,
+          phone: user.phone,
+          ciudad: user.ciudad,
+          isVerified: kycEvaluation.isVerified,
+          facialVerificationStatus: kycEvaluation.facialVerificationStatus,
+          kycSimilarityScore: kycEvaluation.similarityScore,
         },
         token,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.statusCode === 422) {
+      return res.status(422).json({ success: false, message: error.message });
+    }
     console.error('Error en registro:', error);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }

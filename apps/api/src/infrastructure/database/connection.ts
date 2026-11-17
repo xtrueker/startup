@@ -23,7 +23,8 @@ export class DatabaseConnection {
     }
 
     try {
-      this.supabaseClient = createClient(env.SUPABASE_URL, env.SUPABASE_KEY, {
+      const effectiveSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_KEY;
+      this.supabaseClient = createClient(env.SUPABASE_URL, effectiveSupabaseKey, {
         auth: {
           persistSession: false,
         },

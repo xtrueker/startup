@@ -61,8 +61,8 @@ const panicLimiter = rateLimit({
 });
 app.use('/api/mobile/panic', panicLimiter);
 
-// Permitir leer JSON en el body
-app.use(express.json({ limit: '10mb' }));
+// Permitir leer JSON en el body (soporta expediente KYC de 3 fotografías en alta resolución)
+app.use(express.json({ limit: '25mb' }));
 
 // Ruta de prueba
 app.get('/health', (_req, res) => {

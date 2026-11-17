@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { logger } from './logger';
 import { env } from '../../config/env';
 import { predictiveEngine } from '../../services/PredictiveEngine';
+import { PushDispatchService } from '../services/PushDispatchService';
 
 let io: Server | null = null;
 
@@ -374,4 +375,12 @@ export const dispatchTacticalAlert = (data: {
 
   // Notificar también a los operadores web que el despacho fue emitido
   emitToOperators('patrol:dispatch_sent', dispatchPayload);
+
+  // Despertar terminales móviles con pantalla bloqueada mediante Push de alta prioridad
+  PushDispatchService.notifyOfficerDispatch(data.officerId, {
+    alertId: data.alertId,
+    title: 'Despacho Inmediato — Red Ciudadana',
+    body: `${dispatchPayload.citizenName} · ${dispatchPayload.address}`,
+    data: dispatchPayload,
+  }).catch(() => {});
 };

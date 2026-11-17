@@ -1,10 +1,12 @@
 import { Platform } from 'react-native';
-
 import Constants from 'expo-constants';
 
-const IS_PRODUCTION = false; // Cambia a TRUE cuando despliegues a la nube
-
-// Obtiene la IP local dinámicamente desde Expo (Metro) o usa la IP actual de la PC (192.168.0.16)
+/**
+ * Resolución dinámica de servidor:
+ * 1. En builds productivos/staging (EAS Build / Web Deploy), usa EXPO_PUBLIC_API_URL (HTTPS + WSS).
+ * 2. En desarrollo local Web usa localhost:3001.
+ * 3. En dispositivos físicos en red local (iOS / Android) detecta automáticamente la IP LAN de Metro.
+ */
 const getDevHost = () => {
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
@@ -13,16 +15,19 @@ const getDevHost = () => {
   return '192.168.0.16';
 };
 
+const envApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 const LAN_URL = `http://${getDevHost()}:3001`;
 const LOCAL_URL = 'http://localhost:3001';
-const PROD_URL = 'https://api.tudominio.com'; // Sustituir por tu dominio real con SSL
 
-// En navegador web en PC usa localhost, en dispositivos físicos (iPhone/Android) usa la IP LAN
-const DEV_URL = Platform.OS === 'web' ? LOCAL_URL : LAN_URL;
-const API_URL = IS_PRODUCTION ? PROD_URL : DEV_URL;
+const resolvedApiUrl = envApiUrl
+  ? envApiUrl.replace(/\/+$/, '')
+  : Platform.OS === 'web'
+  ? LOCAL_URL
+  : LAN_URL;
 
 export const config = {
-  API_URL,
-  SOCKET_URL: API_URL,
+  API_URL: resolvedApiUrl,
+  SOCKET_URL: process.env.EXPO_PUBLIC_SOCKET_URL?.trim() || resolvedApiUrl,
   CITIZENS_NAMESPACE: '/citizens',
+  IS_PRODUCTION: Boolean(envApiUrl),
 };

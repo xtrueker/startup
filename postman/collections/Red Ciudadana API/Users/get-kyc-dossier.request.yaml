@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Get Encrypted KYC Dossier (Admin / Ley 1581 Audit)'
+method: GET
+url: '{{baseUrl}}/api/users/{{userId}}/kyc-dossier'
+order: 5000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

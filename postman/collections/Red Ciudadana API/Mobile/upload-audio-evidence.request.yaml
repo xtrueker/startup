@@ -1,0 +1,23 @@
+$kind: http-request
+name: 'Upload Covert Audio Evidence (AES-256-GCM + SHA-256)'
+method: POST
+url: '{{baseUrl}}/api/mobile/evidence/audio'
+order: 3000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "alertId": "{{alertId}}",
+      "audioBase64": "data:audio/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwH/////////",
+      "mimeType": "audio/webm",
+      "chunkIndex": 0,
+      "durationMs": 15000
+    }

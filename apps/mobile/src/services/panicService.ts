@@ -182,6 +182,7 @@ class PanicService {
         address,
         description,
         type: 'emergency',
+        triggerType,
       };
 
       let alertId: string;
@@ -197,7 +198,10 @@ class PanicService {
         isOffline = true;
         alertId = `OFFLINE_${Date.now()}`;
         try {
-          await OfflineBufferService.enqueue('PANIC_TRIGGER', payload);
+          await OfflineBufferService.enqueue('PANIC_TRIGGER', {
+            ...payload,
+            tempAlertId: alertId,
+          });
         } catch (enqueueErr) {
           console.warn('[PanicService] Error encolando en offline buffer:', enqueueErr);
         }

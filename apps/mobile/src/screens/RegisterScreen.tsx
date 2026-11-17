@@ -123,9 +123,43 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        const dataUri = asset.base64
+        let dataUri = asset.base64
           ? `data:image/jpeg;base64,${asset.base64}`
           : asset.uri;
+
+        // En navegadores móviles/escritorio, normalizar y comprimir a JPEG <=1280px
+        // para evitar rechazos por tamaño (413) o formatos HEIC en iOS Safari
+        if (Platform.OS === 'web' && asset.uri && typeof document !== 'undefined') {
+          try {
+            dataUri = await new Promise<string>((resolve, reject) => {
+              const img = new window.Image();
+              img.onload = () => {
+                const maxDim = 1280;
+                let w = img.naturalWidth || img.width;
+                let h = img.naturalHeight || img.height;
+                if (w > maxDim || h > maxDim) {
+                  const ratio = Math.min(maxDim / w, maxDim / h);
+                  w = Math.round(w * ratio);
+                  h = Math.round(h * ratio);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                  resolve(dataUri);
+                  return;
+                }
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', 0.82));
+              };
+              img.onerror = () => reject(new Error('Image decode failed'));
+              img.src = asset.uri;
+            });
+          } catch {
+            // Conservar dataUri original si canvas falla
+          }
+        }
 
         if (target === 'idFront') setIdCardFront(dataUri);
         else if (target === 'idBack') setIdCardBack(dataUri);
@@ -230,7 +264,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 
     setLoading(true);
     try {
-      await authService.register({
+      const registeredUser = await authService.register({
         fullName: fullName.trim(),
         cedula: cedula.trim(),
         email: email.trim().toLowerCase(),
@@ -241,8 +275,10 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
         selfiePhoto: selfiePhoto || undefined,
       });
 
-      const successMsg =
-        'Recibimos tu solicitud correctamente.\n\nNuestro equipo revisará tus documentos en las próximas 24 a 48 horas.';
+      const autoVerified = Boolean(registeredUser?.isVerified);
+      const successMsg = autoVerified
+        ? 'Tu identidad biométrica fue validada automáticamente y tus documentos quedaron cifrados de forma segura.'
+        : 'Tus documentos fueron validados ópticamente y cifrados en bóveda segura (AES-256).\n\nYa puedes acceder mientras un supervisor confirma tu sello de verificación.';
 
       if (Platform.OS === 'web') {
         if (typeof window !== 'undefined') {
@@ -250,7 +286,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
         }
         onRegister();
       } else {
-        Alert.alert('Solicitud enviada', successMsg, [
+        Alert.alert('Cuenta creada', successMsg, [
           { text: 'Entendido', onPress: onRegister },
         ]);
       }
@@ -733,7 +769,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                     ) : null}
                   </View>
                   <Text style={styles.declarationText}>
-                    Confirmo bajo gravedad de juramento que los datos y fotografías entregados son reales y me pertenecen.
+                    Autorizo el tratamiento cifrado de mis datos biométricos conforme a la Ley 1581 de 2012 (Habeas Data) y declaro que los documentos entregados me pertenecen.
                   </Text>
                 </TouchableOpacity>
 

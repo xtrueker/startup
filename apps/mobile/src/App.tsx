@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { authService } from './services/auth';
+import { authService, api } from './services/auth';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import HomeScreen from './screens/HomeScreen';
@@ -11,6 +11,8 @@ import { ghostModeService } from './services/GhostModeService';
 import { GhostModeScreen } from './screens/GhostModeScreen';
 import { panicService } from './services/panicService';
 import { localDatabase } from './services/localDatabase';
+import { OfflineBufferService } from './features/panic/services/OfflineBufferService';
+import { pushNotificationService } from './services/PushNotificationService';
 import { palette, fontSans } from './theme/prismTheme';
 import { AmbientPrismCanvas, PrismEmblem } from './components/ui/PrismPrimitives';
 
@@ -36,6 +38,7 @@ export default function App() {
           if (role === 'police') {
             setActiveScreen('patrol');
           }
+          pushNotificationService.registerDevicePushToken().catch(() => {});
         }
       } catch (error) {
         console.error('Auth check failed:', error);
@@ -45,9 +48,12 @@ export default function App() {
     }
     checkAuth();
 
+    const stopOfflineSync = OfflineBufferService.startAutoSync(api);
+
     const unsubscribeAuth = authService.subscribe(async (isAuth) => {
       setAuthenticated(isAuth);
       if (!isAuth) {
+        pushNotificationService.unregisterDevicePushToken().catch(() => {});
         setUserRole(null);
         setActiveScreen('home');
         setView('login');
@@ -58,6 +64,7 @@ export default function App() {
         if (role === 'police') {
           setActiveScreen('patrol');
         }
+        pushNotificationService.registerDevicePushToken().catch(() => {});
       }
     });
 
@@ -78,6 +85,7 @@ export default function App() {
     });
 
     return () => {
+      stopOfflineSync();
       unsubscribeAuth();
       ghostModeService.stopListening();
     };

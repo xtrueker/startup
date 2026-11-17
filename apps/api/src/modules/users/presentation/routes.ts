@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { User, Role } from '../../../infrastructure/database/models';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
+import { KycVerificationService } from '../../kyc/services/KycVerificationService';
 
 const router = Router();
 
@@ -350,6 +351,31 @@ router.delete('/:id', requireAuth, requireRole(['admin']), async (req: Request, 
   } catch (error: any) {
     console.error('Error eliminando usuario:', error.message);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/{id}/kyc-dossier:
+ *   get:
+ *     summary: Descifrar y auditar expediente biométrico KYC (Ley 1581 — solo admin/supervisor)
+ *     tags: [Users]
+ */
+router.get('/:id/kyc-dossier', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+  try {
+    const actorId = (req as any).user?.userId || (req as any).user?.id;
+    const dossier = await KycVerificationService.getDecryptedKycDossier(
+      req.params.id,
+      actorId,
+      req.ip
+    );
+    if (!dossier) {
+      return res.status(404).json({ success: false, message: 'Expediente no encontrado' });
+    }
+    res.json({ success: true, data: dossier });
+  } catch (error: any) {
+    console.error('Error descifrando expediente KYC:', error.message);
+    res.status(500).json({ success: false, message: 'Error al recuperar expediente cifrado' });
   }
 });
 

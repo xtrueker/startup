@@ -1,91 +1,265 @@
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import {
+  AudioModule,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+} from 'expo-audio';
+import { api } from '../../../services/auth';
 import { OfflineBufferService } from './OfflineBufferService';
-import { AudioModule, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
+
+const CHUNK_DURATION_MS = 15000;
 
 export class CovertAudioService {
   private static recording: any = null;
+  private static webMediaRecorder: any = null;
+  private static webStream: any = null;
   private static isRecording = false;
+  private static activeAlertId: string | null = null;
+  private static chunkCounter = 0;
+  private static chunkTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
-   * Inicia el micrófono discretamente y lo encapsula en chunks de alta compresión.
+   * Inicia captura acústica discreta en fragmentos de 15s (iOS, Android y Web)
+   * y los transmite cifrados a /api/mobile/evidence/audio (con cola offline de respaldo).
    */
   static async startCovertRecording(alertId: string) {
     if (this.isRecording) return;
-    
+    this.activeAlertId = alertId;
+    this.chunkCounter = 0;
+
+    if (Platform.OS === 'web') {
+      await this.startWebRecording(alertId);
+      return;
+    }
+
     try {
       const { status } = await requestRecordingPermissionsAsync();
       if (status !== 'granted') return;
 
       await setAudioModeAsync({
         allowsRecording: true,
-        playsInSilentMode: true, // Evade el Switch de silencio
+        playsInSilentMode: true,
       });
 
-      console.log('🎙️ [CovertAudio] Grabación oscura iniciada...');
       this.isRecording = true;
-
-      // Iniciar el Recording Loop (Chunks de 30 segundos)
-      this.recordChunk(alertId);
-
+      this.recordNativeChunk(alertId);
     } catch (err) {
-      console.error('Fallo iniciando Stealth Mic', err);
+      console.warn('[CovertAudio] No se pudo iniciar micrófono nativo:', err);
     }
   }
 
   static async stopCovertRecording() {
     this.isRecording = false;
-    if (this.recording) {
-      try {
-        await this.recording.stop();
-        this.recording = null;
-      } catch (e) {}
+    if (this.chunkTimeout) {
+      clearTimeout(this.chunkTimeout);
+      this.chunkTimeout = null;
     }
-    console.log('🎙️ [CovertAudio] Loop silencioso terminado.');
+
+    if (Platform.OS === 'web') {
+      try {
+        if (this.webMediaRecorder && this.webMediaRecorder.state !== 'inactive') {
+          this.webMediaRecorder.stop();
+        }
+        if (this.webStream) {
+          this.webStream.getTracks().forEach((t: any) => t.stop());
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
+      this.webMediaRecorder = null;
+      this.webStream = null;
+      return;
+    }
+
+    if (this.recording) {
+      const pendingAlertId = this.activeAlertId;
+      const finalIdx = this.chunkCounter++;
+      const finalRecorder = this.recording;
+      this.recording = null;
+      this.activeAlertId = null;
+
+      try {
+        await finalRecorder.stop();
+        const uri = finalRecorder.uri;
+        if (uri && pendingAlertId) {
+          await this.transmitOrBufferAudio({
+            alertId: pendingAlertId,
+            fileUri: uri,
+            mimeType: 'audio/mp4',
+            chunkIndex: finalIdx,
+          });
+        }
+      } catch {
+        // Ignore stop errors
+      }
+      return;
+    }
+    this.activeAlertId = null;
   }
 
-  private static async recordChunk(alertId: string) {
+  private static async transmitOrBufferAudio(params: {
+    alertId: string;
+    audioBase64?: string;
+    fileUri?: string;
+    mimeType: string;
+    chunkIndex: number;
+  }) {
+    const { alertId, fileUri, mimeType, chunkIndex } = params;
+    let audioBase64 = params.audioBase64;
+
+    // Si la alerta empezó sin red, encolar directamente hasta que tenga UUID real
+    if (alertId.startsWith('OFFLINE_')) {
+      await OfflineBufferService.enqueue('AUDIO_CHUNK', {
+        alertId,
+        audioBase64,
+        fileUri,
+        mimeType,
+        chunkIndex,
+        durationMs: CHUNK_DURATION_MS,
+      });
+      return;
+    }
+
+    try {
+      if (!audioBase64 && fileUri && Platform.OS !== 'web') {
+        audioBase64 = await FileSystem.readAsStringAsync(fileUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
+
+      if (!audioBase64) return;
+
+      await api.post('/mobile/evidence/audio', {
+        alertId,
+        audioBase64,
+        mimeType,
+        chunkIndex,
+        durationMs: CHUNK_DURATION_MS,
+      });
+
+      if (fileUri && Platform.OS !== 'web') {
+        FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+      }
+    } catch {
+      await OfflineBufferService.enqueue('AUDIO_CHUNK', {
+        alertId,
+        audioBase64,
+        fileUri,
+        mimeType,
+        chunkIndex,
+        durationMs: CHUNK_DURATION_MS,
+      });
+    }
+  }
+
+  private static async recordNativeChunk(alertId: string) {
     if (!this.isRecording) return;
 
     try {
-      // Instanciar usando el módulo nativo y el preset de baja calidad (reemplazo de LOW_QUALITY)
       if (!AudioModule?.AudioRecorder) {
-        console.warn('🎙️ [CovertAudio] AudioModule.AudioRecorder no está disponible en este entorno.');
         this.isRecording = false;
         return;
       }
-      const options = RecordingPresets.LOW_QUALITY;
-      this.recording = new AudioModule.AudioRecorder(options);
-      
-      await this.recording.prepareToRecordAsync();
-      this.recording.record();
 
-      // Esperar 30 Segundos
-      setTimeout(async () => {
+      const recorder = new AudioModule.AudioRecorder(RecordingPresets.LOW_QUALITY);
+      this.recording = recorder;
+
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+
+      this.chunkTimeout = setTimeout(async () => {
         if (!this.isRecording) return;
-        
+        const currentIdx = this.chunkCounter++;
+
         try {
-          await this.recording?.stop();
-          const uri = this.recording?.uri;
+          await recorder.stop();
+          const uri = recorder.uri;
           this.recording = null;
 
           if (uri) {
-            console.log(`🎙️ [CovertAudio] Chunk cerrado: ${uri}`);
-            // Empujar al Offline Queue para ser subido vía presigned Urls de AWS S3
-            await OfflineBufferService.enqueue('AUDIO_CHUNK', {
+            await this.transmitOrBufferAudio({
               alertId,
               fileUri: uri,
+              mimeType: 'audio/mp4',
+              chunkIndex: currentIdx,
             });
           }
-          
-          // Grabar la siguiente ventana (Loop infinito hasta cancelar Alarma)
-          this.recordChunk(alertId);
 
+          if (this.isRecording) {
+            this.recordNativeChunk(alertId);
+          }
         } catch (err) {
-          console.error('Error cerrando chunk de audio', err);
+          console.warn('[CovertAudio] Error cerrando fragmento nativo:', err);
         }
-      }, 30000); // Guardar evidencia cada 30 segundos
-
+      }, CHUNK_DURATION_MS);
     } catch (err) {
-      console.error('Error abriendo chunk de audio', err);
+      console.warn('[CovertAudio] Error grabando fragmento nativo:', err);
+    }
+  }
+
+  private static async startWebRecording(alertId: string) {
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === 'undefined'
+    ) {
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.webStream = stream;
+      this.isRecording = true;
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
+
+      const launchWebSegment = () => {
+        if (!this.isRecording || !this.webStream) return;
+        const recorder = new MediaRecorder(this.webStream, { mimeType });
+        this.webMediaRecorder = recorder;
+        const chunks: BlobPart[] = [];
+
+        recorder.ondataavailable = (ev: any) => {
+          if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+        };
+
+        recorder.onstop = () => {
+          if (chunks.length === 0) return;
+          const idx = this.chunkCounter++;
+          const blob = new Blob(chunks, { type: mimeType });
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (typeof reader.result === 'string') {
+              this.transmitOrBufferAudio({
+                alertId,
+                audioBase64: reader.result,
+                mimeType: 'audio/webm',
+                chunkIndex: idx,
+              }).catch(() => {});
+            }
+          };
+          reader.readAsDataURL(blob);
+        };
+
+        recorder.start();
+        this.chunkTimeout = setTimeout(() => {
+          if (recorder.state !== 'inactive') {
+            recorder.stop();
+          }
+          if (this.isRecording) {
+            launchWebSegment();
+          }
+        }, CHUNK_DURATION_MS);
+      };
+
+      launchWebSegment();
+    } catch {
+      // Mic permission denied or unavailable on web
+      this.isRecording = false;
     }
   }
 }
