@@ -16,22 +16,101 @@ const router = Router();
 
 /**
  * @swagger
+ * /api/auth/analyze-document:
+ *   post:
+ *     summary: Analizar documento con IA (OCR + detección de retrato en cédula colombiana)
+ *     tags: [Auth]
+ *     security: []
+ */
+router.post('/analyze-document', async (req: Request, res: Response) => {
+  try {
+    const { imageBase64, side } = req.body;
+    const result = await KycVerificationService.analyzeIdDocumentPreview({
+      imageBase64,
+      side,
+    });
+    return res.status(200).json({
+      success: true,
+      message: 'Documento procesado por IA',
+      data: result,
+    });
+  } catch (error: any) {
+    const status = error?.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      message: error?.message || 'No fue posible analizar el documento',
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/liveness-challenge:
+ *   get:
+ *     summary: Emitir reto biomecánico aleatorio firmado para prueba de vida en 2 fotogramas
+ *     tags: [Auth]
+ *     security: []
+ */
+router.get('/liveness-challenge', (_req: Request, res: Response) => {
+  const challenge = KycVerificationService.issueLivenessChallenge();
+  return res.status(200).json({
+    success: true,
+    data: challenge,
+  });
+});
+
+/**
+ * @swagger
+ * /api/auth/liveness-probe:
+ *   post:
+ *     summary: Guía visual en tiempo real sin temporizador (detecta postura de mirada, gestos y antifraude)
+ *     tags: [Auth]
+ *     security: []
+ */
+router.post('/liveness-probe', async (req: Request, res: Response) => {
+  try {
+    const { stage, frameBase64, token } = req.body;
+    const result = await KycVerificationService.evaluateLiveGuidanceProbe({
+      stage,
+      frameBase64,
+      token,
+    });
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        status: 'coaching',
+        tone: 'neutral',
+        guidance: 'Mantén tu rostro frente a la pantalla',
+      },
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/auth/verify-biometrics:
  *   post:
- *     summary: Pre-verificar en tiempo real la coincidencia facial entre selfie y frente de cédula
+ *     summary: Prueba de vida activa (2 fotogramas) + detección antisuplantación (PAD) contra cédula
  *     tags: [Auth]
  *     security: []
  */
 router.post('/verify-biometrics', async (req: Request, res: Response) => {
   try {
-    const { idCardFront, selfiePhoto } = req.body;
+    const { idCardFront, selfieNeutral, selfiePhoto, challengeToken } = req.body;
     const result = await KycVerificationService.verifyFaceMatchPreview({
       idCardFront,
+      selfieNeutral,
       selfiePhoto,
+      challengeToken,
     });
     return res.status(200).json({
       success: true,
-      message: 'Coincidencia biométrica verificada',
+      message: 'Prueba de vida e identidad biométrica confirmadas',
       data: result,
     });
   } catch (error: any) {
@@ -96,7 +175,7 @@ router.post('/verify-biometrics', async (req: Request, res: Response) => {
  */
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { fullName, cedula, email, password, role, phone, ciudad, idCardFront, idCardBack, selfiePhoto } = req.body;
+    const { fullName, cedula, email, password, role, phone, ciudad, idCardFront, idCardBack, selfiePhoto, livenessProofToken } = req.body;
 
     if (!fullName || !cedula || !email || !password) {
       return res.status(400).json({ success: false, message: 'Faltan datos obligatorios' });
@@ -117,6 +196,7 @@ router.post('/register', async (req: Request, res: Response) => {
       idCardFront,
       idCardBack,
       selfiePhoto,
+      livenessProofToken,
     });
 
     if (!kycEvaluation.isVerified || kycEvaluation.facialVerificationStatus !== 'verified') {

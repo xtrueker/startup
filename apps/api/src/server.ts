@@ -65,11 +65,11 @@ const globalLimiter = rateLimit({
 });
 app.use('/api/', globalLimiter);
 
-// Límite estricto para Autenticación y Verificación Biométrica
+// Límite para Autenticación y Asistente Visual de Prueba de Vida en Tiempo Real
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50, // Protege contra fuerza bruta permitiendo reintentos legítimos de enfoque biométrico
-  message: 'Demasiados intentos de autenticación, intenta en 15 minutos'
+  max: 300, // Soporta sondas continuas de orientación facial para adultos mayores sin bloqueo
+  message: 'Demasiados intentos de autenticación, intenta en unos minutos'
 });
 app.use('/api/auth', authLimiter);
 

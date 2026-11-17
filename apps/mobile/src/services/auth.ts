@@ -96,6 +96,7 @@ export interface RegisterData {
   idCardFront?: string;
   idCardBack?: string;
   selfiePhoto?: string;
+  livenessProofToken?: string;
 }
 
 export const authService = {
@@ -121,10 +122,55 @@ export const authService = {
     return user;
   },
 
+  analyzeDocument: async (payload: {
+    imageBase64: string;
+    side: 'front' | 'back';
+  }): Promise<{
+    valid: boolean;
+    side: 'front' | 'back';
+    documentType: string;
+    detectedCedula: string | null;
+    detectedFullName: string | null;
+    faceConfidence: number | null;
+  }> => {
+    const res = await api.post('/auth/analyze-document', payload);
+    return res.data.data;
+  },
+
+  getLivenessChallenge: async (): Promise<{
+    challengeType: 'smile' | 'turn_head' | 'open_mouth';
+    step1Prompt: string;
+    step2Prompt: string;
+    challengeToken: string;
+  }> => {
+    const res = await api.get('/auth/liveness-challenge');
+    return res.data.data;
+  },
+
+  probeLiveness: async (payload: {
+    stage: 'align_neutral' | 'perform_gesture';
+    frameBase64: string;
+    token: string;
+  }): Promise<{
+    status: 'coaching' | 'neutral_locked' | 'gesture_locked' | 'spoof_blocked';
+    tone: 'neutral' | 'amber' | 'aqua' | 'emerald' | 'crimson';
+    guidance: string;
+    nextToken?: string;
+  }> => {
+    const res = await api.post('/auth/liveness-probe', payload);
+    return res.data.data;
+  },
+
   verifyBiometrics: async (payload: {
     idCardFront: string;
+    selfieNeutral: string;
     selfiePhoto: string;
-  }): Promise<{ verified: boolean; similarityScore: number }> => {
+    challengeToken: string;
+  }): Promise<{
+    verified: boolean;
+    similarityScore: number;
+    livenessProofToken: string;
+  }> => {
     const res = await api.post('/auth/verify-biometrics', payload);
     return res.data.data;
   },

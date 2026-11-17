@@ -7,6 +7,7 @@ import { logger } from './logger';
 import { env } from '../../config/env';
 import { predictiveEngine } from '../../services/PredictiveEngine';
 import { PushDispatchService } from '../services/PushDispatchService';
+import { EvidenceStorageService } from '../../modules/mobile/services/EvidenceStorageService';
 
 let io: Server | null = null;
 
@@ -292,10 +293,54 @@ export const initSocket = async (server: HttpServer) => {
     // Enviar inmediatamente las unidades policiales activas al operador
     socket.emit('police:active_units', getActivePatrolUnits());
 
+    // Hidratar al Centro de Mando con los fragmentos de audio cifrados ya guardados en Supabase
+    const resolveSocketApiBaseUrl = (): string => {
+      if (process.env.PUBLIC_API_URL) {
+        return process.env.PUBLIC_API_URL.replace(/\/+$/, '');
+      }
+      const rawProto = (socket.handshake.headers['x-forwarded-proto'] as string) || 'http';
+      const proto = rawProto.split(',')[0].trim();
+      const host = socket.handshake.headers.host || `localhost:${env.PORT}`;
+      return `${proto}://${host}`;
+    };
+
+    const hydrateTimer = setTimeout(async () => {
+      if (!socket.connected) return;
+      try {
+        const bundles = await EvidenceStorageService.listEvidenceVault({
+          userId: 'operator_console',
+          role: 'operator',
+          apiBaseUrl: resolveSocketApiBaseUrl(),
+          limit: 15,
+        });
+        for (const bundle of bundles) {
+          if (bundle.status === 'resolved' || bundle.status === 'discarded') continue;
+          for (const clip of bundle.clips) {
+            socket.emit('evidence:audio_chunk', {
+              alertId: bundle.alertId,
+              url: clip.url,
+              chunkIndex: clip.chunkIndex,
+              durationMs: clip.durationMs,
+              sha256Hash: clip.sha256Hash,
+            });
+          }
+        }
+      } catch (err) {
+        logger.warn({ err }, 'No se pudo hidratar cola inicial de audio para operador');
+      }
+    }, 650);
+
     // Operator joins a specific alert room to receive live GPS of that victim
-    socket.on('watch:alert', (alertId: string) => {
+    socket.on('watch:alert', async (alertId: string) => {
       socket.join(`alert:${alertId}`);
       logger.info(`👁️ Operador ${socket.id} observando alerta: ${alertId}`);
+      try {
+        const clips = await EvidenceStorageService.listAlertEvidence(
+          alertId,
+          resolveSocketApiBaseUrl()
+        );
+        socket.emit('evidence:history', { alertId, clips });
+      } catch {}
     });
 
     socket.on('unwatch:alert', (alertId: string) => {
@@ -309,6 +354,7 @@ export const initSocket = async (server: HttpServer) => {
     });
 
     socket.on('disconnect', () => {
+      clearTimeout(hydrateTimer);
       logger.info(`🖥️ Operador desconectado: ${socket.id}`);
     });
   });
