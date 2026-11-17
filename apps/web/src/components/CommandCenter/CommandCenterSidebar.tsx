@@ -29,6 +29,7 @@ import {
   MapPin,
   Sun,
   Moon,
+  LayoutGrid,
 } from 'lucide-react';
 
 export const CommandCenterSidebar: React.FC = () => {
@@ -188,6 +189,19 @@ export const CommandCenterSidebar: React.FC = () => {
             <Cctv size={18} />
           </button>
 
+          {/* 2.1 Módulo Cuadrícula 4x4 */}
+          <button
+            onClick={() => navigate('/command-center/camera-grid')}
+            title="Módulo: Cuadrícula 4x4 (Videowall)"
+            className={`w-9 h-9 rounded flex items-center justify-center transition-all p-0 ${
+              location.pathname === '/command-center/camera-grid'
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]'
+            }`}
+          >
+            <LayoutGrid size={18} />
+          </button>
+
           {/* 3. Módulo Usuarios / Equipos */}
           <button
             onClick={() => navigate('/command-center/teams')}
@@ -276,7 +290,7 @@ export const CommandCenterSidebar: React.FC = () => {
       {sidebarOpen && (
         <div className="w-[320px] h-full flex flex-col overflow-hidden rounded-[12px]">
           {/* User Info + Logout */}
-          <div className="px-4 py-3 bg-[#f9f9f9] dark:bg-[#111112] flex items-center gap-3 shadow-xs">
+          <div className="px-4 py-3 bg-[#f9f9f9] dark:bg-[#111112] flex items-center gap-3 shadow-xs shrink-0">
             {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#262626] to-[#141414] flex items-center justify-center font-black text-white text-sm shadow-md">
@@ -318,10 +332,10 @@ export const CommandCenterSidebar: React.FC = () => {
             </button>
           </div>
 
-          <div className="w-full h-px bg-neutral-200 dark:bg-[#343434]" />
+          <div className="w-full h-px bg-neutral-200 dark:bg-[#343434] shrink-0" />
 
           {/* Header con Central de Despacho y Heatmap directamente abajo */}
-          <div className="p-4 bg-[#f9f9f9] dark:bg-[#111112] shadow-xs flex flex-col gap-2.5">
+          <div className="p-4 bg-[#f9f9f9] dark:bg-[#111112] shadow-xs flex flex-col gap-2.5 shrink-0">
             <div className="flex items-center justify-between gap-2">
               <button
                 onClick={handleDispatchClick}
@@ -345,7 +359,7 @@ export const CommandCenterSidebar: React.FC = () => {
             </button>
           </div>
 
-          <div className="w-full h-px bg-neutral-200 dark:bg-[#343434]" />
+          <div className="w-full h-px bg-neutral-200 dark:bg-[#343434] shrink-0" />
 
           {/* Filtro por Tipo */}
           {(() => {
@@ -358,7 +372,7 @@ export const CommandCenterSidebar: React.FC = () => {
             ] as const;
             const selected = TYPE_OPTIONS.find(o => o.key === filterType) ?? TYPE_OPTIONS[0];
             return (
-              <div className="px-4 py-3 bg-[#f9f9f9] dark:bg-[#111112] flex flex-col gap-2">
+              <div className="px-4 py-3 bg-[#f9f9f9] dark:bg-[#111112] flex flex-col gap-2 shrink-0">
                 <div className="relative">
                   <button
                     onClick={() => setTypeDropdownOpen(v => !v)}
@@ -393,11 +407,11 @@ export const CommandCenterSidebar: React.FC = () => {
             );
           })()}
 
-          <div className="w-full h-px bg-neutral-200 dark:bg-[#343434]" />
+          <div className="w-full h-px bg-neutral-200 dark:bg-[#343434] shrink-0" />
 
           {/* Lista de Eventos Virtualizada */}
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar bg-[#f9f9f9] dark:bg-[#111112]">
-            <h3 className="text-xs uppercase text-[var(--text-primary)] font-extrabold mb-1 flex items-center gap-2 tracking-wider">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar bg-[#f9f9f9] dark:bg-[#111112]">
+            <h3 className="text-xs uppercase text-[var(--text-primary)] font-extrabold mb-1 flex items-center gap-2 tracking-wider shrink-0">
               <Activity size={14} className="text-[var(--brand)]" /> {`Emergencias Activas (${activeCount})`}
             </h3>
 
@@ -419,7 +433,7 @@ export const CommandCenterSidebar: React.FC = () => {
                 <div
                   key={alert.id}
                   onClick={() => handleAlertCardClick(alert.id)}
-                  className={`rounded flex flex-col cursor-pointer transition-all duration-200 overflow-hidden relative
+                  className={`rounded flex flex-col cursor-pointer transition-all duration-200 overflow-hidden relative shrink-0
                     ${isFocused 
                       ? 'bg-[#efefef] dark:bg-[#181819] shadow-md scale-[1.01]' 
                       : 'bg-[#efefef] dark:bg-[#181819] shadow-xs hover:shadow-sm hover:scale-[1.01] hover:bg-[#ece9e6] dark:hover:bg-[var(--bg-elevated)]'
@@ -498,8 +512,10 @@ export const CommandCenterSidebar: React.FC = () => {
           </div>
 
           {/* Admin Navigation Menu */}
-          <div className="w-full h-px bg-neutral-200 dark:bg-[#343434]" />
-          <AdminMenu />
+          <div className="w-full h-px bg-neutral-200 dark:bg-[#343434] shrink-0" />
+          <div className="shrink-0">
+            <AdminMenu />
+          </div>
         </div>
       )}
     </aside>

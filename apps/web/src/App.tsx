@@ -12,6 +12,7 @@ import AdminUsers from './pages/Admin/Teams';
 import AdminEmergencies from './pages/Admin/Emergencies';
 import AdminKPI from './pages/Admin/KPI';
 import AdminRoles from './pages/Admin/Roles';
+import CameraGrid from './pages/Admin/CameraGrid';
 import { useAuthStore } from './stores/useAuthStore';
 
 function App() {
@@ -82,6 +83,7 @@ function App() {
           <Route index element={<CommandCenter />} />
           <Route path="operators" element={<AdminOperators />} />
           <Route path="cameras" element={<AdminCameras />} />
+          <Route path="camera-grid" element={<CameraGrid />} />
           <Route path="teams" element={<AdminUsers />} />
           <Route path="emergencies" element={<AdminEmergencies />} />
           <Route path="kpi" element={<AdminKPI />} />

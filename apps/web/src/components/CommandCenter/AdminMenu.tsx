@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Settings2,
   ShieldCheck,
+  LayoutGrid,
 } from 'lucide-react';
 
 const ADMIN_MODULES = [
@@ -25,6 +26,13 @@ const ADMIN_MODULES = [
     Icon: Cctv,
     path: '/command-center/cameras',
     dot: '#a3a3a3',
+  },
+  {
+    key: 'camera-grid',
+    label: 'Cuadrícula 4x4',
+    Icon: LayoutGrid,
+    path: '/command-center/camera-grid',
+    dot: '#0ea5e9',
   },
   {
     key: 'teams',
