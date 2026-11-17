@@ -1,5 +1,6 @@
 import { ICameraRepository } from '../infrastructure/CameraRepository';
 import { getSocket, emitToOperators } from '../../../shared/utils/socket';
+import { parsePostgisPoint } from '../../../shared/utils/postgis';
 
 export class CameraService {
   constructor(private readonly cameraRepository: ICameraRepository) {}
@@ -50,18 +51,9 @@ export class CameraService {
   }
 
   private mapToDTO(camera: any) {
-    let lat = 0, lng = 0;
-    if (camera.location && typeof camera.location === 'object' && camera.location.coordinates) {
-       lng = camera.location.coordinates[0];
-       lat = camera.location.coordinates[1];
-    } else if (typeof camera.location === 'string') {
-       // fallback si viene en WKT
-       const match = camera.location.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-       if (match) {
-         lng = parseFloat(match[1]);
-         lat = parseFloat(match[2]);
-       }
-    }
+    const parsedCoords = parsePostgisPoint(camera.location);
+    const lat = parsedCoords ? parsedCoords.latitude : 0;
+    const lng = parsedCoords ? parsedCoords.longitude : 0;
 
     return {
       id: camera.id || camera._id, // soporta ambos

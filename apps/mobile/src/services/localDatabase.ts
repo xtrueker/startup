@@ -162,6 +162,7 @@ class LocalDatabaseService {
 
     if (dbInstance) {
       try {
+        dbInstance.runSync('DELETE FROM cached_cameras');
         const now = new Date().toISOString();
         for (const cam of cameras) {
           dbInstance.runSync(

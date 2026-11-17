@@ -3,7 +3,6 @@ import { View, StyleSheet, Platform } from 'react-native';
 import MapView, { Marker, Circle, MapStyleElement } from 'react-native-maps';
 import { WebView, WebViewProps } from 'react-native-webview';
 import { palette } from '../theme/prismTheme';
-import { PrismIcon } from './ui/PrismPrimitives';
 
 const NativeWebView = WebView as unknown as React.ComponentType<WebViewProps & { ref?: any }>;
 
@@ -13,7 +12,9 @@ export interface CameraItem {
   location: {
     latitude: number;
     longitude: number;
+    address?: string;
   };
+  coverageRadius?: number;
 }
 
 export interface TacticalMapProps {
@@ -30,22 +31,15 @@ export interface TacticalMapProps {
   isAlertActive: boolean;
 }
 
-const HAS_GOOGLE_MAPS_KEY = Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim());
+const USE_NATIVE_MAP_SDK =
+  process.env.EXPO_PUBLIC_USE_NATIVE_MAPS === 'true' &&
+  (Platform.OS === 'ios' || Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim()));
 
-/**
- * Clean luminous Pearl & Silver-Ice map style for Android Google Maps
- * (iOS Apple Maps uses native userInterfaceStyle="light").
- */
 const PEARL_LIGHT_MAP_STYLE: MapStyleElement[] = [
   { elementType: 'geometry', stylers: [{ color: '#F2F5F9' }] },
   { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#526071' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#FFFFFF' }] },
-  {
-    featureType: 'administrative.land_parcel',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#94A3B8' }],
-  },
   {
     featureType: 'poi',
     elementType: 'geometry',
@@ -59,35 +53,16 @@ const PEARL_LIGHT_MAP_STYLE: MapStyleElement[] = [
   {
     featureType: 'road',
     elementType: 'geometry',
-    stylers: [{ color: '#FFFFFF' }] },
-  {
-    featureType: 'road.arterial',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#DCE4EE' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#F8FAFC' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#CBD5E1' }],
+    stylers: [{ color: '#FFFFFF' }],
   },
   {
     featureType: 'water',
     elementType: 'geometry',
     stylers: [{ color: '#CBE8F6' }],
   },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#0284C7' }],
-  },
 ];
 
-function buildAndroidLeafletHtml(lat: number, lng: number): string {
+function buildMobileLeafletHtml(lat: number, lng: number): string {
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -104,6 +79,7 @@ function buildAndroidLeafletHtml(lat: number, lng: number): string {
       background: #EEF2F7;
       overflow: hidden;
       -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Roboto, sans-serif;
     }
     .leaflet-tile-pane {
       filter: saturate(0.36) brightness(1.03) contrast(0.96);
@@ -151,12 +127,12 @@ function buildAndroidLeafletHtml(lat: number, lng: number): string {
       border-radius: 50%;
     }
     .rc-cam-pin {
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.95);
-      border: 1.5px solid rgba(14,165,233,0.55);
-      box-shadow: 0 4px 12px rgba(15,23,42,0.15);
+      background: #FFFFFF;
+      border: 2px solid #0EA5E9;
+      box-shadow: 0 6px 14px rgba(14,165,233,0.28), 0 2px 6px rgba(15,23,42,0.16);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -166,12 +142,17 @@ function buildAndroidLeafletHtml(lat: number, lng: number): string {
 <body>
   <div id="map"></div>
   <script>
+    function esc(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
     var map = L.map('map', {
       center: [${lat}, ${lng}],
-      zoom: 16,
+      zoom: 15,
       zoomControl: false,
       attributionControl: true
     });
+
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap'
@@ -222,34 +203,54 @@ function buildAndroidLeafletHtml(lat: number, lng: number): string {
           sosCircle = null;
         }
       }
+
       if (Array.isArray(payload.cameras)) {
         camLayer.clearLayers();
         payload.cameras.forEach(function(c) {
           if (!c || !c.location) return;
+          var clat = Number(c.location.latitude);
+          var clng = Number(c.location.longitude);
+          if (!isFinite(clat) || !isFinite(clng) || (clat === 0 && clng === 0)) return;
+
+          var radius = Number(c.coverageRadius) || 120;
+          L.circle([clat, clng], {
+            radius: radius,
+            color: 'rgba(14,165,233,0.45)',
+            weight: 1.5,
+            fillColor: 'rgba(14,165,233,0.10)',
+            fillOpacity: 1
+          }).addTo(camLayer);
+
           var camIcon = L.divIcon({
             className: '',
-            iconSize: [28, 28],
-            iconAnchor: [14, 14],
-            html: '<div class="rc-cam-pin"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2.2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>'
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+            html: '<div class="rc-cam-pin"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0284C7" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>'
           });
-          L.marker([c.location.latitude, c.location.longitude], { icon: camIcon })
-            .bindPopup('<b>' + (c.name || 'Cámara comunitaria') + '</b>')
+
+          var addrLine = c.location.address ? '<div style="font-size:11px;color:#64748B;margin-top:2px;">' + esc(c.location.address) + '</div>' : '';
+          L.marker([clat, clng], { icon: camIcon, zIndexOffset: 650 })
+            .bindPopup('<div style="font-size:12.5px;"><b>' + esc(c.name || 'Cámara comunitaria') + '</b>' + addrLine + '</div>')
             .addTo(camLayer);
         });
       }
     };
 
     window.__rcFlyTo = function(lat, lng, zoom) {
-      if (typeof lat === 'number' && typeof lng === 'number') {
+      if (typeof lat === 'number' && typeof lng === 'number' && isFinite(lat) && isFinite(lng)) {
         map.flyTo([lat, lng], zoom || 16, { animate: true, duration: 0.75 });
       }
     };
+
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage('MAP_READY');
+    }
   </script>
 </body>
 </html>`;
 }
 
-function AndroidLeafletWebViewMap({
+function MobileLeafletWebViewMap({
   mapRef,
   initialRegion,
   userLocation,
@@ -262,8 +263,7 @@ function AndroidLeafletWebViewMap({
   const hasCenteredInitial = useRef(false);
 
   const html = useMemo(
-    () => buildAndroidLeafletHtml(initialRegion.latitude, initialRegion.longitude),
-    // Solo construir HTML base una vez; las actualizaciones viajan sin recargar vía injectJavaScript
+    () => buildMobileLeafletHtml(initialRegion.latitude, initialRegion.longitude),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
@@ -314,10 +314,16 @@ function AndroidLeafletWebViewMap({
       style={StyleSheet.absoluteFill}
       originWhitelist={['*']}
       source={{ html, baseUrl: 'https://redciudadana.app' }}
+      onMessage={(event: any) => {
+        if (event?.nativeEvent?.data === 'MAP_READY') {
+          setLoaded(true);
+        }
+      }}
       onLoadEnd={() => setLoaded(true)}
       javaScriptEnabled={true}
       domStorageEnabled={true}
       bounces={false}
+      scrollEnabled={false}
       overScrollMode="never"
       showsHorizontalScrollIndicator={false}
       showsVerticalScrollIndicator={false}
@@ -325,11 +331,13 @@ function AndroidLeafletWebViewMap({
   );
 }
 
+/**
+ * Renderiza el mismo motor cartográfico Pearl-Silver interactivo en iOS y Android
+ * garantizando paridad 100% de cámaras, radios de cobertura y pines sin recortes de Fabric.
+ */
 export function TacticalMap(props: TacticalMapProps) {
-  // En Android standalone APK sin Google Maps API Key de pago, usamos Leaflet + OpenStreetMap
-  // nativo en WebView acelerado por hardware para evitar crashes de Google Play Services y mapas vacíos.
-  if (Platform.OS === 'android' && !HAS_GOOGLE_MAPS_KEY) {
-    return <AndroidLeafletWebViewMap {...props} />;
+  if (!USE_NATIVE_MAP_SDK) {
+    return <MobileLeafletWebViewMap {...props} />;
   }
 
   return <NativeMapView {...props} />;
@@ -377,71 +385,63 @@ function NativeMapView({
   const activeLng = currentLocation?.lng ?? userLocation?.longitude;
 
   return (
-    <MapView
-      ref={setRefs}
-      style={StyleSheet.absoluteFill}
-      initialRegion={initialRegion}
-      onMapReady={() => setMapReady(true)}
-      showsUserLocation={true}
-      showsMyLocationButton={false}
-      showsCompass={false}
-      showsScale={false}
-      toolbarEnabled={false}
-      scrollEnabled={true}
-      zoomEnabled={true}
-      pitchEnabled={true}
-      rotateEnabled={true}
-      userInterfaceStyle="light"
-      mapType="standard"
-      customMapStyle={Platform.OS === 'android' ? PEARL_LIGHT_MAP_STYLE : undefined}
-    >
-      {cameras.map((camera) => (
-        <Marker
-          key={camera.id}
-          coordinate={{
-            latitude: camera.location.latitude,
-            longitude: camera.location.longitude,
-          }}
-          title={camera.name}
-          description="Cámara comunitaria conectada"
-          tracksViewChanges={false}
-        >
-          <View style={styles.cameraMarker}>
-            <PrismIcon name="camera" size={14} color={palette.aqua} />
-          </View>
-        </Marker>
-      ))}
+    <View style={StyleSheet.absoluteFill} collapsable={false}>
+      <MapView
+        ref={setRefs}
+        style={StyleSheet.absoluteFill}
+        initialRegion={initialRegion}
+        onMapReady={() => setMapReady(true)}
+        showsUserLocation={true}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        showsScale={false}
+        toolbarEnabled={false}
+        scrollEnabled={true}
+        zoomEnabled={true}
+        pitchEnabled={true}
+        rotateEnabled={true}
+        userInterfaceStyle="light"
+        mapType="standard"
+        customMapStyle={Platform.OS === 'android' ? PEARL_LIGHT_MAP_STYLE : undefined}
+      >
+        {cameras.map((camera) => {
+          const lat = Number(camera?.location?.latitude);
+          const lng = Number(camera?.location?.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+            return null;
+          }
+          return (
+            <React.Fragment key={camera.id}>
+              <Circle
+                center={{ latitude: lat, longitude: lng }}
+                radius={camera.coverageRadius || 120}
+                strokeWidth={1.5}
+                strokeColor="rgba(14, 165, 233, 0.5)"
+                fillColor="rgba(14, 165, 233, 0.12)"
+              />
+              <Marker
+                coordinate={{ latitude: lat, longitude: lng }}
+                title={camera.name}
+                description={camera.location.address || 'Cámara comunitaria conectada'}
+                pinColor={palette.aqua}
+              />
+            </React.Fragment>
+          );
+        })}
 
-      {isAlertActive && activeLat != null && activeLng != null && (
-        <Circle
-          center={{
-            latitude: activeLat,
-            longitude: activeLng,
-          }}
-          radius={220}
-          strokeWidth={2}
-          strokeColor="rgba(225, 29, 72, 0.72)"
-          fillColor="rgba(225, 29, 72, 0.14)"
-        />
-      )}
-    </MapView>
+        {isAlertActive && activeLat != null && activeLng != null && (
+          <Circle
+            center={{
+              latitude: activeLat,
+              longitude: activeLng,
+            }}
+            radius={220}
+            strokeWidth={2}
+            strokeColor="rgba(225, 29, 72, 0.72)"
+            fillColor="rgba(225, 29, 72, 0.14)"
+          />
+        )}
+      </MapView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  cameraMarker: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: 'rgba(14, 165, 233, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-});

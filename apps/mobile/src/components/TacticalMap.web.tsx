@@ -9,7 +9,9 @@ export interface CameraItem {
   location: {
     latitude: number;
     longitude: number;
+    address?: string;
   };
+  coverageRadius?: number;
 }
 
 export interface TacticalMapProps {
@@ -287,11 +289,18 @@ export function TacticalMap({
     });
 
     cameras.forEach((cam) => {
-      if (
-        typeof cam.location?.latitude === 'number' &&
-        typeof cam.location?.longitude === 'number'
-      ) {
-        L.marker([cam.location.latitude, cam.location.longitude], {
+      const clat = Number(cam.location?.latitude);
+      const clng = Number(cam.location?.longitude);
+      if (Number.isFinite(clat) && Number.isFinite(clng) && (clat !== 0 || clng !== 0)) {
+        L.circle([clat, clng], {
+          radius: Number(cam.coverageRadius) || 120,
+          color: 'rgba(14, 165, 233, 0.45)',
+          weight: 1.5,
+          fillColor: 'rgba(14, 165, 233, 0.10)',
+          fillOpacity: 1,
+        }).addTo(group);
+
+        L.marker([clat, clng], {
           icon: camIcon,
         })
           .bindTooltip(cam.name, { direction: 'top', offset: [0, -14] })

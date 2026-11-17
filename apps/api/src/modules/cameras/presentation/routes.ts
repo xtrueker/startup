@@ -32,14 +32,26 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), 
   }
 });
 
-router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator', 'police', 'citizen']), async (req: Request, res: Response) => {
   try {
+    const userRole = (req as any).user?.role;
     const cameras = await cameraService.getAllCameras();
+
+    // Los ciudadanos reciben únicamente las cámaras comunitarias públicas sin exponer URLs internas RTSP
+    const responseData =
+      userRole === 'citizen'
+        ? cameras
+            .filter((cam: any) => cam.isPublic !== false)
+            .map((cam: any) => ({
+              ...cam,
+              streamUrl: '',
+            }))
+        : cameras;
 
     return res.json({
       success: true,
-      count: cameras.length,
-      data: cameras,
+      count: responseData.length,
+      data: responseData,
     });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: 'Error interno del servidor' });

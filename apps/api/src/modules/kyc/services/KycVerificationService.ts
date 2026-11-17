@@ -23,6 +23,8 @@ export interface KycEvaluationResult {
   metadata: Record<string, unknown>;
 }
 
+const MIN_SIMILARITY_THRESHOLD = 85;
+
 function decodeBase64Image(raw: string): Buffer {
   const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/s);
   const b64 = match ? match[1] : raw;
@@ -33,6 +35,55 @@ function hmacSha256(key: Buffer | string, data: string): Buffer {
   return crypto.createHmac('sha256', key).update(data, 'utf8').digest();
 }
 
+async function inspectAndNormalizeImage(buf: Buffer, label: string) {
+  let meta: sharp.Metadata;
+  let stats: sharp.Stats;
+  try {
+    const img = sharp(buf).rotate();
+    meta = await img.metadata();
+    stats = await img.stats();
+  } catch {
+    const err: any = new Error(`El archivo de ${label} no es una imagen válida.`);
+    err.statusCode = 422;
+    throw err;
+  }
+
+  if ((meta.width || 0) < 180 || (meta.height || 0) < 180) {
+    const err: any = new Error(
+      `La captura de ${label} tiene resolución insuficiente (${meta.width}x${meta.height}). Toma una fotografía más nítida.`
+    );
+    err.statusCode = 422;
+    throw err;
+  }
+
+  const avgStdev =
+    stats.channels.slice(0, 3).reduce((acc, c) => acc + c.stdev, 0) /
+    Math.max(1, Math.min(3, stats.channels.length));
+
+  if (avgStdev < 8) {
+    const err: any = new Error(
+      `La captura de ${label} carece de detalle visual (imagen en negro, velada o borrosa).`
+    );
+    err.statusCode = 422;
+    throw err;
+  }
+
+  // Normalizar orientación EXIF (crítico en iOS/Android) y preservar nitidez facial (1600px @ JPEG 88)
+  const normalized = await sharp(buf)
+    .rotate()
+    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 88 })
+    .toBuffer();
+
+  return {
+    normalized,
+    width: meta.width || 0,
+    height: meta.height || 0,
+    stdev: Math.round(avgStdev * 10) / 10,
+    entropy: Math.round((stats.entropy || 0) * 100) / 100,
+  };
+}
+
 /**
  * Invocación directa AWS Signature V4 a Amazon Rekognition CompareFaces
  * (cero dependencias adicionales de SDK pesado).
@@ -40,18 +91,28 @@ function hmacSha256(key: Buffer | string, data: string): Buffer {
 async function compareFacesAwsRekognition(
   sourceSelfie: Buffer,
   targetIdFront: Buffer
-): Promise<{ matched: boolean; similarity: number }> {
+): Promise<{ matched: boolean; similarity: number; unmatchedFacesCount: number }> {
   const accessKey = (process.env.AWS_ACCESS_KEY_ID || '').trim().replace(/^["']|["']$/g, '');
   const secretKey = (process.env.AWS_SECRET_ACCESS_KEY || '').trim().replace(/^["']|["']$/g, '');
   const region = (process.env.AWS_REGION || 'us-east-1').trim();
+
+  if (!accessKey || !secretKey) {
+    const cfgErr: any = new Error(
+      'El servicio de reconocimiento facial biométrico no está configurado en el servidor.'
+    );
+    cfgErr.statusCode = 503;
+    throw cfgErr;
+  }
+
   const service = 'rekognition';
   const host = `rekognition.${region}.amazonaws.com`;
   const endpoint = `https://${host}/`;
 
+  // SimilarityThreshold: 1 permite recibir el porcentaje exacto incluso cuando la coincidencia es baja (<70%)
   const body = JSON.stringify({
     SourceImage: { Bytes: sourceSelfie.toString('base64') },
     TargetImage: { Bytes: targetIdFront.toString('base64') },
-    SimilarityThreshold: 70,
+    SimilarityThreshold: 1,
   });
 
   const now = new Date();
@@ -122,42 +183,108 @@ async function compareFacesAwsRekognition(
     const errCode = parsedErr?.Code || parsedErr?.__type || '';
     if (errCode.includes('InvalidParameterException')) {
       const noFaceErr: any = new Error(
-        'No se detectó un rostro humano claro en tu selfie o en el frente de tu cédula. Asegúrate de encuadrar bien ambos rostros con buena iluminación.'
+        'No se detectó un rostro humano claro en tu selfie o en el frente de tu cédula. Asegúrate de fotografiar el frente de tu documento (donde aparece tu foto) y encuadrar bien tu rostro con buena luz.'
       );
       noFaceErr.statusCode = 422;
+      noFaceErr.code = 'NO_FACE_DETECTED';
       throw noFaceErr;
     }
 
-    throw new Error(`AWS Rekognition HTTP ${resp.status}: ${errText.slice(0, 180)}`);
+    logger.error(`AWS Rekognition error HTTP ${resp.status}: ${errText.slice(0, 220)}`);
+    const svcErr: any = new Error(
+      'No fue posible completar la validación biométrica facial en este momento. Intenta de nuevo en unos segundos.'
+    );
+    svcErr.statusCode = 503;
+    throw svcErr;
   }
 
   const json: any = await resp.json();
-  const topMatch = Array.isArray(json?.FaceMatches) ? json.FaceMatches[0] : null;
-  const similarity = topMatch?.Similarity ? Number(topMatch.Similarity) : 0;
+  const matches = Array.isArray(json?.FaceMatches) ? json.FaceMatches : [];
+  const unmatched = Array.isArray(json?.UnmatchedFaces) ? json.UnmatchedFaces : [];
+
+  // Ordenar por mayor similitud en caso de múltiples rostros en fondo
+  matches.sort((a: any, b: any) => Number(b?.Similarity || 0) - Number(a?.Similarity || 0));
+  const topMatch = matches[0] || null;
+  const similarity = topMatch?.Similarity ? Math.round(Number(topMatch.Similarity) * 100) / 100 : 0;
+
   return {
-    matched: similarity >= 85,
-    similarity: Math.round(similarity * 100) / 100,
+    matched: similarity >= MIN_SIMILARITY_THRESHOLD,
+    similarity,
+    unmatchedFacesCount: unmatched.length,
   };
 }
 
 export class KycVerificationService {
   /**
+   * Pre-validación biométrica en tiempo real durante el Paso 3 del registro:
+   * compara el rostro en vivo (selfie) contra el retrato del frente de la cédula antes de dejar avanzar.
+   */
+  static async verifyFaceMatchPreview(input: {
+    idCardFront?: string;
+    selfiePhoto?: string;
+  }): Promise<{ verified: boolean; similarityScore: number }> {
+    if (!input.idCardFront || !input.selfiePhoto) {
+      const err: any = new Error(
+        'Se requiere la foto frontal de tu cédula y tu captura facial en vivo para verificar tu identidad.'
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+
+    const rawFront = decodeBase64Image(input.idCardFront);
+    const rawSelfie = decodeBase64Image(input.selfiePhoto);
+
+    if (sha256Hex(rawFront) === sha256Hex(rawSelfie)) {
+      const err: any = new Error(
+        'La fotografía del documento y la captura de rostro no pueden ser la misma imagen.'
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+
+    const [frontInfo, selfieInfo] = await Promise.all([
+      inspectAndNormalizeImage(rawFront, 'frente de cédula'),
+      inspectAndNormalizeImage(rawSelfie, 'rostro en vivo'),
+    ]);
+
+    const bio = await compareFacesAwsRekognition(selfieInfo.normalized, frontInfo.normalized);
+
+    if (!bio.matched) {
+      logger.warn(
+        `🚫 Intento de registro bloqueado por no coincidencia facial (similitud: ${bio.similarity}%)`
+      );
+      const mismatchErr: any = new Error(
+        `Verificación facial rechazada: El rostro capturado no coincide con la fotografía de la cédula (${bio.similarity.toFixed(
+          1
+        )}% de coincidencia; mínimo requerido ${MIN_SIMILARITY_THRESHOLD}%).`
+      );
+      mismatchErr.statusCode = 422;
+      mismatchErr.code = 'BIOMETRIC_MISMATCH';
+      mismatchErr.similarityScore = bio.similarity;
+      throw mismatchErr;
+    }
+
+    logger.info(`✅ Biometría facial aprobada en Paso 3 (similitud: ${bio.similarity}%)`);
+    return {
+      verified: true,
+      similarityScore: bio.similarity,
+    };
+  }
+
+  /**
    * Valida autenticidad estructural de imágenes KYC (resolución, entropía, anti-duplicado),
-   * ejecuta biometría facial (AWS Rekognition si hay credenciales o cola forense honesta),
+   * exige coincidencia biométrica facial >= 85% con AWS Rekognition (bloqueando suplantaciones),
    * y cifra los documentos con AES-256-GCM conforme a la Ley 1581.
    */
   static async evaluateAndEncryptKyc(
     bundle: KycInputBundle
   ): Promise<KycEvaluationResult> {
     if (!bundle.idCardFront || !bundle.idCardBack || !bundle.selfiePhoto) {
-      return {
-        isVerified: false,
-        facialVerificationStatus: 'pending',
-        similarityScore: null,
-        provider: 'none',
-        encryptedVault: null,
-        metadata: { reason: 'incomplete_documents' },
-      };
+      const err: any = new Error(
+        'La verificación documental (frente y respaldo de cédula) y biométrica facial es obligatoria para crear una cuenta.'
+      );
+      err.statusCode = 422;
+      throw err;
     }
 
     const rawFront = decodeBase64Image(bundle.idCardFront);
@@ -181,62 +308,35 @@ export class KycVerificationService {
       throw err;
     }
 
-    // 2. Inspección óptica real con Sharp (dimensiones mínimas + desviación estándar anti-lente tapado)
-    const inspectAndNormalize = async (buf: Buffer, label: string) => {
-      let meta: sharp.Metadata;
-      let stats: sharp.Stats;
-      try {
-        const img = sharp(buf).rotate();
-        meta = await img.metadata();
-        stats = await img.stats();
-      } catch {
-        const err: any = new Error(`El archivo de ${label} no es una imagen válida.`);
-        err.statusCode = 422;
-        throw err;
-      }
-
-      if ((meta.width || 0) < 180 || (meta.height || 0) < 180) {
-        const err: any = new Error(
-          `La captura de ${label} tiene resolución insuficiente (${meta.width}x${meta.height}).`
-        );
-        err.statusCode = 422;
-        throw err;
-      }
-
-      const avgStdev =
-        stats.channels.slice(0, 3).reduce((acc, c) => acc + c.stdev, 0) /
-        Math.max(1, Math.min(3, stats.channels.length));
-
-      if (avgStdev < 8) {
-        const err: any = new Error(
-          `La captura de ${label} carece de detalle visual (imagen en negro, velada o borrosa).`
-        );
-        err.statusCode = 422;
-        throw err;
-      }
-
-      const normalized = await sharp(buf)
-        .rotate()
-        .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 82 })
-        .toBuffer();
-
-      return {
-        normalized,
-        width: meta.width || 0,
-        height: meta.height || 0,
-        stdev: Math.round(avgStdev * 10) / 10,
-        entropy: Math.round((stats.entropy || 0) * 100) / 100,
-      };
-    };
-
+    // 2. Inspección óptica real con Sharp + auto-rotación EXIF
     const [frontInfo, backInfo, selfieInfo] = await Promise.all([
-      inspectAndNormalize(rawFront, 'anverso de cédula'),
-      inspectAndNormalize(rawBack, 'reverso de cédula'),
-      inspectAndNormalize(rawSelfie, 'rostro biométrico'),
+      inspectAndNormalizeImage(rawFront, 'anverso de cédula'),
+      inspectAndNormalizeImage(rawBack, 'reverso de cédula'),
+      inspectAndNormalizeImage(rawSelfie, 'rostro biométrico'),
     ]);
 
-    // 3. Cifrar con AES-256-GCM para no guardar documentos planos en la tabla users
+    // 3. Comparación biométrica obligatoria (AWS Rekognition CompareFaces >= 85%)
+    const bio = await compareFacesAwsRekognition(
+      selfieInfo.normalized,
+      frontInfo.normalized
+    );
+
+    if (!bio.matched) {
+      logger.warn(
+        `🚫 Registro bloqueado en servidor: suplantación o rostro distinto (${bio.similarity}% < ${MIN_SIMILARITY_THRESHOLD}%)`
+      );
+      const rejectErr: any = new Error(
+        `Identidad biométrica rechazada: El rostro de la selfie no coincide con el documento de identidad (${bio.similarity.toFixed(
+          1
+        )}% de similitud). Por seguridad no se creó la cuenta.`
+      );
+      rejectErr.statusCode = 422;
+      rejectErr.code = 'BIOMETRIC_MISMATCH';
+      rejectErr.similarityScore = bio.similarity;
+      throw rejectErr;
+    }
+
+    // 4. Cifrar con AES-256-GCM para no guardar documentos planos en la tabla users
     const encryptedVault = {
       algorithm: 'aes-256-gcm',
       version: 1,
@@ -251,40 +351,11 @@ export class KycVerificationService {
       selfie: encryptBuffer(selfieInfo.normalized),
     };
 
-    // 4. Comparación biométrica en la nube (AWS Rekognition) si las credenciales están activas
-    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-      try {
-        const bio = await compareFacesAwsRekognition(
-          selfieInfo.normalized,
-          frontInfo.normalized
-        );
-        return {
-          isVerified: bio.matched,
-          facialVerificationStatus: bio.matched ? 'verified' : 'rejected',
-          similarityScore: bio.similarity,
-          provider: 'aws_rekognition',
-          encryptedVault,
-          metadata: {
-            front: { w: frontInfo.width, h: frontInfo.height, entropy: frontInfo.entropy },
-            selfie: { w: selfieInfo.width, h: selfieInfo.height, entropy: selfieInfo.entropy },
-          },
-        };
-      } catch (awsErr: any) {
-        if (awsErr?.statusCode === 422) {
-          throw awsErr;
-        }
-        logger.warn(
-          `AWS Rekognition no disponible (${awsErr.message}); derivando expediente a cola de revisión supervisada.`
-        );
-      }
-    }
-
-    // 5. Cola supervisada honesta (no marca "verified" falso sin comparación biométrica o firma humana)
     return {
-      isVerified: false,
-      facialVerificationStatus: 'under_review',
-      similarityScore: null,
-      provider: 'forensic_queue',
+      isVerified: true,
+      facialVerificationStatus: 'verified',
+      similarityScore: bio.similarity,
+      provider: 'aws_rekognition',
       encryptedVault,
       metadata: {
         front: { w: frontInfo.width, h: frontInfo.height, entropy: frontInfo.entropy },

@@ -12,6 +12,17 @@ export interface PublicCamera {
   };
   streamUrl: string;
   status: string;
+  coverageRadius?: number;
+}
+
+function isValidCoord(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180 &&
+    (Math.abs(lat) > 0.0001 || Math.abs(lng) > 0.0001)
+  );
 }
 
 export function useCameras() {
@@ -25,10 +36,31 @@ export function useCameras() {
     try {
       const res = await api.get('/cameras');
       if (res.data?.success && Array.isArray(res.data.data)) {
-        setCameras(res.data.data);
-        // Persistir en la base de datos local
+        const normalized: PublicCamera[] = res.data.data
+          .map((c: any) => {
+            const lat = Number(c?.location?.latitude ?? c?.latitude);
+            const lng = Number(c?.location?.longitude ?? c?.longitude);
+            return {
+              id: String(c.id),
+              name: c.name || 'Cámara comunitaria',
+              location: {
+                latitude: lat,
+                longitude: lng,
+                address: c?.location?.address || c?.address || '',
+              },
+              streamUrl: c.streamUrl || '',
+              status: c.status || 'online',
+              coverageRadius: Number(c.coverageRadius) || 120,
+            };
+          })
+          .filter((c: PublicCamera) =>
+            isValidCoord(c.location.latitude, c.location.longitude)
+          );
+
+        setCameras(normalized);
+
         await localDatabase.cacheCameras(
-          res.data.data.map((c: any) => ({
+          normalized.map((c) => ({
             id: c.id,
             name: c.name,
             latitude: c.location.latitude,
@@ -41,18 +73,23 @@ export function useCameras() {
         setError('Error al decodificar cámaras');
       }
     } catch (err: any) {
-      // Fallback a la base de datos local si la red está caída
       const cached = await localDatabase.getCachedCameras();
-      if (cached.length > 0) {
-        setCameras(
-          cached.map((c) => ({
-            id: c.id,
-            name: c.name,
-            location: { latitude: c.latitude, longitude: c.longitude },
-            streamUrl: c.streamUrl || '',
-            status: c.status,
-          }))
-        );
+      const validCached = cached
+        .filter((c) => isValidCoord(Number(c.latitude), Number(c.longitude)))
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          location: {
+            latitude: Number(c.latitude),
+            longitude: Number(c.longitude),
+          },
+          streamUrl: c.streamUrl || '',
+          status: c.status,
+          coverageRadius: 120,
+        }));
+
+      if (validCached.length > 0) {
+        setCameras(validCached);
       } else {
         setError(err.message || 'Error de red obteniendo cámaras');
       }

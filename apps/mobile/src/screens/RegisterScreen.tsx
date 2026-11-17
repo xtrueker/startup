@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -59,8 +60,11 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
   const [idCardFront, setIdCardFront] = useState<string | null>(null);
   const [idCardBack, setIdCardBack] = useState<string | null>(null);
 
-  // Paso 3: Rostro
+  // Paso 3: Rostro y Verificación Biométrica en Vivo
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
+  const [verifyingBiometrics, setVerifyingBiometrics] = useState(false);
+  const [biometricVerified, setBiometricVerified] = useState(false);
+  const [biometricScore, setBiometricScore] = useState<number | null>(null);
   const [livenessChallenge, setLivenessChallenge] = useState<(typeof LIVENESS_CHALLENGES)[0] | null>(
     null
   );
@@ -110,9 +114,10 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 
     try {
       const options: ImagePicker.ImagePickerOptions = {
-        allowsEditing: true,
-        aspect: target === 'selfie' ? [1, 1] : [16, 10],
-        quality: 0.5,
+        // En iOS, allowsEditing fuerza un recorte cuadrado 1:1 que corta los bordes de la cédula;
+        // capturar completo a calidad 0.8 preserva la nitidez del retrato impreso para AWS Rekognition.
+        allowsEditing: false,
+        quality: 0.8,
         base64: true,
         cameraType: useFrontCamera
           ? ImagePicker.CameraType.front
@@ -127,14 +132,13 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
           ? `data:image/jpeg;base64,${asset.base64}`
           : asset.uri;
 
-        // En navegadores móviles/escritorio, normalizar y comprimir a JPEG <=1280px
-        // para evitar rechazos por tamaño (413) o formatos HEIC en iOS Safari
+        // En navegadores móviles/escritorio, normalizar y comprimir a JPEG <=1600px
         if (Platform.OS === 'web' && asset.uri && typeof document !== 'undefined') {
           try {
             dataUri = await new Promise<string>((resolve, reject) => {
               const img = new window.Image();
               img.onload = () => {
-                const maxDim = 1280;
+                const maxDim = 1600;
                 let w = img.naturalWidth || img.width;
                 let h = img.naturalHeight || img.height;
                 if (w > maxDim || h > maxDim) {
@@ -151,7 +155,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                   return;
                 }
                 ctx.drawImage(img, 0, 0, w, h);
-                resolve(canvas.toDataURL('image/jpeg', 0.82));
+                resolve(canvas.toDataURL('image/jpeg', 0.88));
               };
               img.onerror = () => reject(new Error('Image decode failed'));
               img.src = asset.uri;
@@ -161,9 +165,58 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
           }
         }
 
-        if (target === 'idFront') setIdCardFront(dataUri);
-        else if (target === 'idBack') setIdCardBack(dataUri);
-        else if (target === 'selfie') setSelfiePhoto(dataUri);
+        if (target === 'idFront') {
+          setIdCardFront(dataUri);
+          // Si se reemplaza el frente de la cédula, obligar a re-verificar el rostro
+          setSelfiePhoto(null);
+          setBiometricVerified(false);
+          setBiometricScore(null);
+        } else if (target === 'idBack') {
+          setIdCardBack(dataUri);
+        } else if (target === 'selfie') {
+          if (!idCardFront) {
+            reportError(
+              'Documento requerido',
+              'Primero captura el frente de tu cédula en el paso anterior.'
+            );
+            return;
+          }
+
+          setVerifyingBiometrics(true);
+          setBiometricVerified(false);
+          setBiometricScore(null);
+
+          try {
+            const verification = await authService.verifyBiometrics({
+              idCardFront,
+              selfiePhoto: dataUri,
+            });
+
+            if (!verification?.verified) {
+              setSelfiePhoto(null);
+              setBiometricVerified(false);
+              reportError(
+                'Identidad no coincide',
+                'El rostro capturado no coincide con el documento de identidad.'
+              );
+              return;
+            }
+
+            setSelfiePhoto(dataUri);
+            setBiometricVerified(true);
+            setBiometricScore(verification.similarityScore);
+          } catch (bioErr: any) {
+            setSelfiePhoto(null);
+            setBiometricVerified(false);
+            setBiometricScore(null);
+            const serverMsg =
+              bioErr?.response?.data?.message ||
+              'No fue posible validar tu identidad facial contra tu documento. Asegúrate de tener buena iluminación y que seas el titular de la cédula.';
+            reportError('Verificación facial rechazada', serverMsg);
+          } finally {
+            setVerifyingBiometrics(false);
+          }
+        }
       }
     } catch (err) {
       console.warn('Error al abrir la cámara:', err);
@@ -245,8 +298,11 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 
   const handleNextStep3 = () => {
     setStepError(null);
-    if (!selfiePhoto) {
-      reportError('Foto pendiente', 'Completa la verificación de rostro antes de continuar.');
+    if (!selfiePhoto || !biometricVerified) {
+      reportError(
+        'Biometría pendiente',
+        'Debes superar la verificación facial contra tu cédula antes de continuar.'
+      );
       return;
     }
     setStep(4);
@@ -608,7 +664,15 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                 </Text>
 
                 <View style={styles.selfieCenterStage}>
-                  {selfiePhoto ? (
+                  {verifyingBiometrics ? (
+                    <View style={[styles.sculptedSelfieOrb, sculptedShadow()]}>
+                      <ActivityIndicator size="large" color={palette.aqua} />
+                      <Text style={styles.orbTitle}>Verificando biometría</Text>
+                      <Text style={styles.orbHint}>
+                        Comparando tus rasgos faciales con el frente de tu cédula...
+                      </Text>
+                    </View>
+                  ) : selfiePhoto && biometricVerified ? (
                     <View style={styles.selfieCapturedWrap}>
                       <View style={[styles.selfieBezel, sculptedShadow()]}>
                         <Image
@@ -618,7 +682,14 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         />
                       </View>
                       <View style={{ marginTop: 12 }}>
-                        <StatusPill label="Rostro verificado" tone="emerald" />
+                        <StatusPill
+                          label={
+                            biometricScore !== null
+                              ? `Identidad verificada · ${Math.round(biometricScore)}%`
+                              : 'Identidad verificada'
+                          }
+                          tone="emerald"
+                        />
                       </View>
                       <LiquidPillButton
                         label="Tomar otra foto"
@@ -628,6 +699,8 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                         iconPosition="left"
                         onPress={() => {
                           setSelfiePhoto(null);
+                          setBiometricVerified(false);
+                          setBiometricScore(null);
                           setLivenessChallenge(null);
                         }}
                         style={{ marginTop: 10 }}
@@ -687,7 +760,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
                     label="Revisar"
                     variant="obsidian"
                     icon="arrowRight"
-                    disabled={!selfiePhoto}
+                    disabled={!selfiePhoto || !biometricVerified || verifyingBiometrics}
                     onPress={handleNextStep3}
                     style={styles.flex}
                   />

@@ -121,6 +121,14 @@ export const authService = {
     return user;
   },
 
+  verifyBiometrics: async (payload: {
+    idCardFront: string;
+    selfiePhoto: string;
+  }): Promise<{ verified: boolean; similarityScore: number }> => {
+    const res = await api.post('/auth/verify-biometrics', payload);
+    return res.data.data;
+  },
+
   logout: async () => {
     await safeStorage.deleteItemAsync('token');
     await safeStorage.deleteItemAsync('userId');

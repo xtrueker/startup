@@ -39,10 +39,10 @@ import {
 } from '../components/ui/PrismPrimitives';
 
 const INITIAL_REGION = {
-  latitude: 4.6097,
-  longitude: -74.0817,
-  latitudeDelta: 0.015,
-  longitudeDelta: 0.015,
+  latitude: 7.0653,
+  longitude: -73.8547,
+  latitudeDelta: 0.018,
+  longitudeDelta: 0.018,
 };
 
 export interface HomeScreenProps {
@@ -56,6 +56,7 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
   const isCompact = viewportHeight < 740;
 
   const mapRef = useRef<any>(null);
+  const cameraCycleIdxRef = useRef<number>(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnim = useRef(new Animated.Value(0)).current;
 
@@ -388,6 +389,27 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
     }
   };
 
+  const focusCameraOnMap = () => {
+    if (!cameras || cameras.length === 0) {
+      fetchCameras();
+      return;
+    }
+    const idx = cameraCycleIdxRef.current % cameras.length;
+    cameraCycleIdxRef.current = idx + 1;
+    const cam = cameras[idx];
+    if (cam?.location) {
+      mapRef.current?.animateToRegion({
+        latitude: cam.location.latitude,
+        longitude: cam.location.longitude,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      });
+      setCurrentAddress(
+        cam.location.address ? `${cam.name} · ${cam.location.address}` : cam.name
+      );
+    }
+  };
+
   const isAlertActive = panicState.status === 'active';
   const isTriggering = panicState.status === 'triggering';
   const isCancelling = panicState.status === 'cancelling';
@@ -512,7 +534,12 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
                   </Text>
                 </View>
 
-                <View style={styles.signalCol}>
+                <TouchableOpacity
+                  style={styles.signalCol}
+                  activeOpacity={0.7}
+                  onPress={focusCameraOnMap}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
                   <TelemetryEqualizer
                     color={isAlertActive ? palette.crimson : palette.aqua}
                     active
@@ -520,7 +547,7 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
                   <Text style={styles.camerasCountLabel}>
                     {cameras.length} {cameras.length === 1 ? 'cámara' : 'cámaras'}
                   </Text>
-                </View>
+                </TouchableOpacity>
               </View>
             </LiquidGlassCard>
           </TouchableOpacity>

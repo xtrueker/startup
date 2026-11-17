@@ -65,11 +65,11 @@ const globalLimiter = rateLimit({
 });
 app.use('/api/', globalLimiter);
 
-// Límite estricto para Autenticación
+// Límite estricto para Autenticación y Verificación Biométrica
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, // Prevenir fuerza bruta
-  message: 'Demasiados intentos de inicio de sesión, intenta en 15 minutos'
+  max: 50, // Protege contra fuerza bruta permitiendo reintentos legítimos de enfoque biométrico
+  message: 'Demasiados intentos de autenticación, intenta en 15 minutos'
 });
 app.use('/api/auth', authLimiter);
 

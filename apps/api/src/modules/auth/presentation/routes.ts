@@ -16,6 +16,37 @@ const router = Router();
 
 /**
  * @swagger
+ * /api/auth/verify-biometrics:
+ *   post:
+ *     summary: Pre-verificar en tiempo real la coincidencia facial entre selfie y frente de cédula
+ *     tags: [Auth]
+ *     security: []
+ */
+router.post('/verify-biometrics', async (req: Request, res: Response) => {
+  try {
+    const { idCardFront, selfiePhoto } = req.body;
+    const result = await KycVerificationService.verifyFaceMatchPreview({
+      idCardFront,
+      selfiePhoto,
+    });
+    return res.status(200).json({
+      success: true,
+      message: 'Coincidencia biométrica verificada',
+      data: result,
+    });
+  } catch (error: any) {
+    const status = error?.statusCode || 500;
+    return res.status(status).json({
+      success: false,
+      code: error?.code || 'BIOMETRIC_ERROR',
+      similarityScore: error?.similarityScore ?? null,
+      message: error?.message || 'Error al verificar biometría facial',
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/auth/register:
  *   post:
  *     summary: Registrar un nuevo usuario
@@ -81,12 +112,20 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(409).json({ success: false, message: 'Ya existe un usuario con ese email' });
     }
 
-    // Evaluar autenticidad óptica, anti-duplicado y biometría facial + cifrado AES-256-GCM (Ley 1581)
+    // Evaluar autenticidad óptica, anti-duplicado y biometría facial estricta (>=85%) + cifrado AES-256-GCM (Ley 1581)
     const kycEvaluation = await KycVerificationService.evaluateAndEncryptKyc({
       idCardFront,
       idCardBack,
       selfiePhoto,
     });
+
+    if (!kycEvaluation.isVerified || kycEvaluation.facialVerificationStatus !== 'verified') {
+      return res.status(422).json({
+        success: false,
+        code: 'BIOMETRIC_REJECTED',
+        message: 'La verificación facial biométrica no superó el control de seguridad.',
+      });
+    }
 
     const user = await User.create({
       fullName,
@@ -134,8 +173,13 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    if (error?.statusCode === 422) {
-      return res.status(422).json({ success: false, message: error.message });
+    if (error?.statusCode === 422 || error?.statusCode === 503) {
+      return res.status(error.statusCode).json({
+        success: false,
+        code: error?.code || 'KYC_VALIDATION_FAILED',
+        similarityScore: error?.similarityScore ?? null,
+        message: error.message,
+      });
     }
     console.error('Error en registro:', error);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
@@ -189,6 +233,13 @@ router.post('/login', async (req: Request, res: Response) => {
     const isMatch = await User.comparePassword(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Credenciales inválidas' });
+    }
+
+    if (user.facial_verification_status === 'rejected') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado: la verificación biométrica de esta cuenta fue rechazada por seguridad.',
+      });
     }
 
     const token = jwt.sign(

@@ -1,4 +1,5 @@
 import { supabase } from '../connection';
+import { normalizePostgisLocationToWkt } from '../../../shared/utils/postgis';
 
 export interface CreateAlertDTO {
   userId: string;
@@ -31,9 +32,7 @@ export class Alert {
 
     return (data || []).map(alert => ({
       ...alert,
-      location: typeof alert.location === 'object' && alert.location?.coordinates
-        ? `POINT(${alert.location.coordinates[0]} ${alert.location.coordinates[1]})`
-        : alert.location
+      location: normalizePostgisLocationToWkt(alert.location)
     }));
   }
 
@@ -53,9 +52,7 @@ export class Alert {
     if (!data) return null;
     return {
       ...data,
-      location: typeof data.location === 'object' && data.location?.coordinates
-        ? `POINT(${data.location.coordinates[0]} ${data.location.coordinates[1]})`
-        : data.location
+      location: normalizePostgisLocationToWkt(data.location)
     };
   }
 

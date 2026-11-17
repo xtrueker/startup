@@ -1,4 +1,5 @@
 import { supabase } from '../connection';
+import { normalizePostgisLocationToWkt } from '../../../shared/utils/postgis';
 
 export interface CreateCameraDTO {
   name: string;
@@ -26,9 +27,7 @@ export class Camera {
       if (error) throw error;
       return (data || []).map(cam => ({
         ...cam,
-        location: typeof cam.location === 'object' && cam.location?.coordinates
-          ? `POINT(${cam.location.coordinates[0]} ${cam.location.coordinates[1]})`
-          : cam.location
+        location: normalizePostgisLocationToWkt(cam.location)
       }));
     } catch (error) {
       console.error('Error fetching cameras:', error);
