@@ -27,9 +27,9 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3 font-mono text-sm">
-        <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin"></div>
-        <span>Iniciando Terminal de Seguridad...</span>
+      <div className="min-h-screen w-full bg-[var(--bg-app)] flex flex-col items-center justify-center text-[var(--text-secondary)] gap-4 font-sans text-sm">
+        <div className="w-10 h-10 rounded-full border-2 border-[#0EA5E9] border-t-transparent animate-spin" />
+        <span className="font-medium tracking-tight">Iniciando terminal de seguridad...</span>
       </div>
     );
   }

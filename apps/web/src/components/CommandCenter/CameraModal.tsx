@@ -243,93 +243,93 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-[var(--bg-surface)] rounded w-full max-w-3xl max-h-[90vh] flex flex-col shadow-xl dark:shadow-2xl overflow-hidden text-[var(--text-primary)] theme-transition">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="liquid-glass-strong rounded-[28px] w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden text-[var(--text-primary)] theme-transition">
         
         {/* Header */}
-        <div className="p-5 bg-[var(--bg-elevated)] shadow-xs flex items-center justify-between">
+        <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-[var(--accent-bg)] shadow-xs flex items-center justify-center">
-              <Cctv size={22} className="text-[var(--accent)]" />
+            <div className="w-10 h-10 rounded-2xl bg-[var(--accent-bg)] border border-[var(--accent-border)] flex items-center justify-center">
+              <Cctv size={20} className="text-[#0EA5E9]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-[var(--text-primary)] tracking-tight">
-                  {cameraToEdit ? 'Editar Cámara de Seguridad' : 'Configurar Conexión de Cámara'}
+                <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">
+                  {cameraToEdit ? 'Editar cámara de seguridad' : 'Configurar conexión de cámara'}
                 </h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--brand)] shadow-xs uppercase font-bold">
+                <span className="text-[10.5px] font-mono px-2.5 py-0.5 rounded-full bg-[var(--accent-bg)] text-[#0EA5E9] border border-[var(--accent-border)] font-semibold">
                   MediaMTX / RTSP
                 </span>
               </div>
-              <p className="text-xs text-[var(--text-secondary)] font-mono">
+              <p className="text-xs text-[var(--text-muted)]">
                 Integración de flujo de video y cobertura táctica en tiempo real
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded bg-[var(--bg-surface)] hover:bg-[var(--bg-overlay)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-xs p-0 cursor-pointer"
+            className="w-8 h-8 rounded-full glass-button flex items-center justify-center p-0 cursor-pointer"
           >
-            <X size={17} />
+            <X size={16} />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex bg-[var(--bg-elevated)] px-5 pt-2 gap-2 shadow-xs">
+        <div className="flex px-5 py-3 gap-2 border-b border-[var(--border-subtle)] bg-[var(--bg-input)]">
           <button
             type="button"
             onClick={() => setActiveTab('stream')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t transition-all p-0 cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
               activeTab === 'stream'
-                ? 'bg-[var(--bg-surface)] text-[var(--brand)] shadow-xs'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'liquid-pill-obsidian'
+                : 'glass-button'
             }`}
           >
-            <Video size={14} />
-            1. Flujo de Video (RTSP / Red)
+            <Video size={13} />
+            1. Flujo de video
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('location')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t transition-all p-0 cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
               activeTab === 'location'
-                ? 'bg-[var(--bg-surface)] text-[var(--brand)] shadow-xs'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'liquid-pill-obsidian'
+                : 'glass-button'
             }`}
           >
-            <MapPin size={14} />
-            2. Ubicación & Cobertura
+            <MapPin size={13} />
+            2. Ubicación y cobertura
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t transition-all p-0 cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
               activeTab === 'settings'
-                ? 'bg-[var(--bg-surface)] text-[var(--brand)] shadow-xs'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'liquid-pill-obsidian'
+                : 'glass-button'
             }`}
           >
-            <Sliders size={14} />
-            3. Políticas & Táctica
+            <Sliders size={13} />
+            3. Políticas y táctica
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
           
           {/* Notifications / Alerts */}
           {errorMessage && (
-            <div className="bg-[#450a0a]/50 border border-[#dc2626]/40 rounded-xl p-3.5 flex items-center gap-3 text-xs text-[#fca5a5]">
-              <AlertTriangle size={18} className="text-[#ef4444] shrink-0" />
+            <div className="bg-rose-500/10 border border-rose-500/30 rounded-[18px] p-3.5 flex items-center gap-3 text-xs font-medium text-rose-700 dark:text-rose-300">
+              <AlertTriangle size={18} className="text-rose-500 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {scanMessage && (
-            <div className="bg-[#042f2e]/50 border border-[#14b8a6]/40 rounded-xl p-3.5 flex items-center gap-3 text-xs text-[#5eead4]">
-              <CheckCircle2 size={18} className="text-[#2dd4bf] shrink-0" />
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-[18px] p-3.5 flex items-center gap-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
               <span>{scanMessage}</span>
             </div>
           )}
@@ -341,7 +341,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               {/* Camera Name & Model */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#d4d4d4] uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
                     Identificador / Nombre de Cámara *
                   </label>
                   <input
@@ -350,11 +350,11 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Ej. CAM-01 Parque Bolívar"
-                    className="w-full bg-[#181818] border border-[#2b2b2b] focus:border-[#38bdf8] rounded-xl px-3.5 py-2.5 text-sm text-[#f5f5f5] placeholder-[#555] outline-none transition-colors"
+                    className="w-full liquid-input-chamber rounded-[16px] px-3.5 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#d4d4d4] uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
                     Modelo o Fabricante
                   </label>
                   <input
@@ -362,17 +362,17 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
                     placeholder="Ej. Dahua IPC-HFW / Hikvision DarkFighter"
-                    className="w-full bg-[#181818] border border-[#2b2b2b] focus:border-[#38bdf8] rounded-xl px-3.5 py-2.5 text-sm text-[#f5f5f5] placeholder-[#555] outline-none transition-colors"
+                    className="w-full liquid-input-chamber rounded-[16px] px-3.5 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40 transition-all"
                   />
                 </div>
               </div>
 
               {/* Protocol Selector */}
               <div>
-                <label className="block text-xs font-bold text-[#d4d4d4] uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
                   Protocolo de Enlace de Video
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                   {[
                     { id: 'rtsp', label: 'RTSP Directo', desc: 'Cámaras IP / NVR (Puerto 554)', icon: Video },
                     { id: 'webrtc', label: 'MediaMTX WebRTC', desc: 'Baja latencia web (<500ms)', icon: Zap },
@@ -389,17 +389,17 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                           setProtocol(item.id as any);
                           setPingSuccess(null);
                         }}
-                        className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all ${
+                        className={`p-3 rounded-[18px] border text-left flex flex-col gap-1 transition-all cursor-pointer ${
                           isSelected
-                            ? 'bg-[#0c1a2e] border-[#38bdf8] text-[#efede3]'
-                            : 'bg-[#161616] border-[#262626] text-[#8c8c8c] hover:border-[#383838]'
+                            ? 'bg-[#0EA5E9]/14 border-[#0EA5E9] text-[var(--text-primary)] shadow-[0_6px_16px_rgba(14,165,233,0.16)]'
+                            : 'glass-button text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                         }`}
                       >
                         <div className="flex items-center gap-1.5">
-                          <Icon size={14} className={isSelected ? 'text-[#38bdf8]' : 'text-[#737373]'} />
+                          <Icon size={14} className={isSelected ? 'text-[#0EA5E9]' : 'text-[var(--text-muted)]'} />
                           <span className="text-xs font-black">{item.label}</span>
                         </div>
-                        <span className="text-[10px] text-[#666] leading-tight">{item.desc}</span>
+                        <span className="text-[10px] text-[var(--text-muted)] leading-tight">{item.desc}</span>
                       </button>
                     );
                   })}
@@ -407,14 +407,14 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               </div>
 
               {/* Network Scanner Banner */}
-              <div className="bg-[#151515] border border-[#242424] rounded-xl p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[20px] p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#1f2937] flex items-center justify-center text-[#38bdf8] shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#0EA5E9]/12 border border-[#0EA5E9]/25 flex items-center justify-center text-[#0EA5E9] shrink-0">
                     <Wifi size={17} />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-[#efede3]">Auto-Descubrimiento en Red Local</div>
-                    <div className="text-[11px] text-[#737373] font-mono">
+                    <div className="text-xs font-bold text-[var(--text-primary)]">Auto-Descubrimiento en Red Local</div>
+                    <div className="text-[11px] text-[var(--text-muted)] font-mono">
                       Escanea la subred para detectar automáticamente cámaras activas
                     </div>
                   </div>
@@ -423,24 +423,24 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   type="button"
                   onClick={handleScanNetwork}
                   disabled={scanning}
-                  className="flex items-center gap-2 bg-[#1f2937] hover:bg-[#374151] border border-[#4b5563] text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                  className="glass-button flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-[var(--text-primary)] transition-all disabled:opacity-50 cursor-pointer shrink-0"
                 >
-                  <RefreshCw size={13} className={scanning ? 'animate-spin' : ''} />
+                  <RefreshCw size={13} className={scanning ? 'animate-spin text-[#0EA5E9]' : ''} />
                   {scanning ? 'Escaneando Red...' : 'Escanear Red LAN'}
                 </button>
               </div>
 
               {/* RTSP Config Fields (when customUrlMode is false) */}
               {!customUrlMode ? (
-                <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 space-y-4">
-                  <div className="text-xs font-bold text-[#efede3] flex items-center gap-2">
-                    <Server size={14} className="text-[#38bdf8]" />
+                <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[22px] p-4 space-y-4">
+                  <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <Server size={14} className="text-[#0EA5E9]" />
                     Parámetros de Red del Dispositivo
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="md:col-span-2">
-                      <label className="block text-[11px] font-mono text-[#8c8c8c] mb-1">
+                      <label className="block text-[11px] font-mono text-[var(--text-muted)] mb-1">
                         Dirección IP o Host de la Cámara *
                       </label>
                       <input
@@ -448,11 +448,11 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                         value={rtspIp}
                         onChange={(e) => setRtspIp(e.target.value)}
                         placeholder="Ej. 192.168.1.100 o 10.239.254.223"
-                        className="w-full bg-[#1b1b1b] border border-[#2e2e2e] focus:border-[#38bdf8] rounded-lg px-3 py-2 text-xs font-mono text-[#efede3] outline-none"
+                        className="w-full liquid-input-chamber rounded-[14px] px-3 py-2 text-xs font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-mono text-[#8c8c8c] mb-1">
+                      <label className="block text-[11px] font-mono text-[var(--text-muted)] mb-1">
                         Puerto {protocol === 'rtsp' ? 'RTSP' : 'HTTP'}
                       </label>
                       <input
@@ -460,7 +460,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                         value={rtspPort}
                         onChange={(e) => setRtspPort(e.target.value)}
                         placeholder={protocol === 'rtsp' ? '554' : '8554'}
-                        className="w-full bg-[#1b1b1b] border border-[#2e2e2e] focus:border-[#38bdf8] rounded-lg px-3 py-2 text-xs font-mono text-[#efede3] outline-none"
+                        className="w-full liquid-input-chamber rounded-[14px] px-3 py-2 text-xs font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                       />
                     </div>
                   </div>
@@ -468,7 +468,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   {protocol === 'rtsp' && (
                     <>
                       <div>
-                        <label className="block text-[11px] font-mono text-[#8c8c8c] mb-1">
+                        <label className="block text-[11px] font-mono text-[var(--text-muted)] mb-1">
                           Canal / Ruta de Flujo (Path)
                         </label>
                         <input
@@ -476,13 +476,13 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                           value={rtspPath}
                           onChange={(e) => setRtspPath(e.target.value)}
                           placeholder="Ej. /stream, /live/ch0, /h264_opus.sdp"
-                          className="w-full bg-[#1b1b1b] border border-[#2e2e2e] focus:border-[#38bdf8] rounded-lg px-3 py-2 text-xs font-mono text-[#efede3] outline-none"
+                          className="w-full liquid-input-chamber rounded-[14px] px-3 py-2 text-xs font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                         />
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                         <div>
-                          <label className="block text-[11px] font-mono text-[#8c8c8c] mb-1 flex items-center gap-1">
+                          <label className="block text-[11px] font-mono text-[var(--text-muted)] mb-1 flex items-center gap-1">
                             <Lock size={11} /> Usuario RTSP (Opcional)
                           </label>
                           <input
@@ -490,16 +490,16 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                             value={rtspUser}
                             onChange={(e) => setRtspUser(e.target.value)}
                             placeholder="admin"
-                            className="w-full bg-[#1b1b1b] border border-[#2e2e2e] focus:border-[#38bdf8] rounded-lg px-3 py-2 text-xs font-mono text-[#efede3] outline-none"
+                            className="w-full liquid-input-chamber rounded-[14px] px-3 py-2 text-xs font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-mono text-[#8c8c8c] mb-1 flex items-center justify-between">
+                          <label className="block text-[11px] font-mono text-[var(--text-muted)] mb-1 flex items-center justify-between">
                             <span className="flex items-center gap-1"><Lock size={11} /> Contraseña RTSP</span>
                             <button
                               type="button"
                               onClick={() => setShowPassword(!showPassword)}
-                              className="text-[10px] text-[#38bdf8] hover:underline"
+                              className="text-[10px] text-[#0EA5E9] hover:underline cursor-pointer"
                             >
                               {showPassword ? 'Ocultar' : 'Mostrar'}
                             </button>
@@ -509,7 +509,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                             value={rtspPass}
                             onChange={(e) => setRtspPass(e.target.value)}
                             placeholder="••••••••"
-                            className="w-full bg-[#1b1b1b] border border-[#2e2e2e] focus:border-[#38bdf8] rounded-lg px-3 py-2 text-xs font-mono text-[#efede3] outline-none"
+                            className="w-full liquid-input-chamber rounded-[14px] px-3 py-2 text-xs font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                           />
                         </div>
                       </div>
@@ -521,14 +521,14 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               {/* Stream URL Display & Direct Edit Toggle */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#d4d4d4] uppercase tracking-wider flex items-center gap-1.5">
-                    <Video size={13} className="text-[#38bdf8]" />
+                  <label className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Video size={13} className="text-[#0EA5E9]" />
                     URL Final del Flujo de Video (Stream URL) *
                   </label>
                   <button
                     type="button"
                     onClick={() => setCustomUrlMode(!customUrlMode)}
-                    className="text-xs text-[#38bdf8] hover:underline font-mono"
+                    className="text-xs text-[#0EA5E9] hover:underline font-mono cursor-pointer"
                   >
                     {customUrlMode ? '← Usar Asistente de Conexión' : '✏️ Ingresar URL Directa'}
                   </button>
@@ -542,17 +542,17 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                     value={streamUrl}
                     onChange={(e) => setStreamUrl(e.target.value)}
                     placeholder="rtsp://usuario:password@192.168.1.100:554/stream"
-                    className={`flex-1 rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none border transition-colors ${
+                    className={`flex-1 liquid-input-chamber rounded-[16px] px-3.5 py-2.5 text-xs font-mono outline-none transition-all ${
                       customUrlMode
-                        ? 'bg-[#181818] border-[#38bdf8]/60 text-white'
-                        : 'bg-[#141414] border-[#282828] text-[#38bdf8]'
+                        ? 'ring-1 ring-[#0EA5E9]/50 text-[var(--text-primary)]'
+                        : 'text-[#0EA5E9] font-semibold'
                     }`}
                   />
                   <button
                     type="button"
                     onClick={handleTestConnection}
                     disabled={testingPing}
-                    className="bg-[#1f2937] hover:bg-[#374151] border border-[#4b5563] text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 shrink-0"
+                    className="liquid-pill-obsidian px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50 shrink-0 cursor-pointer"
                   >
                     <Play size={13} className={testingPing ? 'animate-pulse' : ''} />
                     {testingPing ? 'Verificando...' : 'Probar Señal'}
@@ -562,14 +562,14 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
               {/* Ping / Signal Status Result & Mini Video Preview */}
               {pingSuccess !== null && (
-                <div className={`p-4 rounded-xl border flex flex-col gap-3 ${
+                <div className={`p-4 rounded-[22px] border flex flex-col gap-3 ${
                   pingSuccess
-                    ? 'bg-[#062016] border-[#059669]/40 text-[#a7f3d0]'
-                    : 'bg-[#260e11] border-[#e11d48]/40 text-[#fecdd3]'
+                    ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-800 dark:text-emerald-200'
+                    : 'bg-rose-500/10 border-rose-500/35 text-rose-800 dark:text-rose-200'
                 }`}>
                   <div className="flex items-center justify-between text-xs font-bold">
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${pingSuccess ? 'bg-[#10b981] animate-ping' : 'bg-[#f43f5e]'}`} />
+                      <span className={`w-2 h-2 rounded-full ${pingSuccess ? 'bg-emerald-500 animate-ping' : 'bg-rose-500'}`} />
                       <span>{pingSuccess ? 'ENLACE ESTABLE - CÁMARA RESPONDIENDO' : 'FALLO DE ENLACE CON STREAM'}</span>
                     </div>
                     <span className="font-mono text-[10px] uppercase opacity-80">
@@ -578,13 +578,13 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   </div>
 
                   {/* Tactical Preview Viewport */}
-                  <div className="aspect-video bg-black rounded-lg border border-[#27272a] relative overflow-hidden flex flex-col items-center justify-center">
+                  <div className="aspect-video bg-black rounded-[18px] border border-[var(--border-strong)] relative overflow-hidden flex flex-col items-center justify-center">
                     {/* Simulated live video HUD */}
-                    <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/70 px-2 py-0.5 rounded text-[10px] font-mono text-emerald-400 border border-emerald-500/30">
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-black/70 px-2.5 py-1 rounded-full text-[10px] font-mono text-emerald-400 border border-emerald-500/30">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       LIVE FEED
                     </div>
-                    <div className="absolute top-2 right-2 text-[10px] font-mono text-[#a1a1aa] bg-black/70 px-2 py-0.5 rounded">
+                    <div className="absolute top-2.5 right-2.5 text-[10px] font-mono text-[#a1a1aa] bg-black/70 px-2.5 py-1 rounded-full">
                       {resolution} • 30 FPS
                     </div>
 
@@ -596,16 +596,16 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                       />
                     ) : (
                       <div className="flex flex-col items-center gap-2 p-4 text-center">
-                        <Cctv size={32} className="text-[#38bdf8] animate-pulse" />
-                        <div className="text-xs font-mono font-bold text-[#efede3]">{name || 'Cámara Táctica'}</div>
+                        <Cctv size={32} className="text-[#0EA5E9] animate-pulse" />
+                        <div className="text-xs font-mono font-bold text-white">{name || 'Cámara Táctica'}</div>
                         <div className="text-[10px] font-mono text-[#a1a1aa] max-w-sm truncate">{streamUrl}</div>
-                        <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+                        <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-800">
                           Flujo RTSP listo para transcodificación MediaMTX / WebRTC
                         </span>
                       </div>
                     )}
 
-                    <div className="absolute bottom-2 left-2 text-[9px] font-mono text-[#71717a]">
+                    <div className="absolute bottom-2.5 left-2.5 text-[9px] font-mono text-zinc-400">
                       LAT: {latitude} | LNG: {longitude}
                     </div>
                   </div>
@@ -620,33 +620,33 @@ export const CameraModal: React.FC<CameraModalProps> = ({
             <div className="space-y-5 animate-in fade-in duration-150">
               {/* Physical Address */}
               <div>
-                <label className="block text-xs font-bold text-[#d4d4d4] uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
                   Dirección Física o Punto de Referencia *
                 </label>
                 <div className="relative">
-                  <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" />
+                  <MapPin size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                   <input
                     type="text"
                     required
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="Ej. Cra 15 # 45-20, Frente al Parque Santander, Poste 4"
-                    className="w-full bg-[#181818] border border-[#2b2b2b] focus:border-[#38bdf8] rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-[#f5f5f5] placeholder-[#555] outline-none"
+                    className="w-full liquid-input-chamber rounded-[16px] pl-10 pr-3.5 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                   />
                 </div>
               </div>
 
               {/* GPS Coordinates */}
-              <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold text-[#efede3] flex items-center gap-2">
-                    <Compass size={14} className="text-[#38bdf8]" />
+              <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[22px] p-4 space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <Compass size={14} className="text-[#0EA5E9]" />
                     Coordenadas Tácticas (WGS84)
                   </div>
                   <button
                     type="button"
                     onClick={handleGetCurrentLocation}
-                    className="text-xs text-[#38bdf8] hover:underline font-mono flex items-center gap-1"
+                    className="text-xs text-[#0EA5E9] hover:underline font-mono flex items-center gap-1 cursor-pointer"
                   >
                     <MapPin size={12} /> Usar GPS Actual del Dispositivo
                   </button>
@@ -654,7 +654,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-mono text-[#8c8c8c] mb-1">
+                    <label className="block text-[11px] font-mono text-[var(--text-muted)] mb-1">
                       Latitud (Decimal) *
                     </label>
                     <input
@@ -663,11 +663,11 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                       value={latitude}
                       onChange={(e) => setLatitude(e.target.value)}
                       placeholder="4.6097"
-                      className="w-full bg-[#1b1b1b] border border-[#2e2e2e] focus:border-[#38bdf8] rounded-lg px-3 py-2 text-xs font-mono text-[#efede3] outline-none"
+                      className="w-full liquid-input-chamber rounded-[14px] px-3 py-2 text-xs font-mono text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-mono text-[#8c8c8c] mb-1">
+                    <label className="block text-[11px] font-mono text-[var(--text-muted)] mb-1">
                       Longitud (Decimal) *
                     </label>
                     <input
@@ -676,20 +676,20 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                       value={longitude}
                       onChange={(e) => setLongitude(e.target.value)}
                       placeholder="-74.0817"
-                      className="w-full bg-[#1b1b1b] border border-[#2e2e2e] focus:border-[#38bdf8] rounded-lg px-3 py-2 text-xs font-mono text-[#efede3] outline-none"
+                      className="w-full liquid-input-chamber rounded-[14px] px-3 py-2 text-xs font-mono text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Coverage Radius Slider */}
-              <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 space-y-3">
+              <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[22px] p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Radar size={16} className="text-[#38bdf8]" />
-                    <span className="text-xs font-bold text-[#efede3]">Radio de Cobertura de Vigilancia</span>
+                    <Radar size={16} className="text-[#0EA5E9]" />
+                    <span className="text-xs font-bold text-[var(--text-primary)]">Radio de Cobertura de Vigilancia</span>
                   </div>
-                  <span className="text-xs font-black font-mono text-[#38bdf8] bg-[#0c1a2e] px-2.5 py-1 rounded-md border border-[#1e40af]/40">
+                  <span className="text-xs font-black font-mono text-[#0EA5E9] bg-[#0EA5E9]/12 px-3 py-1 rounded-full border border-[#0EA5E9]/30">
                     {coverageRadius} metros
                   </span>
                 </div>
@@ -700,21 +700,21 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   step="10"
                   value={coverageRadius}
                   onChange={(e) => setCoverageRadius(Number(e.target.value))}
-                  className="w-full accent-[#38bdf8] cursor-pointer"
+                  className="w-full accent-[#0EA5E9] cursor-pointer"
                 />
-                <div className="flex justify-between text-[10px] font-mono text-[#737373]">
+                <div className="flex justify-between text-[10px] font-mono text-[var(--text-muted)]">
                   <span>20m (Cercano)</span>
                   <span>100m (Estándar Alertas)</span>
                   <span>500m (Perímetro Amplio)</span>
                 </div>
-                <p className="text-[11px] text-[#737373] leading-relaxed">
+                <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
                   * Este radio se utiliza para activar automáticamente la cámara cuando un ciudadano presione el botón de pánico en el área.
                 </p>
               </div>
 
               {/* Sector / Zone */}
               <div>
-                <label className="block text-xs font-bold text-[#d4d4d4] uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
                   Sector o Cuadrante Operativo
                 </label>
                 <input
@@ -722,7 +722,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   value={zone}
                   onChange={(e) => setZone(e.target.value)}
                   placeholder="Ej. Cuadrante 3 - Zona Rosa / Sector Comercial"
-                  className="w-full bg-[#181818] border border-[#2b2b2b] focus:border-[#38bdf8] rounded-xl px-3.5 py-2.5 text-sm text-[#f5f5f5] placeholder-[#555] outline-none"
+                  className="w-full liquid-input-chamber rounded-[16px] px-3.5 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                 />
               </div>
 
@@ -734,26 +734,26 @@ export const CameraModal: React.FC<CameraModalProps> = ({
             <div className="space-y-5 animate-in fade-in duration-150">
               
               {/* Visibility / Access Control */}
-              <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 space-y-3">
-                <div className="text-xs font-bold text-[#efede3] flex items-center gap-2">
-                  <Shield size={14} className="text-[#38bdf8]" />
+              <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[22px] p-4 space-y-3">
+                <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  <Shield size={14} className="text-[#0EA5E9]" />
                   Nivel de Acceso y Visibilidad
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setIsPublic(true)}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all ${
+                    className={`p-3.5 rounded-[18px] border text-left flex flex-col gap-1 transition-all cursor-pointer ${
                       isPublic
-                        ? 'bg-[#0c1a2e] border-[#38bdf8] text-[#efede3]'
-                        : 'bg-[#181818] border-[#262626] text-[#8c8c8c]'
+                        ? 'bg-[#0EA5E9]/14 border-[#0EA5E9] text-[var(--text-primary)] shadow-[0_6px_16px_rgba(14,165,233,0.16)]'
+                        : 'glass-button text-[var(--text-secondary)]'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <Eye size={15} className={isPublic ? 'text-[#38bdf8]' : 'text-[#737373]'} />
+                      <Eye size={15} className={isPublic ? 'text-[#0EA5E9]' : 'text-[var(--text-muted)]'} />
                       <span className="text-xs font-bold">Cámara Pública</span>
                     </div>
-                    <span className="text-[10px] text-[#737373]">
+                    <span className="text-[10px] text-[var(--text-muted)]">
                       Visible para ciudadanos en la app móvil y en el Centro de Mando
                     </span>
                   </button>
@@ -761,17 +761,17 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsPublic(false)}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all ${
+                    className={`p-3.5 rounded-[18px] border text-left flex flex-col gap-1 transition-all cursor-pointer ${
                       !isPublic
-                        ? 'bg-[#0c1a2e] border-[#38bdf8] text-[#efede3]'
-                        : 'bg-[#181818] border-[#262626] text-[#8c8c8c]'
+                        ? 'bg-[#0EA5E9]/14 border-[#0EA5E9] text-[var(--text-primary)] shadow-[0_6px_16px_rgba(14,165,233,0.16)]'
+                        : 'glass-button text-[var(--text-secondary)]'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <EyeOff size={15} className={!isPublic ? 'text-[#38bdf8]' : 'text-[#737373]'} />
+                      <EyeOff size={15} className={!isPublic ? 'text-[#0EA5E9]' : 'text-[var(--text-muted)]'} />
                       <span className="text-xs font-bold">Cámara Privada / Táctica</span>
                     </div>
-                    <span className="text-[10px] text-[#737373]">
+                    <span className="text-[10px] text-[var(--text-muted)]">
                       Exclusiva para operadores y supervisores en el Centro de Mando
                     </span>
                   </button>
@@ -781,26 +781,26 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               {/* Status and Resolution */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#d4d4d4] uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
                     Estado Operativo Inicial
                   </label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as any)}
-                    className="w-full bg-[#181818] border border-[#2b2b2b] focus:border-[#38bdf8] rounded-xl px-3.5 py-2.5 text-sm text-[#f5f5f5] outline-none"
+                    className="w-full liquid-input-chamber rounded-[16px] px-3.5 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                   >
                     <option value="online">En línea (Online / Activa)</option>
                     <option value="offline">Inactiva (Offline / En Mantenimiento)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#d4d4d4] uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
                     Resolución y Calidad Deseada
                   </label>
                   <select
                     value={resolution}
                     onChange={(e) => setResolution(e.target.value)}
-                    className="w-full bg-[#181818] border border-[#2b2b2b] focus:border-[#38bdf8] rounded-xl px-3.5 py-2.5 text-sm text-[#f5f5f5] outline-none"
+                    className="w-full liquid-input-chamber rounded-[16px] px-3.5 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#0EA5E9]/40"
                   >
                     <option value="1080p (Full HD)">1080p (Full HD - Recomendado)</option>
                     <option value="720p (HD)">720p (HD - Bajo Ancho de Banda)</option>
@@ -810,14 +810,14 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               </div>
 
               {/* AI & Predictive Features */}
-              <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 flex items-center justify-between">
+              <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[22px] p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#1f2937] flex items-center justify-center text-[#38bdf8]">
+                  <div className="w-9 h-9 rounded-full bg-[#0EA5E9]/12 border border-[#0EA5E9]/25 flex items-center justify-center text-[#0EA5E9]">
                     <Cpu size={16} />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-[#efede3]">Análisis Inteligente y Detección de Movimiento</div>
-                    <div className="text-[11px] text-[#737373]">
+                    <div className="text-xs font-bold text-[var(--text-primary)]">Análisis Inteligente y Detección de Movimiento</div>
+                    <div className="text-[11px] text-[var(--text-muted)]">
                       Habilita la integración con el motor predictivo de sospechosos y escape
                     </div>
                   </div>
@@ -826,7 +826,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   type="checkbox"
                   checked={aiDetection}
                   onChange={(e) => setAiDetection(e.target.checked)}
-                  className="w-4 h-4 accent-[#38bdf8] cursor-pointer"
+                  className="w-4 h-4 accent-[#0EA5E9] cursor-pointer"
                 />
               </div>
 
@@ -834,11 +834,11 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           )}
 
           {/* Modal Footer Actions */}
-          <div className="pt-4 border-t border-[#1f1f1f] flex items-center justify-between">
+          <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center justify-between">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-[#181818] hover:bg-[#222222] text-[#8c8c8c] hover:text-white border border-[#2a2a2a] text-xs font-bold transition-colors"
+              className="px-4 py-2 rounded-full glass-button text-xs font-semibold"
             >
               Cancelar
             </button>
@@ -848,16 +848,16 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab(activeTab === 'stream' ? 'location' : 'settings')}
-                  className="px-4 py-2 rounded-xl bg-[#1f2937] hover:bg-[#374151] border border-[#3b82f6]/40 text-white text-xs font-bold transition-colors"
+                  className="px-4 py-2 rounded-full bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-sky-700 dark:text-sky-300 text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  Siguiente Paso →
+                  Siguiente paso →
                 </button>
               ) : null}
 
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex items-center gap-2 bg-[#0284c7] hover:bg-[#0369a1] text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-[0_4px_12px_rgba(2,132,199,0.3)] disabled:opacity-50"
+                className="flex items-center gap-2 liquid-pill-obsidian px-5 py-2.5 rounded-full text-xs font-semibold disabled:opacity-50"
               >
                 {submitting ? (
                   <>
@@ -865,8 +865,8 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 size={14} />
-                    {cameraToEdit ? 'Actualizar Cámara' : 'Guardar y Conectar Cámara'}
+                    <CheckCircle2 size={14} className="text-[#10B981]" />
+                    {cameraToEdit ? 'Actualizar cámara' : 'Guardar y conectar'}
                   </>
                 )}
               </button>

@@ -165,35 +165,33 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
   };
 
   return (
-    <div className="w-[410px] bg-[var(--bg-sidebar)] flex flex-col h-full border-l border-neutral-200/90 dark:border-neutral-800/80 shadow-[-6px_0_25px_-3px_rgba(0,0,0,0.14),_-2px_0_8px_-2px_rgba(0,0,0,0.06)] dark:shadow-[-6px_0_25px_-3px_rgba(0,0,0,0.5)] z-30 animate-in slide-in-from-right text-[var(--text-primary)] theme-transition">
+    <div className="w-[410px] m-2 h-[calc(100%-16px)] rounded-[26px] liquid-glass-strong flex flex-col overflow-hidden z-30 animate-in slide-in-from-right text-[var(--text-primary)] theme-transition">
       {/* Header */}
-      <div className="p-4 flex items-start justify-between bg-[var(--bg-sidebar-header)] shadow-xs">
+      <div className="p-4 flex items-center justify-between border-b border-[var(--border-subtle)] shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded bg-red-500/15 text-red-600 dark:bg-red-950/50 dark:text-red-400 flex items-center justify-center shadow-xs shrink-0">
+          <div className="w-9 h-9 rounded-2xl bg-rose-500/15 text-[#E11D48] dark:text-rose-400 border border-rose-500/25 flex items-center justify-center shrink-0">
             <ShieldAlert size={18} />
           </div>
           <div>
-            <h2 className="text-sm font-black text-[var(--text-primary)] tracking-wide uppercase">
-              Asistente de Despacho
+            <h2 className="text-sm font-bold text-[var(--text-primary)] tracking-tight">
+              Asistente de despacho
             </h2>
             <div className="text-[11px] text-[var(--text-muted)] font-mono mt-0.5">
-              Alerta ID: #{alert.id.substring(0, 8)}
+              Alerta #{alert.id.substring(0, 8)}
             </div>
           </div>
         </div>
-        <button onClick={onClose} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1.5 rounded hover:bg-[var(--bg-overlay)] cursor-pointer">
-          <X size={16} />
+        <button onClick={onClose} className="w-8 h-8 rounded-full glass-button flex items-center justify-center p-0">
+          <X size={15} />
         </button>
       </div>
 
-      <div className="w-full h-px bg-neutral-200 dark:bg-[#343434]" />
-
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar bg-[var(--bg-sidebar)]">
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3.5 custom-scrollbar">
         {/* Info Card de la Alerta */}
-        <div className="bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs rounded p-3.5 space-y-2">
+        <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[20px] p-4 space-y-2">
           <div className="flex items-center justify-between">
-            <div className={`inline-block px-2.5 py-0.5 rounded text-[10px] uppercase tracking-wider ${getStatusColor(alert.status)}`}>
-              {alert.status === 'pending' ? 'Alerta Crítica SOS' : alert.status === 'reviewing' ? 'En Atención / Despacho' : alert.status}
+            <div className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${getStatusColor(alert.status)}`}>
+              {alert.status === 'pending' ? 'Alerta crítica SOS' : alert.status === 'reviewing' ? 'En atención / Despacho' : alert.status}
             </div>
             <span className="text-[11px] font-mono text-[var(--text-muted)] flex items-center gap-1 font-semibold">
               <Clock size={11} /> {new Date(alert.timestamp).toLocaleTimeString('es-ES')}
@@ -202,18 +200,18 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
           <p className="text-[var(--text-primary)] font-bold text-xs leading-snug">
             {alert.description || 'Pánico disparado por ciudadano en cuadrante'}
           </p>
-          <div className="text-[var(--text-secondary)] text-[11px] font-mono flex items-center gap-1.5 pt-1.5">
-            <Navigation size={11} className="text-[var(--brand)] shrink-0" />
+          <div className="text-[var(--text-secondary)] text-[11px] font-mono flex items-center gap-1.5 pt-1">
+            <Navigation size={11} className="text-[#0EA5E9] shrink-0" />
             <span className="truncate">{alert.sourceLocation.address || `${alert.sourceLocation.lat.toFixed(4)}, ${alert.sourceLocation.lng.toFixed(4)}`}</span>
           </div>
         </div>
 
         {/* ─── DESPACHO TÁCTICO: SELECTOR VISUAL DE EQUIPOS ─── */}
-        <div className="bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs rounded p-4 space-y-3.5">
+        <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[20px] p-4 space-y-3.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-[#34d399]">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#0D9488] dark:text-emerald-400">
               <Shield size={15} />
-              <span>Despacho de Unidades en Campo</span>
+              <span>Despacho de unidades en campo</span>
             </div>
             <span className="text-[10px] font-mono text-[var(--text-muted)] font-semibold">
               {availableTeams.length} en radio
@@ -221,31 +219,28 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
           </div>
 
           {assignedTeam ? (
-            /* ─── UNIDAD YA ASIGNADA / EN RUTA (Hologram Radar Card) ─── */
-            <div className="relative overflow-hidden rounded bg-emerald-500/10 dark:bg-emerald-950/30 p-4 space-y-3 shadow-md">
-              {/* Baliza reflectiva */}
+            <div className="relative overflow-hidden rounded-[18px] bg-emerald-500/12 border border-emerald-500/30 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-[#34d399]">
-                    Unidad en Desplazamiento
+                  <span className="text-[10.5px] font-bold text-[#0D9488] dark:text-emerald-300">
+                    Unidad en desplazamiento
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-[var(--text-primary)] bg-[var(--bg-surface)] px-2 py-0.5 rounded shadow-xs font-bold">
+                <span className="text-[10px] font-mono text-[var(--text-primary)] bg-[var(--bg-elevated)] px-2.5 py-0.5 rounded-full font-bold border border-[var(--border-strong)]">
                   ETA ~{assignedTeam.etaMins || 3} min
                 </span>
               </div>
 
-              {/* Nombre y Placa Destacada */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                     assignedTeam.teamType === 'ambulancia' || assignedTeam.teamName?.toLowerCase().includes('ambulanc')
-                      ? 'bg-rose-500/20 text-rose-500'
-                      : 'bg-blue-500/20 text-blue-500'
+                      ? 'bg-rose-500/20 text-[#E11D48]'
+                      : 'bg-sky-500/20 text-[#0EA5E9]'
                   }`}>
                     {assignedTeam.teamType === 'ambulancia' || assignedTeam.teamName?.toLowerCase().includes('ambulanc') ? (
                       <Ambulance size={18} />
@@ -254,35 +249,33 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                     )}
                   </div>
                   <div>
-                    <h4 className="text-sm font-black text-[var(--text-primary)]">{assignedTeam.teamName}</h4>
+                    <h4 className="text-sm font-bold text-[var(--text-primary)]">{assignedTeam.teamName}</h4>
                     <p className="text-[11px] text-[var(--text-muted)] font-mono">{assignedTeam.assignedZone}</p>
                   </div>
                 </div>
 
-                <div className="px-3 py-1 bg-amber-500/15 rounded text-center shadow-xs">
-                  <span className="text-[9px] block text-amber-700 dark:text-[#ca8a04] uppercase font-bold tracking-widest">Placa Móvil</span>
-                  <span className="text-xs font-black text-amber-800 dark:text-[#facc15] font-mono">{assignedTeam.mainVehiclePlate}</span>
+                <div className="px-2.5 py-1 bg-amber-500/15 border border-amber-500/25 rounded-xl text-center">
+                  <span className="text-[9px] block text-amber-700 dark:text-amber-400 font-bold">Placa</span>
+                  <span className="text-xs font-black text-amber-800 dark:text-amber-300 font-mono">{assignedTeam.mainVehiclePlate}</span>
                 </div>
               </div>
 
-              {/* Dotación y Comandante */}
-              <div className="pt-2 flex items-center justify-between text-[11px] text-[var(--text-secondary)] font-mono">
+              <div className="pt-1 flex items-center justify-between text-[11px] text-[var(--text-secondary)] font-mono">
                 <span>Líder: @{assignedTeam.leaderUsername}</span>
                 <button
                   type="button"
                   onClick={() => setShowMemberDetails(v => !v)}
-                  className="text-emerald-600 dark:text-[#34d399] hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                  className="text-[#0D9488] dark:text-emerald-400 hover:underline flex items-center gap-1 font-bold cursor-pointer"
                 >
                   <Users size={12} />
                   <span>{assignedTeam.members?.length || 0} agentes ({showMemberDetails ? 'Ocultar' : 'Ver'})</span>
                 </button>
               </div>
 
-              {/* Desglose de integrantes si se abre */}
               {showMemberDetails && (
                 <div className="space-y-1.5 pt-2 text-[11px] font-mono">
                   {assignedTeam.members?.map((m: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between text-[var(--text-primary)] bg-[var(--bg-elevated)] px-2.5 py-1.5 rounded shadow-xs">
+                    <div key={idx} className="flex items-center justify-between text-[var(--text-primary)] bg-[var(--bg-elevated)] px-3 py-1.5 rounded-xl border border-[var(--border-subtle)]">
                       <span>{m.name} ({m.roleInTeam})</span>
                       <span className="text-amber-600 dark:text-amber-400 font-bold">Placa: {m.badgeOrPlate}</span>
                     </div>
@@ -290,28 +283,26 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                 </div>
               )}
 
-              {/* Botón Reasignar */}
               <button
                 onClick={handleUnassignTeam}
-                className="w-full py-2 rounded bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2 rounded-full glass-button text-xs font-semibold flex items-center justify-center gap-1.5"
               >
-                <span>Reasignar o Liberar Móvil</span>
+                <span>Reasignar o liberar móvil</span>
               </button>
             </div>
           ) : (
-            /* ─── SELECTOR VISUAL DE EQUIPOS (RADIO CARDS INTERACTIVAS) ─── */
             <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-2.5">
+              <div className="grid grid-cols-1 gap-2">
                 {availableTeams.map((team) => {
                   const isSelected = selectedTeamId === team.id;
                   return (
                     <div
                       key={team.id}
                       onClick={() => setSelectedTeamId(team.id)}
-                      className={`cursor-pointer rounded p-3 transition-all duration-200 relative ${
+                      className={`cursor-pointer rounded-[18px] p-3 transition-all duration-200 border ${
                         isSelected
-                          ? 'bg-emerald-500/10 shadow-[0_4px_16px_rgba(16,185,129,0.22)] ring-2 ring-emerald-500/50'
-                          : 'bg-[var(--bg-elevated)] shadow-sm hover:shadow-md hover:bg-[var(--bg-overlay)]'
+                          ? 'bg-emerald-500/12 border-emerald-500/50 shadow-sm'
+                          : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -319,10 +310,8 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                           {(() => {
                             const isAmb = team.teamType === 'ambulancia' || team.teamName?.toLowerCase().includes('ambulanc');
                             return (
-                              <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 mt-0.5 shadow-xs ${
-                                isSelected
-                                  ? (isAmb ? 'bg-rose-500/20 text-rose-500' : 'bg-blue-500/20 text-blue-500')
-                                  : (isAmb ? 'bg-rose-500/10 text-rose-400' : 'bg-blue-500/10 text-blue-400')
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                                isAmb ? 'bg-rose-500/15 text-[#E11D48]' : 'bg-sky-500/15 text-[#0EA5E9]'
                               }`}>
                                 {isAmb ? <Ambulance size={16} /> : <Siren size={16} />}
                               </div>
@@ -333,7 +322,7 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                             <div className="flex items-center gap-2">
                               <h4 className="text-xs font-bold text-[var(--text-primary)] truncate">{team.teamName}</h4>
                               {isSelected && (
-                                <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <span className="w-4 h-4 rounded-full bg-[#10B981] text-white flex items-center justify-center shrink-0">
                                   <Check size={11} strokeWidth={3} />
                                 </span>
                               )}
@@ -342,21 +331,19 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                           </div>
                         </div>
 
-                        {/* Placa vehicular estilo oficial */}
-                        <div className="px-2 py-0.5 bg-amber-500/15 rounded text-center shrink-0 shadow-xs">
-                          <span className="text-[11px] font-black text-amber-800 dark:text-[#facc15] font-mono tracking-wider">
+                        <div className="px-2 py-0.5 bg-amber-500/15 rounded-lg text-center shrink-0">
+                          <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 font-mono">
                             {team.mainVehiclePlate}
                           </span>
                         </div>
                       </div>
 
-                      {/* Footer de la tarjeta con dotación y tiempo */}
-                      <div className="flex items-center justify-between mt-2 pt-2 text-[10px] font-mono">
-                        <span className="text-[var(--text-secondary)] flex items-center gap-1 font-medium">
-                          <Users size={11} className="text-emerald-600 dark:text-emerald-400" />
-                          <span>{team.members?.length || 0} Agentes • @{team.leaderUsername}</span>
+                      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-[var(--border-subtle)] text-[10px] font-mono">
+                        <span className="text-[var(--text-secondary)] flex items-center gap-1">
+                          <Users size={11} className="text-[#0D9488] dark:text-emerald-400" />
+                          <span>{team.members?.length || 0} agentes • @{team.leaderUsername}</span>
                         </span>
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                        <span className="text-[#0D9488] dark:text-emerald-400 font-bold">
                           ETA ~{team.etaMins || 3} min
                         </span>
                       </div>
@@ -365,78 +352,77 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                 })}
               </div>
 
-              {/* Botón de Despacho de Alto Impacto */}
               <button
                 onClick={handleDispatchTeam}
-                className="w-full py-3 rounded bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                className="w-full py-3 rounded-full liquid-pill-obsidian text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Shield size={16} />
-                <span>Autorizar Despacho Inmediato</span>
+                <Shield size={15} className="text-[#38BDF8]" />
+                <span>Autorizar despacho inmediato</span>
               </button>
             </div>
           )}
         </div>
 
         {/* Acciones de Estado de la Alerta */}
-        <div className="bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs rounded p-4 space-y-3">
-          <h3 className="text-xs font-bold uppercase text-[var(--text-primary)] tracking-wider">Bitácora & Estado Operativo</h3>
+        <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[20px] p-4 space-y-3">
+          <h3 className="text-xs font-bold text-[var(--text-primary)]">Bitácora y estado operativo</h3>
           
           <textarea 
             placeholder="Nota operativa obligatoria para cambiar estado..."
             value={note}
             onChange={e => setNote(e.target.value)}
-            className="w-full bg-[var(--bg-input)] shadow-sm focus:shadow-md rounded p-3 text-xs text-[var(--text-primary)] outline-none min-h-[64px] resize-none font-mono placeholder-[var(--text-disabled)] transition-all"
+            className="w-full liquid-input-chamber rounded-[16px] p-3 text-xs text-[var(--text-primary)] outline-none min-h-[68px] resize-none font-mono placeholder-[var(--text-disabled)] transition-all"
           />
 
           <div className="grid grid-cols-2 gap-2">
             <button 
               onClick={() => handleStatusChange('reviewing')}
               disabled={alert.status !== 'pending' || note.length < 5}
-              className="flex items-center justify-center gap-1.5 bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-primary)] shadow-sm hover:shadow py-2 rounded text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+              className="flex items-center justify-center gap-1.5 glass-button py-2 rounded-full text-xs font-semibold disabled:opacity-35 disabled:pointer-events-none"
             >
-              <Eye size={13} /> Tomar Control
+              <Eye size={13} /> Tomar control
             </button>
             <button 
               onClick={() => handleStatusChange('verified')}
               disabled={alert.status !== 'reviewing' || note.length < 5}
-              className="flex items-center justify-center gap-1.5 bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 shadow-sm hover:shadow py-2 rounded text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+              className="flex items-center justify-center gap-1.5 bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-500/30 py-2 rounded-full text-xs font-semibold disabled:opacity-35 disabled:pointer-events-none transition-all cursor-pointer"
             >
               <CheckCircle size={13} /> Verificar
             </button>
             <button 
               onClick={() => handleStatusChange('resolved')}
               disabled={!['reviewing', 'verified'].includes(alert.status) || note.length < 5}
-              className="col-span-2 flex items-center justify-center gap-2 bg-[var(--text-primary)] text-[var(--bg-app)] shadow-md hover:shadow-lg py-2.5 rounded text-xs font-black hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all uppercase tracking-wider cursor-pointer"
+              className="col-span-2 flex items-center justify-center gap-2 liquid-pill-obsidian py-2.5 rounded-full text-xs font-semibold disabled:opacity-35 disabled:pointer-events-none"
             >
-              <FileArchive size={14} /> Resolver y Archivar
+              <FileArchive size={14} /> Resolver y archivar
             </button>
           </div>
           {note.length < 5 && (
-            <span className="text-[10px] text-[var(--text-muted)] text-center block font-medium">* Se requiere una nota mínima de 5 caracteres para archivar.</span>
+            <span className="text-[10.5px] text-[var(--text-muted)] text-center block">* Se requiere una nota mínima de 5 caracteres.</span>
           )}
         </div>
 
         {/* --- REPORTE POST-EVENTO (Motor Predictivo) --- */}
-        <div className="bg-[#f8f7f5] dark:bg-[var(--bg-surface)] shadow-xs rounded p-4 space-y-2.5">
-          <h3 className="text-xs font-bold uppercase text-[var(--text-primary)] tracking-wider flex items-center gap-2">
+        <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[20px] p-4 space-y-2.5">
+          <h3 className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-2">
             <Flame size={14} className="text-amber-500" />
-            <span>Entrenamiento de Rutas (IA)</span>
+            <span>Entrenamiento de rutas (IA)</span>
           </h3>
-          <p className="text-[10px] text-[var(--text-muted)] leading-tight font-medium">
-            Traza la ruta de escape real tomada por los sospechosos para reentrenar el Motor Predictivo espacial.
+          <p className="text-[11px] text-[var(--text-muted)] leading-snug">
+            Traza la ruta de escape tomada para reentrenar el motor predictivo espacial.
           </p>
           
           {!isDrawingRoute ? (
             <button 
               onClick={() => useCommandStore.getState().setDrawingRoute(true)}
-              className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-primary)] shadow-sm hover:shadow py-2.5 rounded text-xs font-bold transition-all cursor-pointer"
+              className="w-full glass-button py-2.5 rounded-full text-xs font-semibold"
             >
-              Trazar Ruta en el Mapa
+              Trazar ruta en el mapa
             </button>
           ) : (
             <div className="flex flex-col gap-2">
-              <div className="bg-[var(--bg-elevated)] shadow-xs p-2.5 rounded text-xs text-[var(--text-primary)] font-mono">
-                Modo dibujo activo: Haz clics en el mapa para fijar waypoints.
+              <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-2.5 rounded-2xl text-xs text-[var(--text-primary)] font-mono">
+                Modo dibujo activo: haz clic en el mapa para fijar waypoints.
               </div>
               
               <div className="grid grid-cols-2 gap-2">
@@ -456,7 +442,7 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                     }
                   }}
                   disabled={escapeRouteWaypoints.length === 0}
-                  className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-overlay)] text-[var(--text-secondary)] shadow-sm py-2 rounded text-xs font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  className="w-full glass-button py-2 rounded-full text-xs font-semibold disabled:opacity-35 disabled:pointer-events-none"
                 >
                   Deshacer
                 </button>
@@ -466,9 +452,9 @@ export const AlertWizardSidebar: React.FC<Props> = ({ alert, onClose }) => {
                     useCommandStore.getState().clearEscapeRoute();
                     window.alert("Modelo Predictivo Actualizado ✅\nLa ruta ha sido guardada y procesada por la IA.");
                   }}
-                  className="w-full bg-[var(--text-primary)] hover:opacity-90 text-[var(--bg-app)] shadow-md py-2 rounded text-xs font-black transition-all cursor-pointer"
+                  className="w-full liquid-pill-obsidian py-2 rounded-full text-xs font-semibold"
                 >
-                  Guardar Ruta
+                  Guardar ruta
                 </button>
               </div>
             </div>

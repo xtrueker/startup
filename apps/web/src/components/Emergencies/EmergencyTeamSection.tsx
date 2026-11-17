@@ -11,71 +11,71 @@ export const EmergencyTeamSection: React.FC<EmergencyTeamSectionProps> = ({ team
 
   return (
     <div className="space-y-4">
-      <div className="bg-[#141416] border border-zinc-800 rounded-xl p-4 space-y-3">
+      <div className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-[22px] p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200 uppercase tracking-wider">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)] uppercase tracking-wider">
             {isAmbulance ? (
-              <Ambulance size={15} className="text-rose-400" />
+              <Ambulance size={15} className="text-rose-500" />
             ) : (
-              <Siren size={15} className="text-sky-400" />
+              <Siren size={15} className="text-[#0EA5E9]" />
             )}
             <span>{isAmbulance ? 'Ambulancia / Asistencia Médica' : 'Unidad y Patrulla Policial'}</span>
           </div>
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 font-mono">
+          <span className="text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/12 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 font-mono">
             {stripEmojis(team.status)}
           </span>
         </div>
 
         {/* Ficha de la patrulla */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-[#0f0f11] border border-zinc-800/70 rounded-xl">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 liquid-input-chamber rounded-[18px]">
           <div>
-            <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Nombre de Unidad</span>
-            <div className="text-sm font-semibold text-zinc-100 mt-0.5">{stripEmojis(team.teamName)}</div>
-            <div className="text-xs text-zinc-400">{stripEmojis(team.teamType)}</div>
+            <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold tracking-wider">Nombre de Unidad</span>
+            <div className="text-sm font-semibold text-[var(--text-primary)] mt-0.5">{stripEmojis(team.teamName)}</div>
+            <div className="text-xs text-[var(--text-secondary)]">{stripEmojis(team.teamType)}</div>
           </div>
 
           <div>
-            <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Placa del Móvil Principal</span>
-            <div className="text-sm font-bold text-amber-300 font-mono mt-0.5 flex items-center gap-1.5">
-              <Car size={14} className="text-amber-400" />
+            <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold tracking-wider">Placa del Móvil Principal</span>
+            <div className="text-sm font-bold text-amber-600 dark:text-amber-300 font-mono mt-0.5 flex items-center gap-1.5">
+              <Car size={14} className="text-amber-500" />
               <span>{team.mainVehiclePlate}</span>
             </div>
-            <div className="text-xs text-zinc-500">{stripEmojis(team.assignedZone)}</div>
+            <div className="text-xs text-[var(--text-muted)]">{stripEmojis(team.assignedZone)}</div>
           </div>
 
           <div>
-            <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Líder Responsable</span>
-            <div className="text-sm font-semibold text-zinc-100 mt-0.5 flex items-center gap-1.5">
-              <User size={13} className="text-emerald-400" />
-              <span className="text-emerald-300 font-medium">@{team.leaderUsername}</span>
+            <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold tracking-wider">Líder Responsable</span>
+            <div className="text-sm font-semibold text-[var(--text-primary)] mt-0.5 flex items-center gap-1.5">
+              <User size={13} className="text-emerald-500" />
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">@{team.leaderUsername}</span>
             </div>
-            <div className="text-xs font-mono text-zinc-500">ID: {team.leaderId}</div>
+            <div className="text-xs font-mono text-[var(--text-muted)]">ID: {team.leaderId}</div>
           </div>
         </div>
 
         {/* Dotación de personal del equipo */}
         <div className="space-y-2 mt-4">
-          <span className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-            <Users size={14} className="text-emerald-400" />
+          <span className="text-xs font-semibold text-[var(--text-secondary)] flex items-center gap-1.5">
+            <Users size={14} className="text-emerald-500" />
             <span>Personal de Dotación ({team.members?.length || 0} efectivos)</span>
           </span>
 
-          <div className="divide-y divide-zinc-800/70 bg-[#0f0f11] border border-zinc-800/70 rounded-xl overflow-hidden">
+          <div className="divide-y divide-[var(--border-subtle)] liquid-input-chamber rounded-[18px] overflow-hidden">
             {team.members?.map((member, mIdx) => (
-              <div key={mIdx} className="p-3 flex items-center justify-between text-xs hover:bg-zinc-800/30 transition-colors">
+              <div key={mIdx} className="p-3 flex items-center justify-between text-xs hover:bg-[var(--bg-elevated)] transition-colors">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center font-semibold text-[11px] text-emerald-400">
+                  <div className="w-7 h-7 rounded-full bg-[#0EA5E9]/12 border border-[#0EA5E9]/25 flex items-center justify-center font-semibold text-[11px] text-[#0EA5E9]">
                     {mIdx + 1}
                   </div>
                   <div>
-                    <div className="font-semibold text-zinc-200">{stripEmojis(member.name)}</div>
-                    <div className="text-[11px] text-zinc-500">{stripEmojis(member.roleInTeam)}</div>
+                    <div className="font-semibold text-[var(--text-primary)]">{stripEmojis(member.name)}</div>
+                    <div className="text-[11px] text-[var(--text-muted)]">{stripEmojis(member.roleInTeam)}</div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 font-mono text-xs">
-                  <span className="text-zinc-400">CC: {member.identification}</span>
-                  <span className="px-2 py-0.5 rounded bg-amber-950/30 text-amber-300 font-medium border border-amber-800/40">
+                  <span className="text-[var(--text-secondary)]">CC: {member.identification}</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/12 text-amber-700 dark:text-amber-300 font-medium border border-amber-500/25">
                     Placa: {member.badgeOrPlate}
                   </span>
                 </div>

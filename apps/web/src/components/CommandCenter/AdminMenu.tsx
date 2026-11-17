@@ -18,49 +18,49 @@ const ADMIN_MODULES = [
     label: 'Operadores',
     Icon: UserCog,
     path: '/command-center/operators',
-    dot: '#a3a3a3',
+    dot: '#0EA5E9',
   },
   {
     key: 'cameras',
     label: 'Cámaras',
     Icon: Cctv,
     path: '/command-center/cameras',
-    dot: '#a3a3a3',
+    dot: '#0EA5E9',
   },
   {
     key: 'camera-grid',
     label: 'Cuadrícula 4x4',
     Icon: LayoutGrid,
     path: '/command-center/camera-grid',
-    dot: '#0ea5e9',
+    dot: '#14B8A6',
   },
   {
     key: 'teams',
     label: 'Equipos',
     Icon: Users,
     path: '/command-center/teams',
-    dot: '#a3a3a3',
+    dot: '#10B981',
   },
   {
     key: 'roles',
     label: 'Roles',
     Icon: ShieldCheck,
     path: '/command-center/roles',
-    dot: '#a3a3a3',
+    dot: '#0EA5E9',
   },
   {
     key: 'emergencies',
     label: 'Emergencias',
     Icon: Siren,
     path: '/command-center/emergencies',
-    dot: '#e11d48',
+    dot: '#E11D48',
   },
   {
     key: 'kpi',
     label: 'KPI & Reportes',
     Icon: BarChart3,
     path: '/command-center/kpi',
-    dot: '#a3a3a3',
+    dot: '#D97706',
   },
 ] as const;
 
@@ -71,20 +71,20 @@ export const AdminMenu: React.FC = () => {
   const [open, setOpen] = useState(isAnyAdminActive);
 
   return (
-    <div className="bg-[var(--bg-sidebar)] shadow-xs theme-transition">
+    <div className="bg-transparent theme-transition">
       {/* Header toggle */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2.5 px-4 py-3 text-left bg-[#f9f9f9] dark:bg-[#111112] hover:bg-[#f4f2f0] dark:hover:bg-[var(--bg-elevated)] transition-colors group cursor-pointer"
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-[var(--bg-elevated)] transition-colors group cursor-pointer"
       >
-        <div className="w-6 h-6 rounded bg-[var(--accent-bg)] shadow-xs flex items-center justify-center flex-shrink-0">
-          <Settings2 size={13} className="text-[var(--accent)]" />
+        <div className="w-7 h-7 rounded-xl bg-[var(--accent-bg)] border border-[var(--accent-border)] flex items-center justify-center flex-shrink-0 text-[var(--accent)]">
+          <Settings2 size={14} />
         </div>
-        <span className="flex-1 text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] transition-colors">
-          Módulos Admin
+        <span className="flex-1 text-xs font-bold tracking-tight text-[var(--text-primary)]">
+          Módulos de gestión
         </span>
         <ChevronDown
-          size={14}
+          size={15}
           className={`text-[var(--text-secondary)] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
         />
       </button>
@@ -98,19 +98,19 @@ export const AdminMenu: React.FC = () => {
               <button
                 key={key}
                 onClick={() => navigate(path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-left transition-all duration-150 group cursor-pointer
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-full text-left transition-all duration-150 group cursor-pointer
                   ${isActive
-                    ? 'bg-[#ece9e6] dark:bg-[var(--bg-elevated)] shadow-xs text-[var(--text-primary)] font-bold'
-                    : 'text-[var(--text-secondary)] hover:bg-[#f4f2f0] dark:hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] hover:shadow-xs font-semibold'
+                    ? 'liquid-pill-obsidian font-semibold'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] font-medium'
                   }`}
               >
-                <div className={`flex-shrink-0 ${isActive ? 'text-[var(--brand)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'} transition-colors`}>
-                  <Icon size={16} />
+                <div className={`flex-shrink-0 ${isActive ? 'text-[#38BDF8]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'} transition-colors`}>
+                  <Icon size={15} />
                 </div>
-                <span className="flex-1 text-[12px]">{label}</span>
+                <span className="flex-1 text-[12.5px] tracking-tight">{label}</span>
                 {isActive && (
                   <span
-                    className="w-2 h-2 rounded-full flex-shrink-0 shadow-xs"
+                    className="w-2 h-2 rounded-full flex-shrink-0"
                     style={{ backgroundColor: dot }}
                   />
                 )}
