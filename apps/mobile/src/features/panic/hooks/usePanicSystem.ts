@@ -25,8 +25,10 @@ export function usePanicSystem() {
         latitude = loc.coords.latitude;
         longitude = loc.coords.longitude;
 
-        const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
-        address = geo ? `${geo.street || ''} ${geo.city || ''}`.trim() : address;
+        if (Platform.OS !== 'web') {
+          const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
+          address = geo ? `${geo.street || ''} ${geo.city || ''}`.trim() : address;
+        }
       }
 
       const payload = {

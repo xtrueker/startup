@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StatusBar, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, ActivityIndicator, StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { authService } from './services/auth';
 import LoginScreen from './screens/LoginScreen';
@@ -7,11 +7,12 @@ import RegisterScreen from './screens/RegisterScreen';
 import HomeScreen from './screens/HomeScreen';
 import PatrolModeScreen from './screens/PatrolModeScreen';
 
-// Modo Fantasma y Servicio de Pánico
 import { ghostModeService } from './services/GhostModeService';
 import { GhostModeScreen } from './screens/GhostModeScreen';
 import { panicService } from './services/panicService';
 import { localDatabase } from './services/localDatabase';
+import { palette, fontSans } from './theme/prismTheme';
+import { AmbientPrismCanvas, PrismEmblem } from './components/ui/PrismPrimitives';
 
 export default function App() {
   const [checking, setChecking] = useState(true);
@@ -20,7 +21,6 @@ export default function App() {
   const [view, setView] = useState<'login' | 'register'>('login');
   const [activeScreen, setActiveScreen] = useState<'home' | 'patrol'>('home');
 
-  // Estado global de Intercepción Táctica (Modo Fantasma)
   const [isGhostModeActive, setIsGhostModeActive] = useState(false);
 
   useEffect(() => {
@@ -45,7 +45,6 @@ export default function App() {
     }
     checkAuth();
 
-    // Suscribirse reactivamente a cambios de autenticación (Login / Logout / 401 Expirado)
     const unsubscribeAuth = authService.subscribe(async (isAuth) => {
       setAuthenticated(isAuth);
       if (!isAuth) {
@@ -62,19 +61,16 @@ export default function App() {
       }
     });
 
-    // Iniciar la escucha pasiva del acorde de botones físicos de volumen
     ghostModeService.startListening();
 
-    // Conectar el listener del Modo Fantasma para obtener geolocalización y disparar HTTP POST
     ghostModeService.setOnTriggered(async (event) => {
-      console.log('👻 [App] ¡Modo Fantasma detonado por botones físicos!', event.sequence);
+      console.log('Modo silencioso activado por botones físicos:', event.sequence);
       setIsGhostModeActive(true);
 
       try {
-        // Disparo de alerta de pánico sigilosa al backend con GPS de alta precisión
         await panicService.sendPanicAlert({
           triggerType: 'ghost_mode',
-          description: `🚨 PÁNICO SIGILOSO (Modo Fantasma): Detonado por secuencia de volumen [${event.sequence.join(', ')}]`,
+          description: `PÁNICO SIGILOSO (Modo Fantasma): Detonado por secuencia de volumen [${event.sequence.join(', ')}]`,
         });
       } catch (panicErr) {
         console.error('[App] Error al despachar pánico en modo fantasma:', panicErr);
@@ -90,12 +86,19 @@ export default function App() {
   if (checking) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#38BDF8" />
+        <AmbientPrismCanvas intensity="subtle" />
+        <PrismEmblem size={54} />
+        <ActivityIndicator
+          size="small"
+          color={palette.obsidianPill}
+          style={{ marginTop: 18 }}
+        />
+        <Text style={styles.bootText}>Preparando tu espacio seguro...</Text>
       </View>
     );
   }
 
-  // Si el Modo Fantasma está detonado, secuestramos todo el renderizado con la pantalla negra táctica
+  // Modo silencioso: pantalla OLED completamente negra (#000000) por seguridad encubierta
   if (isGhostModeActive) {
     return (
       <GhostModeScreen
@@ -114,7 +117,7 @@ export default function App() {
 
     return (
       <SafeAreaProvider>
-        <StatusBar barStyle="light-content" backgroundColor="#0A0E17" />
+        <StatusBar barStyle="dark-content" />
         {activeScreen === 'patrol' ? (
           <PatrolModeScreen
             isDedicatedOfficer={isPolice}
@@ -144,7 +147,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="light-content" backgroundColor="#0A0E17" />
+      <StatusBar barStyle="dark-content" />
       {view === 'login' ? (
         <LoginScreen
           onLogin={() => setAuthenticated(true)}
@@ -163,8 +166,15 @@ export default function App() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0A0E17',
+    backgroundColor: palette.canvas,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  bootText: {
+    marginTop: 12,
+    fontFamily: fontSans,
+    fontSize: 13.5,
+    fontWeight: '500',
+    color: palette.textSecondary,
   },
 });

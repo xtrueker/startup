@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,14 +13,38 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { authService } from '../services/auth';
+import { palette, fontSans, glassSurfaceStyle, sculptedShadow } from '../theme/prismTheme';
+import {
+  AmbientPrismCanvas,
+  LiquidGlassCard,
+  LiquidInput,
+  LiquidPillButton,
+  PrismEmblem,
+  PrismIcon,
+  StatusPill,
+} from '../components/ui/PrismPrimitives';
 
 interface RegisterScreenProps {
   onRegister: () => void;
   onGoLogin: () => void;
 }
 
+const STEP_META: { id: 1 | 2 | 3 | 4; label: string }[] = [
+  { id: 1, label: 'Datos' },
+  { id: 2, label: 'Documento' },
+  { id: 3, label: 'Rostro' },
+  { id: 4, label: 'Confirmar' },
+];
+
+const LIVENESS_CHALLENGES = [
+  { instruction: 'Sonríe con naturalidad mirando hacia el frente.' },
+  { instruction: 'Gira suavemente tu rostro un poco hacia la derecha.' },
+  { instruction: 'Gira suavemente tu rostro un poco hacia la izquierda.' },
+  { instruction: 'Entreabre ligeramente la boca mirando a la cámara.' },
+  { instruction: 'Parpadea una vez despacio y mira al frente.' },
+];
+
 export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreenProps) {
-  // Wizard Step: 1 = Datos, 2 = Cédula, 3 = Biometría Facial, 4 = Confirmación y Envío
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Paso 1: Datos Personales
@@ -31,49 +53,46 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Paso 2: Cédula de Identidad (Fotos)
+  // Paso 2: Cédula
   const [idCardFront, setIdCardFront] = useState<string | null>(null);
   const [idCardBack, setIdCardBack] = useState<string | null>(null);
 
-  // Paso 3: Prueba de Vida / Biometría Facial
+  // Paso 3: Rostro
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
+  const [livenessChallenge, setLivenessChallenge] = useState<(typeof LIVENESS_CHALLENGES)[0] | null>(
+    null
+  );
 
-  // Paso 4: Confirmación y Declaración Jurada
+  // Paso 4: Confirmación
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [stepError, setStepError] = useState<string | null>(null);
 
-  // Liveness Challenge (Anti-suplantación)
-  const LIVENESS_CHALLENGES = [
-    { instruction: '😊 Sonríe naturalmente mirando a la cámara', icon: '😊' },
-    { instruction: '👉 Gira tu cabeza ligeramente a la derecha', icon: '👉' },
-    { instruction: '👈 Gira tu cabeza ligeramente a la izquierda', icon: '👈' },
-    { instruction: '😮 Abre la boca ligeramente', icon: '😮' },
-    { instruction: '😌 Cierra los ojos por un segundo y ábrelos', icon: '😌' },
-  ];
-  const [livenessChallenge, setLivenessChallenge] = useState<typeof LIVENESS_CHALLENGES[0] | null>(null);
-  const [livenessAccepted, setLivenessAccepted] = useState(false);
+  const reportError = (title: string, message: string) => {
+    setStepError(message);
+    if (Platform.OS !== 'web') {
+      Alert.alert(title, message);
+    }
+  };
 
   const startLivenessChallenge = () => {
     const random = LIVENESS_CHALLENGES[Math.floor(Math.random() * LIVENESS_CHALLENGES.length)];
     setLivenessChallenge(random);
-    setLivenessAccepted(false);
   };
 
   const confirmLivenessAndCapture = async () => {
-    setLivenessAccepted(true);
     await handleCapturePhoto('selfie', true);
   };
 
-  const [loading, setLoading] = useState(false);
-
-  // --- CAPTURA DE FOTOS ---
   const requestCameraPermission = async () => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Permiso Requerido',
-          'Para verificar tu identidad y prevenir sabotajes en la red de seguridad, necesitamos acceso a la cámara.'
+        reportError(
+          'Permiso de cámara',
+          'Necesitamos acceso a tu cámara para verificar tu identidad de forma segura.'
         );
         return false;
       }
@@ -85,6 +104,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
     target: 'idFront' | 'idBack' | 'selfie',
     useFrontCamera = false
   ) => {
+    setStepError(null);
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) return;
 
@@ -94,87 +114,95 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
         aspect: target === 'selfie' ? [1, 1] : [16, 10],
         quality: 0.5,
         base64: true,
-        cameraType: useFrontCamera ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
+        cameraType: useFrontCamera
+          ? ImagePicker.CameraType.front
+          : ImagePicker.CameraType.back,
       };
 
       const result = await ImagePicker.launchCameraAsync(options);
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        const dataUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        const dataUri = asset.base64
+          ? `data:image/jpeg;base64,${asset.base64}`
+          : asset.uri;
 
         if (target === 'idFront') setIdCardFront(dataUri);
         else if (target === 'idBack') setIdCardBack(dataUri);
         else if (target === 'selfie') setSelfiePhoto(dataUri);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.warn('Error al abrir la cámara:', err);
-      Alert.alert(
-        'Cámara No Disponible',
-        'No se pudo acceder a la cámara. Verifica los permisos en la configuración de tu dispositivo.'
+      reportError(
+        'Cámara no disponible',
+        'No se pudo abrir la cámara. Revisa los permisos de tu navegador o teléfono.'
       );
     }
   };
 
-  // --- VALIDACIÓN DE PASOS ---
   const validatePassword = (pass: string): string | null => {
-    if (pass.length < 8) return 'La contraseña debe tener al menos 8 caracteres.';
-    if (!/[A-Z]/.test(pass)) return 'Debe contener al menos una letra mayúscula.';
-    if (!/[a-z]/.test(pass)) return 'Debe contener al menos una letra minúscula.';
-    if (!/[0-9]/.test(pass)) return 'Debe contener al menos un número.';
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) return 'Debe contener al menos un carácter especial (!@#$%...).';
+    if (pass.length < 8) return 'Usa al menos 8 caracteres.';
+    if (!/[A-Z]/.test(pass)) return 'Incluye al menos una letra mayúscula.';
+    if (!/[a-z]/.test(pass)) return 'Incluye al menos una letra minúscula.';
+    if (!/[0-9]/.test(pass)) return 'Incluye al menos un número.';
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) {
+      return 'Incluye al menos un símbolo especial (!@#$%...).';
+    }
     return null;
   };
 
-  const getPasswordStrength = (pass: string): { level: number; label: string; color: string } => {
+  const getPasswordStrength = (
+    pass: string
+  ): { level: number; label: string; color: string } => {
     let score = 0;
     if (pass.length >= 8) score++;
     if (pass.length >= 12) score++;
     if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score++;
     if (/[0-9]/.test(pass)) score++;
     if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) score++;
-    if (score <= 1) return { level: score, label: 'Muy Débil', color: '#EF4444' };
-    if (score <= 2) return { level: score, label: 'Débil', color: '#F97316' };
-    if (score <= 3) return { level: score, label: 'Aceptable', color: '#EAB308' };
-    if (score <= 4) return { level: score, label: 'Fuerte', color: '#22C55E' };
-    return { level: score, label: 'Muy Fuerte', color: '#10B981' };
+    if (score <= 1) return { level: score, label: 'Muy débil', color: palette.crimson };
+    if (score <= 2) return { level: score, label: 'Débil', color: '#EA580C' };
+    if (score <= 3) return { level: score, label: 'Aceptable', color: palette.amber };
+    if (score <= 4) return { level: score, label: 'Segura', color: palette.aqua };
+    return { level: score, label: 'Excelente', color: palette.emeraldBright };
   };
 
   const handleNextStep1 = () => {
+    setStepError(null);
     if (!fullName.trim() || !cedula.trim() || !email.trim() || !password) {
-      Alert.alert('Datos Incompletos', 'Todos los campos marcados son obligatorios.');
+      reportError('Datos incompletos', 'Por favor completa los campos marcados con asterisco.');
       return;
     }
-    // Validación de cédula colombiana: solo números, entre 6 y 10 dígitos
     if (!/^\d{6,10}$/.test(cedula.trim())) {
-      Alert.alert('Cédula Inválida', 'La cédula debe contener entre 6 y 10 dígitos numéricos, sin puntos ni letras.');
+      reportError(
+        'Cédula inválida',
+        'Ingresa entre 6 y 10 dígitos numéricos, sin puntos ni espacios.'
+      );
       return;
     }
-    // Validación robusta de email
     const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(email.trim())) {
-      Alert.alert('Email Inválido', 'Por favor ingresa un correo electrónico válido (ej: nombre@dominio.com).');
+      reportError('Correo inválido', 'Revisa el formato de tu correo electrónico.');
       return;
     }
-    // Validación de contraseña robusta
     const passError = validatePassword(password);
     if (passError) {
-      Alert.alert('Contraseña No Cumple Requisitos', passError);
+      reportError('Contraseña insegura', passError);
       return;
     }
-    // Validación de teléfono si fue ingresado
     if (phone.trim() && !/^\d{7,10}$/.test(phone.trim().replace(/[\s\-\+]/g, ''))) {
-      Alert.alert('Teléfono Inválido', 'El número de teléfono debe contener entre 7 y 10 dígitos.');
+      reportError('Teléfono inválido', 'Ingresa un número de entre 7 y 10 dígitos.');
       return;
     }
     setStep(2);
   };
 
   const handleNextStep2 = () => {
+    setStepError(null);
     if (!idCardFront || !idCardBack) {
-      Alert.alert(
-        'Verificación Obligatoria',
-        'Debes capturar tanto la foto frontal como la posterior de tu cédula. Solo se permite cámara en vivo para evitar fraude.'
+      reportError(
+        'Fotos pendientes',
+        'Toma la foto frontal y posterior de tu cédula para continuar.'
       );
       return;
     }
@@ -182,21 +210,20 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
   };
 
   const handleNextStep3 = () => {
+    setStepError(null);
     if (!selfiePhoto) {
-      Alert.alert(
-        'Validación Facial Obligatoria',
-        'Debes tomar una foto de tu rostro con la cámara frontal en vivo.'
-      );
+      reportError('Foto pendiente', 'Completa la verificación de rostro antes de continuar.');
       return;
     }
     setStep(4);
   };
 
   const handleFinalSubmit = async () => {
+    setStepError(null);
     if (!acceptedTerms) {
-      Alert.alert(
-        'Declaración Jurada Requerida',
-        'Debes aceptar la declaración jurada confirmando que los datos y documentos proporcionados son auténticos y te pertenecen.'
+      reportError(
+        'Confirmación pendiente',
+        'Acepta la declaración de autenticidad para enviar tu registro.'
       );
       return;
     }
@@ -214,424 +241,526 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
         selfiePhoto: selfiePhoto || undefined,
       });
 
-      Alert.alert(
-        '📋 Solicitud Enviada',
-        'Tu solicitud de registro fue recibida exitosamente.\n\nNuestro equipo de seguridad validará tu identidad comparando tu selfie con la foto de tu cédula. Recibirás confirmación cuando tu cuenta sea aprobada.\n\nEste proceso puede tomar hasta 24-48 horas.',
-        [{ text: 'Entendido', onPress: onRegister }]
-      );
+      const successMsg =
+        'Recibimos tu solicitud correctamente.\n\nNuestro equipo revisará tus documentos en las próximas 24 a 48 horas.';
+
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined') {
+          window.alert(successMsg);
+        }
+        onRegister();
+      } else {
+        Alert.alert('Solicitud enviada', successMsg, [
+          { text: 'Entendido', onPress: onRegister },
+        ]);
+      }
     } catch (e: any) {
       console.error('Error de registro KYC:', e);
       let msg = 'No se pudo completar el registro.';
       if (!e.response) {
-        msg = 'No se pudo conectar al servidor backend. Verifica tu conexión de red.';
+        msg = 'No fue posible conectar con el servidor. Revisa tu conexión.';
       } else if (e.response?.data?.message) {
         msg = e.response.data.message;
       }
-      Alert.alert('Error en Validación', msg);
+      reportError('Error en el envío', msg);
     } finally {
       setLoading(false);
     }
   };
 
+  const strength = getPasswordStrength(password);
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0A0E17' }}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          
-          {/* HEADER CON INDICADOR DE PASOS ESTILO BANCARIO */}
-          <View style={styles.header}>
-            <View style={styles.badgeKyc}>
-              <Text style={styles.badgeKycText}>🔒 PROTOCOLO KYC FINTECH / SEGURIDAD NACIONAL</Text>
-            </View>
-            <Text style={styles.titleApp}>Red Ciudadana</Text>
-            <Text style={styles.subtitleApp}>Validación de Identidad Anti-Sabotaje</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <AmbientPrismCanvas intensity="normal" />
 
-            {/* Barra de progreso de 4 pasos */}
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressStep, step >= 1 && styles.progressStepActive]}>
-                <Text style={styles.progressStepText}>1</Text>
-              </View>
-              <View style={[styles.progressLine, step >= 2 && styles.progressLineActive]} />
-              <View style={[styles.progressStep, step >= 2 && styles.progressStepActive]}>
-                <Text style={styles.progressStepText}>2</Text>
-              </View>
-              <View style={[styles.progressLine, step >= 3 && styles.progressLineActive]} />
-              <View style={[styles.progressStep, step >= 3 && styles.progressStepActive]}>
-                <Text style={styles.progressStepText}>3</Text>
-              </View>
-              <View style={[styles.progressLine, step >= 4 && styles.progressLineActive]} />
-              <View style={[styles.progressStep, step >= 4 && styles.progressStepActive]}>
-                <Text style={styles.progressStepText}>4</Text>
-              </View>
-            </View>
-
-            <View style={styles.stepLabelsRow}>
-              <Text style={[styles.stepLabelText, step === 1 && styles.stepLabelTextActive]}>Datos</Text>
-              <Text style={[styles.stepLabelText, step === 2 && styles.stepLabelTextActive]}>Cédula</Text>
-              <Text style={[styles.stepLabelText, step === 3 && styles.stepLabelTextActive]}>Biometría</Text>
-              <Text style={[styles.stepLabelText, step === 4 && styles.stepLabelTextActive]}>Confirmar</Text>
-            </View>
-          </View>
-
-          {/* ========================================================================= */}
-          {/* PASO 1: DATOS PERSONALES                                                   */}
-          {/* ========================================================================= */}
-          {step === 1 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Paso 1: Datos Personales</Text>
-              <Text style={styles.cardDesc}>
-                Ingresa tus datos oficiales tal como aparecen en tu documento de identidad.
-              </Text>
-
-              <Text style={styles.label}>Nombre Completo *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ej. Andrés Felipe Guillén"
-                placeholderTextColor="#64748B"
-                value={fullName}
-                onChangeText={setFullName}
-                autoCapitalize="words"
-              />
-
-              <Text style={styles.label}>Número de Cédula (Sin puntos) *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ej. 1096123456"
-                placeholderTextColor="#64748B"
-                value={cedula}
-                onChangeText={setCedula}
-                keyboardType="number-pad"
-              />
-
-              <Text style={styles.label}>Teléfono Móvil (Para contacto de auxilio)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ej. 3001234567"
-                placeholderTextColor="#64748B"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-
-              <Text style={styles.label}>Correo Electrónico *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="correo@ejemplo.com"
-                placeholderTextColor="#64748B"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <Text style={styles.label}>Contraseña Segura * (Mín. 8 chars, mayúscula, número, especial)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ej: MiClave#2026"
-                placeholderTextColor="#64748B"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-              {password.length > 0 && (
-                <View style={{ marginTop: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={{ flex: 1, height: 4, backgroundColor: '#1E293B', borderRadius: 2, overflow: 'hidden' }}>
-                      <View style={{ width: `${(getPasswordStrength(password).level / 5) * 100}%`, height: '100%', backgroundColor: getPasswordStrength(password).color, borderRadius: 2 }} />
-                    </View>
-                    <Text style={{ color: getPasswordStrength(password).color, fontSize: 10, fontWeight: 'bold' }}>{getPasswordStrength(password).label}</Text>
-                  </View>
-                </View>
-              )}
-
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleNextStep1}>
-                <Text style={styles.primaryBtnText}>Continuar a Documento ➔</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={onGoLogin} style={styles.loginLink}>
-                <Text style={styles.loginText}>
-                  ¿Ya tienes cuenta verificada? <Text style={styles.loginTextBold}>Ingresa</Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ========================================================================= */}
-          {/* PASO 2: CÉDULA DE IDENTIDAD (FRENTE Y REVERSO)                              */}
-          {/* ========================================================================= */}
-          {step === 2 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Paso 2: Cédula de Identidad</Text>
-              <Text style={styles.cardDesc}>
-                Captura ambos lados de tu documento oficial. Asegúrate de encuadrarlo bien y que los textos sean legibles.
-              </Text>
-
-              <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: '#EF4444', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 14 }}>
-                <Text style={{ color: '#FCA5A5', fontSize: 10, fontWeight: 'bold' }}>🔒 MEDIDA ANTI-FRAUDE: Solo se permiten fotos en vivo con la cámara. No se aceptan imágenes de galería para evitar suplantación de identidad.</Text>
-              </View>
-
-              {/* Foto Frontal */}
-              <View style={styles.documentBox}>
-                <View style={styles.documentHeader}>
-                  <Text style={styles.documentTitle}>1. Foto Frontal (Con Foto y Nombres)</Text>
-                  {idCardFront && <Text style={styles.checkBadge}>✅ Capturada</Text>}
-                </View>
-
-                {idCardFront ? (
-                  <View style={styles.previewContainer}>
-                    <Image source={{ uri: idCardFront }} style={styles.previewImage} resizeMode="cover" />
-                    <TouchableOpacity
-                      style={styles.retakeBtn}
-                      onPress={() => handleCapturePhoto('idFront')}
-                    >
-                      <Text style={styles.retakeBtnText}>🔄 Repetir Foto</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.uploadPlaceholder}>
-                    <Text style={styles.uploadIcon}>🪪</Text>
-                    <Text style={styles.uploadText}>Coloca el frente de tu cédula en una superficie plana</Text>
-                    <View style={styles.actionRow}>
-                      <TouchableOpacity
-                        style={styles.cameraBtn}
-                        onPress={() => handleCapturePhoto('idFront')}
-                      >
-                        <Text style={styles.cameraBtnText}>📸 Tomar Foto con Cámara</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-              </View>
-
-              {/* Foto Posterior */}
-              <View style={styles.documentBox}>
-                <View style={styles.documentHeader}>
-                  <Text style={styles.documentTitle}>2. Foto Posterior (Reverso / Huella)</Text>
-                  {idCardBack && <Text style={styles.checkBadge}>✅ Capturada</Text>}
-                </View>
-
-                {idCardBack ? (
-                  <View style={styles.previewContainer}>
-                    <Image source={{ uri: idCardBack }} style={styles.previewImage} resizeMode="cover" />
-                    <TouchableOpacity
-                      style={styles.retakeBtn}
-                      onPress={() => handleCapturePhoto('idBack')}
-                    >
-                      <Text style={styles.retakeBtnText}>🔄 Repetir Foto</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.uploadPlaceholder}>
-                    <Text style={styles.uploadIcon}>💳</Text>
-                    <Text style={styles.uploadText}>Coloca el reverso con el código de barras y firma</Text>
-                    <View style={styles.actionRow}>
-                      <TouchableOpacity
-                        style={styles.cameraBtn}
-                        onPress={() => handleCapturePhoto('idBack')}
-                      >
-                        <Text style={styles.cameraBtnText}>📸 Tomar Foto con Cámara</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.navButtonsRow}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => setStep(1)}>
-                  <Text style={styles.backBtnText}>⬅️ Volver</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.primaryBtn,
-                    { flex: 1, marginLeft: 10, marginTop: 0 },
-                    (!idCardFront || !idCardBack) && styles.btnDisabled,
-                  ]}
-                  onPress={handleNextStep2}
-                  disabled={!idCardFront || !idCardBack}
-                >
-                  <Text style={styles.primaryBtnText}>Continuar a Biometría ➔</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* ========================================================================= */}
-          {/* PASO 3: BIOMETRÍA FACIAL / PRUEBA DE VIDA (SELFIE)                         */}
-          {/* ========================================================================= */}
-          {step === 3 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Paso 3: Validación Facial</Text>
-              <Text style={styles.cardDesc}>
-                Prueba de vida para confirmar que la persona que crea la cuenta es el titular de la cédula.
-              </Text>
-
-              <View style={styles.securityTipsBox}>
-                <Text style={styles.securityTipItem}>💡 Buena iluminación (sin sombras en el rostro)</Text>
-                <Text style={styles.securityTipItem}>👓 Sin gafas oscuras, gorras ni mascarilla</Text>
-                <Text style={styles.securityTipItem}>👤 Rostro centrado dentro del círculo</Text>
-              </View>
-
-              {/* Óvalo Biométrico con Liveness Challenge */}
-              <View style={styles.biometricArea}>
-                {selfiePhoto ? (
-                  <View style={styles.selfiePreviewContainer}>
-                    <Image source={{ uri: selfiePhoto }} style={styles.selfieCircle} resizeMode="cover" />
-                    <View style={styles.verifiedBadgeContainer}>
-                      <Text style={styles.verifiedBadgeText}>✅ Rostro Capturado</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.retakeBtn, { marginTop: 16 }]}
-                      onPress={() => { setSelfiePhoto(null); setLivenessChallenge(null); setLivenessAccepted(false); }}
-                    >
-                      <Text style={styles.retakeBtnText}>🔄 Repetir Selfie</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : livenessChallenge ? (
-                  <View style={styles.biometricCirclePlaceholder}>
-                    <Text style={{ fontSize: 48, marginBottom: 8 }}>{livenessChallenge.icon}</Text>
-                    <Text style={{ color: '#FDE68A', fontSize: 13, fontWeight: 'bold', textAlign: 'center', marginBottom: 4 }}>PRUEBA DE VIDA</Text>
-                    <Text style={{ color: '#E2E8F0', fontSize: 12, textAlign: 'center', lineHeight: 18, marginBottom: 12, paddingHorizontal: 8 }}>
-                      {livenessChallenge.instruction}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.selfieActionBtn}
-                      onPress={confirmLivenessAndCapture}
-                    >
-                      <Text style={styles.selfieActionBtnText}>📸 Listo, Tomar Foto</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ marginTop: 8 }}
-                      onPress={startLivenessChallenge}
-                    >
-                      <Text style={{ color: '#64748B', fontSize: 10 }}>🔄 Otro desafío</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.biometricCirclePlaceholder}>
-                    <Text style={styles.biometricSilhouette}>👤</Text>
-                    <Text style={styles.biometricPrompt}>Encuadra tu rostro aquí</Text>
-                    <TouchableOpacity
-                      style={styles.selfieActionBtn}
-                      onPress={startLivenessChallenge}
-                    >
-                      <Text style={styles.selfieActionBtnText}>🤳 Iniciar Prueba de Vida</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.navButtonsRow}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => setStep(2)}>
-                  <Text style={styles.backBtnText}>⬅️ Volver</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.primaryBtn,
-                    { flex: 1, marginLeft: 10, marginTop: 0 },
-                    !selfiePhoto && styles.btnDisabled,
-                  ]}
-                  onPress={handleNextStep3}
-                  disabled={!selfiePhoto}
-                >
-                  <Text style={styles.primaryBtnText}>Revisar y Confirmar ➔</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* ========================================================================= */}
-          {/* PASO 4: CONFIRMACIÓN, DECLARACIÓN JURADA Y ENVÍO                          */}
-          {/* ========================================================================= */}
-          {step === 4 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Paso 4: Confirmar y Enviar</Text>
-              <Text style={styles.cardDesc}>
-                Revisa que toda la información sea correcta antes de enviar tu solicitud de registro.
-              </Text>
-
-              {/* Resumen de Datos */}
-              <View style={styles.securityTipsBox}>
-                <Text style={{ color: '#BAE6FD', fontSize: 12, fontWeight: 'bold', marginBottom: 6 }}>📋 Resumen de tu Solicitud:</Text>
-                <Text style={{ color: '#E2E8F0', fontSize: 12, marginVertical: 2 }}>👤 Nombre: {fullName}</Text>
-                <Text style={{ color: '#E2E8F0', fontSize: 12, marginVertical: 2 }}>🪪 Cédula: {cedula}</Text>
-                <Text style={{ color: '#E2E8F0', fontSize: 12, marginVertical: 2 }}>📧 Email: {email.toLowerCase()}</Text>
-                {phone.trim() ? <Text style={{ color: '#E2E8F0', fontSize: 12, marginVertical: 2 }}>📱 Teléfono: {phone}</Text> : null}
-                <Text style={{ color: '#4ADE80', fontSize: 12, marginVertical: 2 }}>✅ Cédula Frontal: Capturada</Text>
-                <Text style={{ color: '#4ADE80', fontSize: 12, marginVertical: 2 }}>✅ Cédula Reverso: Capturada</Text>
-                <Text style={{ color: '#4ADE80', fontSize: 12, marginVertical: 2 }}>✅ Selfie Biométrica: Capturada</Text>
-              </View>
-
-              {/* Miniaturas */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, gap: 8 }}>
-                {idCardFront && <Image source={{ uri: idCardFront }} style={{ flex: 1, height: 70, borderRadius: 8, borderWidth: 1, borderColor: '#38BDF8' }} resizeMode="cover" />}
-                {idCardBack && <Image source={{ uri: idCardBack }} style={{ flex: 1, height: 70, borderRadius: 8, borderWidth: 1, borderColor: '#38BDF8' }} resizeMode="cover" />}
-                {selfiePhoto && <Image source={{ uri: selfiePhoto }} style={{ width: 70, height: 70, borderRadius: 35, borderWidth: 2, borderColor: '#10B981' }} resizeMode="cover" />}
-              </View>
-
-              {/* Declaración Jurada */}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.shell}>
+            {/* Top Frosted Pill Bar */}
+            <View style={[styles.topBar, glassSurfaceStyle(24, true)]}>
               <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'flex-start',
-                  backgroundColor: acceptedTerms ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.05)',
-                  borderColor: acceptedTerms ? '#10B981' : '#475569',
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: 14,
-                  marginBottom: 16,
-                  gap: 10,
-                }}
-                onPress={() => setAcceptedTerms(!acceptedTerms)}
-                activeOpacity={0.7}
+                onPress={onGoLogin}
+                activeOpacity={0.75}
+                style={styles.backChip}
               >
-                <View style={{
-                  width: 24, height: 24, borderRadius: 6,
-                  borderWidth: 2, borderColor: acceptedTerms ? '#10B981' : '#64748B',
-                  backgroundColor: acceptedTerms ? '#10B981' : 'transparent',
-                  justifyContent: 'center', alignItems: 'center', marginTop: 2,
-                }}>
-                  {acceptedTerms && <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>✓</Text>}
-                </View>
-                <Text style={{ flex: 1, color: '#CBD5E1', fontSize: 11, lineHeight: 17 }}>
-                  <Text style={{ fontWeight: 'bold', color: '#F59E0B' }}>DECLARACIÓN JURADA: </Text>
-                  Declaro bajo gravedad de juramento que los datos personales, documentos de identidad y fotografía biométrica proporcionados son auténticos, verídicos y me pertenecen. Entiendo que proporcionar información falsa constituye un delito y puede derivar en acciones legales conforme a la ley colombiana.
-                </Text>
+                <PrismIcon name="arrowLeft" size={14} color={palette.textPrimary} />
+                <Text style={styles.backChipText}>Iniciar sesión</Text>
               </TouchableOpacity>
 
-              {/* Aviso de Revisión */}
-              <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 16 }}>
-                <Text style={{ color: '#FDE68A', fontSize: 11, lineHeight: 16 }}>
-                  ⏳ Tu solicitud será revisada por nuestro equipo de seguridad. La aprobación puede tomar entre 24 y 48 horas. Te notificaremos cuando tu cuenta esté activa.
-                </Text>
+              <View style={styles.brandMini}>
+                <PrismEmblem size={30} />
+                <Text style={styles.brandMiniText}>Red Ciudadana</Text>
               </View>
+            </View>
 
-              <View style={styles.navButtonsRow}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => setStep(3)}>
-                  <Text style={styles.backBtnText}>⬅️ Volver</Text>
-                </TouchableOpacity>
+            {/* Clean Sculpted Stepper Pills */}
+            <View style={[styles.stepperBar, glassSurfaceStyle(22, false)]}>
+              {STEP_META.map((item) => {
+                const isCurrent = step === item.id;
+                const isDone = step > item.id;
+                return (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.stepPill,
+                      isCurrent && styles.stepPillCurrent,
+                      isDone && styles.stepPillDone,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.stepPillText,
+                        isCurrent && styles.stepPillTextCurrent,
+                        isDone && styles.stepPillTextDone,
+                      ]}
+                    >
+                      {item.id}. {item.label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {stepError ? (
+              <View style={styles.errorBanner}>
+                <PrismIcon name="alert" size={16} color={palette.crimson} />
+                <Text style={styles.errorBannerText}>{stepError}</Text>
+              </View>
+            ) : null}
+
+            {/* ============================================================== */}
+            {/* PASO 1: DATOS PERSONALES                                       */}
+            {/* ============================================================== */}
+            {step === 1 && (
+              <LiquidGlassCard strong blurPx={34}>
+                <Text style={styles.cardTitle}>Crea tu cuenta verificada</Text>
+                <Text style={styles.cardSubtitle}>
+                  Escribe tus datos tal como aparecen en tu documento de identidad.
+                </Text>
+
+                <LiquidInput
+                  label="Nombre completo *"
+                  icon="user"
+                  placeholder="Ej. Andrés Felipe Guillén"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  autoCapitalize="words"
+                />
+
+                <LiquidInput
+                  label="Número de cédula *"
+                  hint="Sin puntos"
+                  icon="idCard"
+                  placeholder="Ej. 1096123456"
+                  value={cedula}
+                  onChangeText={setCedula}
+                  keyboardType="number-pad"
+                />
+
+                <LiquidInput
+                  label="Teléfono móvil"
+                  hint="Opcional"
+                  icon="phone"
+                  placeholder="Ej. 3001234567"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                />
+
+                <LiquidInput
+                  label="Correo electrónico *"
+                  icon="mail"
+                  placeholder="nombre@correo.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <LiquidInput
+                  label="Contraseña *"
+                  hint="Mín. 8 y un símbolo"
+                  icon="lock"
+                  placeholder="Crea una contraseña segura"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  rightElement={
+                    <TouchableOpacity
+                      onPress={() => setShowPassword((prev) => !prev)}
+                      style={{ padding: 2 }}
+                    >
+                      <PrismIcon
+                        name={showPassword ? 'eyeOff' : 'eye'}
+                        size={17}
+                        color={palette.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  }
+                />
+
+                {password.length > 0 && (
+                  <View style={styles.strengthRow}>
+                    <View style={styles.strengthTrack}>
+                      {[1, 2, 3, 4, 5].map((lvl) => (
+                        <View
+                          key={lvl}
+                          style={[
+                            styles.strengthSegment,
+                            lvl <= strength.level && { backgroundColor: strength.color },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    <Text style={[styles.strengthText, { color: strength.color }]}>
+                      {strength.label}
+                    </Text>
+                  </View>
+                )}
+
+                <LiquidPillButton
+                  label="Continuar"
+                  variant="obsidian"
+                  size="lg"
+                  icon="arrowRight"
+                  onPress={handleNextStep1}
+                  style={{ marginTop: 12 }}
+                />
+              </LiquidGlassCard>
+            )}
+
+            {/* ============================================================== */}
+            {/* PASO 2: DOCUMENTO DE IDENTIDAD                                 */}
+            {/* ============================================================== */}
+            {step === 2 && (
+              <LiquidGlassCard strong blurPx={34}>
+                <Text style={styles.cardTitle}>Documento de identidad</Text>
+                <Text style={styles.cardSubtitle}>
+                  Toma una foto clara de ambos lados de tu cédula usando la cámara en vivo.
+                </Text>
+
+                {/* Frente */}
+                <View style={styles.docBox}>
+                  <View style={styles.docHeader}>
+                    <Text style={styles.docTitle}>Frente de la cédula</Text>
+                    <StatusPill
+                      label={idCardFront ? 'Lista' : 'Pendiente'}
+                      tone={idCardFront ? 'emerald' : 'neutral'}
+                    />
+                  </View>
+
+                  {idCardFront ? (
+                    <View style={styles.previewWrap}>
+                      <Image
+                        source={{ uri: idCardFront }}
+                        style={styles.previewImg}
+                        resizeMode="cover"
+                      />
+                      <LiquidPillButton
+                        label="Repetir foto"
+                        variant="glass"
+                        size="sm"
+                        icon="refresh"
+                        iconPosition="left"
+                        onPress={() => handleCapturePhoto('idFront')}
+                        style={{ marginTop: 10 }}
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.captureWell}>
+                      <PrismIcon name="idCard" size={26} color={palette.aqua} />
+                      <Text style={styles.captureHint}>
+                        Ubica tu documento sobre una superficie bien iluminada
+                      </Text>
+                      <LiquidPillButton
+                        label="Tomar foto frontal"
+                        variant="obsidian"
+                        size="sm"
+                        icon="camera"
+                        iconPosition="left"
+                        onPress={() => handleCapturePhoto('idFront')}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                {/* Reverso */}
+                <View style={styles.docBox}>
+                  <View style={styles.docHeader}>
+                    <Text style={styles.docTitle}>Reverso de la cédula</Text>
+                    <StatusPill
+                      label={idCardBack ? 'Lista' : 'Pendiente'}
+                      tone={idCardBack ? 'emerald' : 'neutral'}
+                    />
+                  </View>
+
+                  {idCardBack ? (
+                    <View style={styles.previewWrap}>
+                      <Image
+                        source={{ uri: idCardBack }}
+                        style={styles.previewImg}
+                        resizeMode="cover"
+                      />
+                      <LiquidPillButton
+                        label="Repetir foto"
+                        variant="glass"
+                        size="sm"
+                        icon="refresh"
+                        iconPosition="left"
+                        onPress={() => handleCapturePhoto('idBack')}
+                        style={{ marginTop: 10 }}
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.captureWell}>
+                      <PrismIcon name="scan" size={26} color={palette.aqua} />
+                      <Text style={styles.captureHint}>
+                        Asegúrate de que la firma y el código posterior se vean nítidos
+                      </Text>
+                      <LiquidPillButton
+                        label="Tomar foto posterior"
+                        variant="obsidian"
+                        size="sm"
+                        icon="camera"
+                        iconPosition="left"
+                        onPress={() => handleCapturePhoto('idBack')}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.navRow}>
+                  <LiquidPillButton
+                    label="Atrás"
+                    variant="glass"
+                    icon="arrowLeft"
+                    iconPosition="left"
+                    onPress={() => {
+                      setStepError(null);
+                      setStep(1);
+                    }}
+                  />
+                  <LiquidPillButton
+                    label="Continuar"
+                    variant="obsidian"
+                    icon="arrowRight"
+                    disabled={!idCardFront || !idCardBack}
+                    onPress={handleNextStep2}
+                    style={styles.flex}
+                  />
+                </View>
+              </LiquidGlassCard>
+            )}
+
+            {/* ============================================================== */}
+            {/* PASO 3: CONFIRMACIÓN FACIAL                                    */}
+            {/* ============================================================== */}
+            {step === 3 && (
+              <LiquidGlassCard strong blurPx={34}>
+                <Text style={styles.cardTitle}>Confirmación facial</Text>
+                <Text style={styles.cardSubtitle}>
+                  Una breve foto en vivo nos ayuda a proteger a toda la comunidad contra cuentas falsas.
+                </Text>
+
+                <View style={styles.selfieCenterStage}>
+                  {selfiePhoto ? (
+                    <View style={styles.selfieCapturedWrap}>
+                      <View style={[styles.selfieBezel, sculptedShadow()]}>
+                        <Image
+                          source={{ uri: selfiePhoto }}
+                          style={styles.selfieImg}
+                          resizeMode="cover"
+                        />
+                      </View>
+                      <View style={{ marginTop: 12 }}>
+                        <StatusPill label="Rostro verificado" tone="emerald" />
+                      </View>
+                      <LiquidPillButton
+                        label="Tomar otra foto"
+                        variant="glass"
+                        size="sm"
+                        icon="refresh"
+                        iconPosition="left"
+                        onPress={() => {
+                          setSelfiePhoto(null);
+                          setLivenessChallenge(null);
+                        }}
+                        style={{ marginTop: 10 }}
+                      />
+                    </View>
+                  ) : livenessChallenge ? (
+                    <View style={[styles.sculptedSelfieOrb, sculptedShadow()]}>
+                      <Text style={styles.challengeSmallLabel}>Gesto rápido</Text>
+                      <Text style={styles.challengeCopy}>
+                        {livenessChallenge.instruction}
+                      </Text>
+                      <LiquidPillButton
+                        label="Abrir cámara"
+                        variant="obsidian"
+                        size="sm"
+                        icon="camera"
+                        iconPosition="left"
+                        onPress={confirmLivenessAndCapture}
+                      />
+                      <TouchableOpacity
+                        onPress={startLivenessChallenge}
+                        style={{ marginTop: 10 }}
+                      >
+                        <Text style={styles.otherGestureLink}>Probar otro gesto</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={[styles.sculptedSelfieOrb, sculptedShadow()]}>
+                      <PrismIcon name="scan" size={34} color={palette.aqua} />
+                      <Text style={styles.orbTitle}>Encuadra tu rostro</Text>
+                      <Text style={styles.orbHint}>
+                        Busca buena luz natural sin gafas oscuras
+                      </Text>
+                      <LiquidPillButton
+                        label="Comenzar"
+                        variant="obsidian"
+                        size="sm"
+                        icon="arrowRight"
+                        onPress={startLivenessChallenge}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.navRow}>
+                  <LiquidPillButton
+                    label="Atrás"
+                    variant="glass"
+                    icon="arrowLeft"
+                    iconPosition="left"
+                    onPress={() => {
+                      setStepError(null);
+                      setStep(2);
+                    }}
+                  />
+                  <LiquidPillButton
+                    label="Revisar"
+                    variant="obsidian"
+                    icon="arrowRight"
+                    disabled={!selfiePhoto}
+                    onPress={handleNextStep3}
+                    style={styles.flex}
+                  />
+                </View>
+              </LiquidGlassCard>
+            )}
+
+            {/* ============================================================== */}
+            {/* PASO 4: REVISIÓN Y ENVÍO                                       */}
+            {/* ============================================================== */}
+            {step === 4 && (
+              <LiquidGlassCard strong blurPx={34}>
+                <Text style={styles.cardTitle}>Revisa tu solicitud</Text>
+                <Text style={styles.cardSubtitle}>
+                  Confirma que tus datos estén correctos antes de finalizar.
+                </Text>
+
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryKey}>Nombre</Text>
+                    <Text style={styles.summaryVal}>{fullName}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryKey}>Cédula</Text>
+                    <Text style={styles.summaryVal}>{cedula}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryKey}>Correo</Text>
+                    <Text style={styles.summaryVal}>{email.toLowerCase()}</Text>
+                  </View>
+                  {phone.trim() ? (
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryKey}>Teléfono</Text>
+                      <Text style={styles.summaryVal}>{phone}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.thumbsRow}>
+                  {idCardFront ? (
+                    <Image
+                      source={{ uri: idCardFront }}
+                      style={styles.thumbRect}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+                  {idCardBack ? (
+                    <Image
+                      source={{ uri: idCardBack }}
+                      style={styles.thumbRect}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+                  {selfiePhoto ? (
+                    <Image
+                      source={{ uri: selfiePhoto }}
+                      style={styles.thumbCircle}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+                </View>
 
                 <TouchableOpacity
                   style={[
-                    styles.primaryBtn,
-                    styles.finishBtn,
-                    { flex: 1, marginLeft: 10, marginTop: 0 },
-                    (!acceptedTerms || loading) && styles.btnDisabled,
+                    styles.declarationCard,
+                    acceptedTerms && styles.declarationCardActive,
                   ]}
-                  onPress={handleFinalSubmit}
-                  disabled={!acceptedTerms || loading}
+                  onPress={() => setAcceptedTerms((prev) => !prev)}
+                  activeOpacity={0.8}
                 >
-                  {loading ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text style={styles.primaryBtnText}>📋 Enviar Solicitud de Registro</Text>
-                  )}
+                  <View
+                    style={[
+                      styles.checkCircle,
+                      acceptedTerms && styles.checkCircleActive,
+                    ]}
+                  >
+                    {acceptedTerms ? (
+                      <PrismIcon name="check" size={13} color="#FFFFFF" />
+                    ) : null}
+                  </View>
+                  <Text style={styles.declarationText}>
+                    Confirmo bajo gravedad de juramento que los datos y fotografías entregados son reales y me pertenecen.
+                  </Text>
                 </TouchableOpacity>
-              </View>
-            </View>
-          )}
 
+                <View style={styles.navRow}>
+                  <LiquidPillButton
+                    label="Atrás"
+                    variant="glass"
+                    icon="arrowLeft"
+                    iconPosition="left"
+                    onPress={() => {
+                      setStepError(null);
+                      setStep(3);
+                    }}
+                  />
+                  <LiquidPillButton
+                    label="Enviar solicitud"
+                    variant="obsidian"
+                    icon="check"
+                    loading={loading}
+                    disabled={!acceptedTerms}
+                    onPress={handleFinalSubmit}
+                    style={styles.flex}
+                  />
+                </View>
+              </LiquidGlassCard>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -639,343 +768,345 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    backgroundColor: '#0A0E17',
-    padding: 20,
-    justifyContent: 'center',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  badgeKyc: {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
-    borderColor: '#06B6D4',
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginBottom: 10,
-  },
-  badgeKycText: {
-    color: '#38BDF8',
-    fontSize: 10,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  titleApp: {
-    color: 'white',
-    fontSize: 26,
-    fontWeight: 'bold',
-  },
-  subtitleApp: {
-    color: '#94A3B8',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  progressBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 18,
-    width: '80%',
-    justifyContent: 'center',
-  },
-  progressStep: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#475569',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressStepActive: {
-    backgroundColor: '#0284C7',
-    borderColor: '#38BDF8',
-  },
-  progressStepText: {
-    color: 'white',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  progressLine: {
+  safeArea: {
     flex: 1,
-    height: 2,
-    backgroundColor: '#1E293B',
-    marginHorizontal: 6,
+    backgroundColor: palette.canvas,
   },
-  progressLineActive: {
-    backgroundColor: '#38BDF8',
+  flex: {
+    flex: 1,
   },
-  stepLabelsRow: {
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  shell: {
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+    gap: 14,
+  },
+  topBar: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    width: '85%',
-    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
   },
-  stepLabelText: {
-    color: '#64748B',
-    fontSize: 11,
+  backChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 23, 42, 0.05)',
+  },
+  backChipText: {
+    fontFamily: fontSans,
+    fontSize: 13,
     fontWeight: '600',
+    color: palette.textPrimary,
   },
-  stepLabelTextActive: {
-    color: '#38BDF8',
+  brandMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 4,
   },
-  card: {
-    backgroundColor: '#0F172A',
-    borderRadius: 20,
-    padding: 22,
+  brandMiniText: {
+    fontFamily: fontSans,
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  stepperBar: {
+    flexDirection: 'row',
+    padding: 5,
+    borderRadius: 999,
+    gap: 4,
+  },
+  stepPill: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepPillCurrent: {
+    backgroundColor: palette.obsidianPill,
+  },
+  stepPillDone: {
+    backgroundColor: 'rgba(14, 165, 233, 0.12)',
+  },
+  stepPillText: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: palette.textMuted,
+  },
+  stepPillTextCurrent: {
+    color: '#FFFFFF',
+  },
+  stepPillTextDone: {
+    color: '#0369A1',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: palette.crimsonTint,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: palette.crimsonBorder,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontFamily: fontSans,
+    fontSize: 13,
+    color: palette.crimsonDeep,
   },
   cardTitle: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontFamily: fontSans,
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    color: palette.textPrimary,
+    marginBottom: 6,
   },
-  cardDesc: {
-    color: '#94A3B8',
-    fontSize: 13,
-    marginBottom: 16,
-    lineHeight: 18,
+  cardSubtitle: {
+    fontFamily: fontSans,
+    fontSize: 14,
+    lineHeight: 20,
+    color: palette.textSecondary,
+    marginBottom: 20,
   },
-  label: {
-    color: '#CBD5E1',
+  strengthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: -4,
+    marginBottom: 8,
+    paddingHorizontal: 6,
+  },
+  strengthTrack: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 5,
+  },
+  strengthSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(148, 163, 184, 0.28)',
+  },
+  strengthText: {
+    fontFamily: fontSans,
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 5,
-    marginTop: 12,
   },
-  input: {
-    backgroundColor: '#1E293B',
-    color: 'white',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
+  docBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(203, 213, 225, 0.65)',
+    padding: 15,
+    marginBottom: 14,
   },
-  primaryBtn: {
-    backgroundColor: '#0284C7',
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 22,
-  },
-  primaryBtnText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  finishBtn: {
-    backgroundColor: '#059669',
-  },
-  btnDisabled: {
-    opacity: 0.4,
-  },
-  loginLink: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  loginText: {
-    color: '#94A3B8',
-    fontSize: 13,
-  },
-  loginTextBold: {
-    color: '#38BDF8',
-    fontWeight: 'bold',
-  },
-  documentBox: {
-    backgroundColor: '#1E293B',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  documentHeader: {
+  docHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
   },
-  documentTitle: {
-    color: '#E2E8F0',
-    fontSize: 13,
-    fontWeight: 'bold',
+  docTitle: {
+    fontFamily: fontSans,
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.textPrimary,
   },
-  checkBadge: {
-    color: '#4ADE80',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  uploadPlaceholder: {
-    borderWidth: 1.5,
+  captureWell: {
+    borderRadius: 16,
+    borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#475569',
-    borderRadius: 12,
-    padding: 16,
+    borderColor: 'rgba(148, 163, 184, 0.55)',
+    backgroundColor: 'rgba(248, 250, 252, 0.72)',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-  },
-  uploadIcon: {
-    fontSize: 32,
-    marginBottom: 6,
-  },
-  uploadText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  actionRow: {
-    flexDirection: 'row',
     gap: 10,
   },
-  cameraBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 8,
+  captureHint: {
+    fontFamily: fontSans,
+    fontSize: 12.5,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
   },
-  cameraBtnText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  galleryBtn: {
-    backgroundColor: '#334155',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  galleryBtnText: {
-    color: '#CBD5E1',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  previewContainer: {
+  previewWrap: {
     alignItems: 'center',
   },
-  previewImage: {
+  previewImg: {
     width: '100%',
-    height: 140,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#38BDF8',
+    height: 148,
+    borderRadius: 14,
   },
-  retakeBtn: {
-    marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: '#334155',
-    borderRadius: 6,
-  },
-  retakeBtnText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  navButtonsRow: {
+  navRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    gap: 10,
+    marginTop: 14,
   },
-  backBtn: {
-    backgroundColor: '#1E293B',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#475569',
-  },
-  backBtnText: {
-    color: '#CBD5E1',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  securityTipsBox: {
-    backgroundColor: 'rgba(2, 132, 199, 0.1)',
-    borderColor: '#0284C7',
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-  },
-  securityTipItem: {
-    color: '#BAE6FD',
-    fontSize: 11,
-    marginVertical: 2,
-  },
-  biometricArea: {
+  selfieCenterStage: {
     alignItems: 'center',
-    marginVertical: 16,
+    marginVertical: 12,
   },
-  biometricCirclePlaceholder: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+  sculptedSelfieOrb: {
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: '#38BDF8',
+    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    padding: 14,
+    paddingHorizontal: 24,
   },
-  biometricSilhouette: {
-    fontSize: 54,
-    marginBottom: 4,
+  orbTitle: {
+    fontFamily: fontSans,
+    fontSize: 16,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    marginTop: 10,
   },
-  biometricPrompt: {
-    color: '#94A3B8',
-    fontSize: 11,
+  orbHint: {
+    fontFamily: fontSans,
+    fontSize: 12.5,
+    color: palette.textSecondary,
     textAlign: 'center',
-    marginBottom: 10,
+    marginTop: 4,
+    marginBottom: 14,
   },
-  selfieActionBtn: {
-    backgroundColor: '#059669',
-    paddingVertical: 9,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+  challengeSmallLabel: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: palette.aqua,
+    marginBottom: 6,
   },
-  selfieActionBtnText: {
-    color: 'white',
+  challengeCopy: {
+    fontFamily: fontSans,
+    fontSize: 13,
+    lineHeight: 18,
+    color: palette.textPrimary,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  otherGestureLink: {
+    fontFamily: fontSans,
     fontSize: 12,
-    fontWeight: 'bold',
+    color: palette.textMuted,
   },
-  gallerySubLink: {
-    color: '#64748B',
-    fontSize: 10,
-    textDecorationLine: 'underline',
-  },
-  selfiePreviewContainer: {
+  selfieCapturedWrap: {
     alignItems: 'center',
   },
-  selfieCircle: {
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    borderWidth: 3,
-    borderColor: '#10B981',
-  },
-  verifiedBadgeContainer: {
-    position: 'absolute',
-    bottom: 34,
-    backgroundColor: '#064E3B',
-    borderColor: '#10B981',
+  selfieBezel: {
+    padding: 5,
+    borderRadius: 102,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    borderColor: palette.emeraldBorder,
   },
-  verifiedBadgeText: {
-    color: '#6EE7B7',
-    fontSize: 11,
-    fontWeight: 'bold',
+  selfieImg: {
+    width: 188,
+    height: 188,
+    borderRadius: 94,
+  },
+  summaryCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.6)',
+    padding: 16,
+    gap: 10,
+    marginBottom: 14,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  summaryKey: {
+    fontFamily: fontSans,
+    fontSize: 13,
+    color: palette.textMuted,
+  },
+  summaryVal: {
+    fontFamily: fontSans,
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: palette.textPrimary,
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  thumbsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  thumbRect: {
+    flex: 1,
+    height: 70,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  thumbCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  declarationCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 15,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.68)',
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.75)',
+    marginBottom: 6,
+  },
+  declarationCardActive: {
+    borderColor: palette.aquaBorder,
+    backgroundColor: 'rgba(240, 249, 255, 0.85)',
+  },
+  checkCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: 'rgba(148, 163, 184, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+  checkCircleActive: {
+    backgroundColor: palette.obsidianPill,
+    borderColor: palette.obsidianPill,
+  },
+  declarationText: {
+    flex: 1,
+    fontFamily: fontSans,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: palette.textSecondary,
   },
 });

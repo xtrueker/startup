@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,36 @@ import {
   Alert,
   Vibration,
   Animated,
+  Easing,
   Modal,
   Linking,
   Platform,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { patrolService, PatrolState, PatrolStatus, TacticalDispatch } from '../services/PatrolService';
+import {
+  patrolService,
+  PatrolState,
+  PatrolStatus,
+  TacticalDispatch,
+} from '../services/PatrolService';
+import {
+  palette,
+  fontSans,
+  glassSurfaceStyle,
+  sculptedShadow,
+  USE_NATIVE_DRIVER,
+} from '../theme/prismTheme';
+import {
+  AmbientPrismCanvas,
+  LiquidGlassCard,
+  LiquidPillButton,
+  PrismEmblem,
+  PrismIcon,
+  StatusPill,
+  TelemetryEqualizer,
+} from '../components/ui/PrismPrimitives';
 
 interface PatrolModeScreenProps {
   onBack?: () => void;
@@ -20,33 +44,62 @@ interface PatrolModeScreenProps {
   isDedicatedOfficer?: boolean;
 }
 
-const STATUS_CONFIG: Record<PatrolStatus, { label: string; color: string; icon: string }> = {
-  off_duty: { label: 'Fuera de Servicio', color: '#64748B', icon: '⏸️' },
-  available: { label: 'Disponible', color: '#10B981', icon: '🟢' },
-  responding: { label: 'Respondiendo Alerta', color: '#F59E0B', icon: '🚨' },
-  busy: { label: 'Ocupado', color: '#EF4444', icon: '🔴' },
+const STATUS_CONFIG: Record<
+  PatrolStatus,
+  {
+    label: string;
+    shortLabel: string;
+    color: string;
+    pillTone: 'neutral' | 'emerald' | 'amber' | 'crimson';
+  }
+> = {
+  off_duty: {
+    label: 'Fuera de turno',
+    shortLabel: 'Inactivo',
+    color: palette.textMuted,
+    pillTone: 'neutral',
+  },
+  available: {
+    label: 'Disponible en zona',
+    shortLabel: 'Disponible',
+    color: palette.emeraldBright,
+    pillTone: 'emerald',
+  },
+  responding: {
+    label: 'En camino a emergencia',
+    shortLabel: 'En ruta',
+    color: palette.amber,
+    pillTone: 'amber',
+  },
+  busy: {
+    label: 'Atendiendo en sitio',
+    shortLabel: 'Ocupado',
+    color: palette.crimson,
+    pillTone: 'crimson',
+  },
 };
 
-export default function PatrolModeScreen({ onBack, onLogout, isDedicatedOfficer = false }: PatrolModeScreenProps) {
+export default function PatrolModeScreen({
+  onBack,
+  onLogout,
+  isDedicatedOfficer = false,
+}: PatrolModeScreenProps) {
   const [state, setState] = useState<PatrolState>(patrolService.getState());
   const [loading, setLoading] = useState(false);
   const [activeDispatch, setActiveDispatch] = useState<TacticalDispatch | null>(null);
-  const pulseAnim = useState(new Animated.Value(1))[0];
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     const unsub = patrolService.subscribe(setState);
 
-    // Auto-iniciar patrullaje de inmediato al ingresar el oficial si está fuera de servicio
     if (!patrolService.getState().isActive) {
       patrolService.startPatrol().catch((err) => {
         console.warn('Auto-start patrol failed:', err);
       });
     }
 
-    // Escuchar despachos de emergencia entrantes desde el Centro de Mando
     const unsubDispatch = patrolService.onDispatch((dispatch) => {
       setActiveDispatch(dispatch);
-      // Vibración de alarma táctica continua
       Vibration.vibrate([0, 500, 200, 500, 200, 500]);
     });
 
@@ -56,13 +109,11 @@ export default function PatrolModeScreen({ onBack, onLogout, isDedicatedOfficer 
     };
   }, []);
 
-  // Trazar la ruta más rápida hacia el punto del ciudadano
   const handleOpenFastestRoute = (dispatch: TacticalDispatch) => {
     patrolService.setStatus('responding');
     const { latitude, longitude, citizenName } = dispatch;
 
-    // Abrir la mejor aplicación de navegación táctica con ruta directa
-    const label = encodeURIComponent(`🚨 Auxilio: ${citizenName}`);
+    const label = encodeURIComponent(`Auxilio: ${citizenName}`);
     const url = Platform.select({
       ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
       android: `google.navigation:q=${latitude},${longitude}&mode=d`,
@@ -71,41 +122,64 @@ export default function PatrolModeScreen({ onBack, onLogout, isDedicatedOfficer 
 
     if (url) {
       Linking.openURL(url).catch(() => {
-        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
+        Linking.openURL(
+          `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+        );
       });
     }
   };
 
-  // Pulso visual cuando está activo
   useEffect(() => {
-    if (state.isActive) {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.05, duration: 1200, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        ])
-      );
-      loop.start();
-      return () => loop.stop();
-    }
-  }, [state.isActive]);
+    if (!state.isActive) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.04,
+          duration: 1400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [state.isActive, pulseAnim]);
+
+  const stopPatrolConfirmed = async () => {
+    setLoading(true);
+    await patrolService.stopPatrol();
+    Vibration.vibrate(200);
+    setLoading(false);
+  };
 
   const handleTogglePatrol = async () => {
     if (state.isActive) {
+      if (Platform.OS === 'web') {
+        const ok =
+          typeof window !== 'undefined'
+            ? window.confirm(
+                '¿Deseas finalizar tu turno de patrullaje? Tu ubicación dejará de compartirse con la central.'
+              )
+            : true;
+        if (ok) await stopPatrolConfirmed();
+        return;
+      }
+
       Alert.alert(
-        '🚔 Finalizar Patrulla',
-        '¿Deseas finalizar tu turno de patrullaje? Tu ubicación dejará de transmitirse al Centro de Mando.',
+        'Finalizar turno',
+        '¿Deseas finalizar tu turno? Tu ubicación dejará de compartirse con la central.',
         [
-          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Seguir activo', style: 'cancel' },
           {
-            text: 'Finalizar Turno',
+            text: 'Finalizar',
             style: 'destructive',
-            onPress: async () => {
-              setLoading(true);
-              await patrolService.stopPatrol();
-              Vibration.vibrate(200);
-              setLoading(false);
-            },
+            onPress: stopPatrolConfirmed,
           },
         ]
       );
@@ -115,7 +189,12 @@ export default function PatrolModeScreen({ onBack, onLogout, isDedicatedOfficer 
       if (success) {
         Vibration.vibrate([0, 100, 50, 100]);
       } else {
-        Alert.alert('Error', state.errorMessage || 'No se pudo iniciar la patrulla.');
+        const errMsg = state.errorMessage || 'No se pudo iniciar el turno de patrullaje.';
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          window.alert(errMsg);
+        } else {
+          Alert.alert('No se pudo conectar', errMsg);
+        }
       }
       setLoading(false);
     }
@@ -130,7 +209,11 @@ export default function PatrolModeScreen({ onBack, onLogout, isDedicatedOfficer 
   const formatTime = (iso: string | null) => {
     if (!iso) return '--:--';
     const d = new Date(iso);
-    return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return d.toLocaleTimeString('es-CO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   };
 
   const formatSpeed = (ms: number | null) => {
@@ -141,173 +224,261 @@ export default function PatrolModeScreen({ onBack, onLogout, isDedicatedOfficer 
   const currentConfig = STATUS_CONFIG[state.status];
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        {isDedicatedOfficer ? (
-          <TouchableOpacity onPress={onLogout} style={[styles.backBtn, { backgroundColor: '#7F1D1D' }]}>
-            <Text style={[styles.backBtnText, { color: '#FCA5A5' }]}>Cerrar Sesión</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>← Volver</Text>
-          </TouchableOpacity>
-        )}
-        <Text style={styles.headerTitle}>🚔 Terminal Táctica Policial</Text>
-        <View style={{ width: 70 }} />
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <AmbientPrismCanvas intensity="normal" />
 
-      {/* Estado Actual */}
-      <View style={[styles.statusBanner, { borderColor: currentConfig.color }]}>
-        <Text style={{ fontSize: 28 }}>{currentConfig.icon}</Text>
-        <Text style={[styles.statusText, { color: currentConfig.color }]}>{currentConfig.label}</Text>
-      </View>
-
-      {/* Botón Principal */}
-      <View style={styles.mainButtonArea}>
-        <Animated.View style={{ transform: [{ scale: state.isActive ? pulseAnim : 1 }] }}>
-          <TouchableOpacity
-            style={[
-              styles.patrolButton,
-              state.isActive ? styles.patrolButtonActive : styles.patrolButtonInactive,
-            ]}
-            onPress={handleTogglePatrol}
-            disabled={loading}
-            activeOpacity={0.7}
-          >
-            {loading ? (
-              <Text style={styles.patrolButtonIcon}>⏳</Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.shell}>
+          {/* Top Frosted Pill Bar */}
+          <View style={[styles.topBar, glassSurfaceStyle(24, true)]}>
+            {isDedicatedOfficer ? (
+              <TouchableOpacity
+                onPress={onLogout}
+                activeOpacity={0.75}
+                style={styles.navChip}
+              >
+                <PrismIcon name="logout" size={14} color={palette.crimsonDeep} />
+                <Text style={[styles.navChipText, { color: palette.crimsonDeep }]}>
+                  Salir
+                </Text>
+              </TouchableOpacity>
             ) : (
-              <Text style={styles.patrolButtonIcon}>{state.isActive ? '🛑' : '🚔'}</Text>
+              <TouchableOpacity
+                onPress={onBack}
+                activeOpacity={0.75}
+                style={styles.navChip}
+              >
+                <PrismIcon name="arrowLeft" size={14} color={palette.textPrimary} />
+                <Text style={styles.navChipText}>Mapa</Text>
+              </TouchableOpacity>
             )}
-            <Text style={styles.patrolButtonText}>
-              {loading ? 'Procesando...' : state.isActive ? 'FINALIZAR TURNO' : 'INICIAR PATRULLA'}
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
 
-      {/* Selectores de Estado (solo cuando está activo) */}
-      {state.isActive && (
-        <View style={styles.statusSelector}>
-          <Text style={styles.sectionTitle}>Estado de Patrulla:</Text>
-          <View style={styles.statusGrid}>
-            {(['available', 'responding', 'busy'] as PatrolStatus[]).map((s) => {
-              const cfg = STATUS_CONFIG[s];
-              const isSelected = state.status === s;
-              return (
+            <StatusPill label={currentConfig.label} tone={currentConfig.pillTone} />
+          </View>
+
+          {/* Main Sculpted Patrol Card */}
+          <LiquidGlassCard style={styles.mainStageCard} strong blurPx={32}>
+            <View style={styles.titleCluster}>
+              <PrismEmblem size={42} activeAlert={state.status === 'responding'} />
+              <Text style={styles.screenTitle}>Modo Patrulla</Text>
+              <Text style={styles.screenSub}>
+                Coordinación en vivo con el centro de atención comunitaria
+              </Text>
+            </View>
+
+            {/* Sculpted Porcelain & Obsidian Medallion */}
+            <View style={styles.medallionWrap}>
+              <View style={[styles.outerBezel, glassSurfaceStyle(22, true)]} />
+
+              <Animated.View
+                style={{ transform: [{ scale: state.isActive ? pulseAnim : 1 }] }}
+              >
                 <TouchableOpacity
-                  key={s}
                   style={[
-                    styles.statusOption,
-                    isSelected && { borderColor: cfg.color, backgroundColor: `${cfg.color}22` },
+                    styles.innerMedallion,
+                    state.isActive
+                      ? styles.innerMedallionActive
+                      : styles.innerMedallionIdle,
+                    sculptedShadow('rgba(12, 15, 20, 0.24)', 24, 0.2, 8),
                   ]}
-                  onPress={() => handleStatusChange(s)}
+                  onPress={handleTogglePatrol}
+                  disabled={loading}
+                  activeOpacity={0.85}
                 >
-                  <Text style={{ fontSize: 20 }}>{cfg.icon}</Text>
-                  <Text style={[styles.statusOptionText, isSelected && { color: cfg.color }]}>
-                    {cfg.label}
-                  </Text>
+                  {loading ? (
+                    <ActivityIndicator
+                      color={state.isActive ? '#FFFFFF' : palette.textPrimary}
+                      size="large"
+                    />
+                  ) : (
+                    <>
+                      <PrismIcon
+                        name="radar"
+                        size={32}
+                        color={state.isActive ? palette.aquaSoft : palette.aqua}
+                      />
+                      <Text
+                        style={[
+                          styles.medallionLabel,
+                          state.isActive && { color: '#FFFFFF' },
+                        ]}
+                      >
+                        {state.isActive ? 'En turno' : 'Iniciar'}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.medallionHint,
+                          state.isActive && { color: 'rgba(255,255,255,0.72)' },
+                        ]}
+                      >
+                        {state.isActive ? 'Toca para finalizar' : 'Compartir posición'}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
-              );
-            })}
+              </Animated.View>
+            </View>
+
+            {/* Segmented Pill Selector */}
+            {state.isActive && (
+              <View style={styles.segmentedWrap}>
+                <View style={styles.segmentedTrack}>
+                  {(['available', 'responding', 'busy'] as PatrolStatus[]).map((s) => {
+                    const cfg = STATUS_CONFIG[s];
+                    const selected = state.status === s;
+                    return (
+                      <TouchableOpacity
+                        key={s}
+                        onPress={() => handleStatusChange(s)}
+                        activeOpacity={0.8}
+                        style={[
+                          styles.segmentPill,
+                          selected && styles.segmentPillSelected,
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.segmentDot,
+                            { backgroundColor: cfg.color },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.segmentText,
+                            selected && styles.segmentTextSelected,
+                          ]}
+                        >
+                          {cfg.shortLabel}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </LiquidGlassCard>
+
+          {/* GPS Metrics Card */}
+          {state.isActive && (
+            <LiquidGlassCard style={styles.metricsCard} blurPx={28}>
+              <View style={styles.metricsHeader}>
+                <View>
+                  <Text style={styles.metricsTitle}>Recorrido en tiempo real</Text>
+                  <Text style={styles.metricsSub}>Señal GPS sincronizada</Text>
+                </View>
+                <TelemetryEqualizer color={currentConfig.color} active />
+              </View>
+
+              <View style={styles.metricsGrid}>
+                <View style={styles.metricTile}>
+                  <Text style={styles.metricName}>Latitud</Text>
+                  <Text style={styles.metricValue}>
+                    {state.latitude?.toFixed(5) ?? '--'}
+                  </Text>
+                </View>
+                <View style={styles.metricTile}>
+                  <Text style={styles.metricName}>Longitud</Text>
+                  <Text style={styles.metricValue}>
+                    {state.longitude?.toFixed(5) ?? '--'}
+                  </Text>
+                </View>
+                <View style={styles.metricTile}>
+                  <Text style={styles.metricName}>Velocidad</Text>
+                  <Text style={styles.metricValue}>{formatSpeed(state.speed)}</Text>
+                </View>
+                <View style={styles.metricTile}>
+                  <Text style={styles.metricName}>Precisión</Text>
+                  <Text style={styles.metricValue}>
+                    {state.accuracy ? `±${Math.round(state.accuracy)} m` : '--'}
+                  </Text>
+                </View>
+                <View style={styles.metricTile}>
+                  <Text style={styles.metricName}>Inicio</Text>
+                  <Text style={styles.metricValue}>{formatTime(state.startedAt)}</Text>
+                </View>
+                <View style={styles.metricTile}>
+                  <Text style={styles.metricName}>Actualizado</Text>
+                  <Text style={styles.metricValue}>{formatTime(state.lastUpdate)}</Text>
+                </View>
+              </View>
+            </LiquidGlassCard>
+          )}
+
+          <View style={[styles.privacyNote, glassSurfaceStyle(20, false)]}>
+            <PrismIcon name="lock" size={15} color={palette.textSecondary} />
+            <Text style={styles.privacyText}>
+              Tu posición solo es visible para los operadores de la central, nunca en el mapa ciudadano.
+            </Text>
           </View>
         </View>
-      )}
+      </ScrollView>
 
-      {/* Telemetría GPS */}
-      {state.isActive && (
-        <View style={styles.telemetryCard}>
-          <Text style={styles.sectionTitle}>📡 Telemetría GPS en Vivo</Text>
-          <View style={styles.telemetryGrid}>
-            <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryLabel}>Latitud</Text>
-              <Text style={styles.telemetryValue}>{state.latitude?.toFixed(6) ?? '--'}</Text>
-            </View>
-            <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryLabel}>Longitud</Text>
-              <Text style={styles.telemetryValue}>{state.longitude?.toFixed(6) ?? '--'}</Text>
-            </View>
-            <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryLabel}>Velocidad</Text>
-              <Text style={styles.telemetryValue}>{formatSpeed(state.speed)}</Text>
-            </View>
-            <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryLabel}>Precisión</Text>
-              <Text style={styles.telemetryValue}>{state.accuracy ? `±${Math.round(state.accuracy)}m` : '--'}</Text>
-            </View>
-            <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryLabel}>Inicio Turno</Text>
-              <Text style={styles.telemetryValue}>{formatTime(state.startedAt)}</Text>
-            </View>
-            <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryLabel}>Última Actualización</Text>
-              <Text style={styles.telemetryValue}>{formatTime(state.lastUpdate)}</Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Nota de privacidad */}
-      <View style={styles.privacyNote}>
-        <Text style={styles.privacyText}>
-          🔒 Tu ubicación se transmite exclusivamente al Centro de Mando. Los ciudadanos NO pueden ver tu posición.
-        </Text>
-      </View>
-
-      {/* 🚨 MODAL DE DESPACHO TÁCTICO DE EMERGENCIA */}
+      {/* Incoming Emergency Dispatch Modal */}
       <Modal
         visible={!!activeDispatch}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setActiveDispatch(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.dispatchCard}>
+        <View style={styles.modalBackdrop}>
+          <LiquidGlassCard style={styles.dispatchCard} strong blurPx={34}>
             <View style={styles.dispatchHeader}>
-              <Text style={styles.dispatchIcon}>🚨</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.dispatchAlertTag}>DESPACHO TÁCTICO INMEDIATO</Text>
-                <Text style={styles.dispatchType}>{activeDispatch?.emergencyType || 'EMERGENCIA CIUDADANA'}</Text>
+              <View style={styles.dispatchBadge}>
+                <PrismIcon name="alert" size={22} color={palette.crimson} />
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.dispatchTag}>Atención inmediata</Text>
+                <Text style={styles.dispatchTitle}>
+                  {activeDispatch?.emergencyType || 'Solicitud de ayuda cercana'}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.dispatchBody}>
-              <Text style={styles.dispatchLabel}>Ciudadano en Peligro:</Text>
-              <Text style={styles.dispatchValue}>{activeDispatch?.citizenName}</Text>
-
-              <Text style={styles.dispatchLabel}>Ubicación / Dirección:</Text>
-              <Text style={styles.dispatchValue}>{activeDispatch?.address || `Coordenadas: ${activeDispatch?.latitude.toFixed(5)}, ${activeDispatch?.longitude.toFixed(5)}`}</Text>
-
+            <View style={styles.dispatchDetails}>
+              <View style={styles.dispatchRow}>
+                <Text style={styles.dispatchKey}>Ciudadano</Text>
+                <Text style={styles.dispatchVal}>
+                  {activeDispatch?.citizenName || 'Usuario verificado'}
+                </Text>
+              </View>
+              <View style={styles.dispatchRow}>
+                <Text style={styles.dispatchKey}>Ubicación</Text>
+                <Text style={styles.dispatchVal}>
+                  {activeDispatch?.address ||
+                    `${activeDispatch?.latitude.toFixed(5)}, ${activeDispatch?.longitude.toFixed(5)}`}
+                </Text>
+              </View>
               {activeDispatch?.notes ? (
-                <>
-                  <Text style={styles.dispatchLabel}>Instrucciones del Comando:</Text>
-                  <Text style={[styles.dispatchValue, { color: '#FDE68A' }]}>{activeDispatch.notes}</Text>
-                </>
+                <View style={styles.dispatchRow}>
+                  <Text style={styles.dispatchKey}>Indicaciones</Text>
+                  <Text style={styles.dispatchVal}>{activeDispatch.notes}</Text>
+                </View>
               ) : null}
             </View>
 
-            <View style={styles.dispatchActions}>
-              <TouchableOpacity
-                style={styles.acceptRouteBtn}
-                onPress={() => {
-                  if (activeDispatch) {
-                    handleOpenFastestRoute(activeDispatch);
-                    setActiveDispatch(null);
-                  }
-                }}
-              >
-                <Text style={styles.acceptRouteBtnText}>🧭 ACEPTAR Y TRAZAR RUTA MÁS RÁPIDA</Text>
-              </TouchableOpacity>
+            <LiquidPillButton
+              label="Aceptar y abrir ruta rápida"
+              variant="obsidian"
+              size="lg"
+              icon="navigation"
+              onPress={() => {
+                if (activeDispatch) {
+                  handleOpenFastestRoute(activeDispatch);
+                  setActiveDispatch(null);
+                }
+              }}
+            />
 
-              <TouchableOpacity
-                style={styles.dismissDispatchBtn}
-                onPress={() => setActiveDispatch(null)}
-              >
-                <Text style={styles.dismissDispatchText}>Ignorar por ahora</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+            <TouchableOpacity
+              style={styles.dismissLink}
+              onPress={() => setActiveDispatch(null)}
+            >
+              <Text style={styles.dismissLinkText}>Cerrar aviso</Text>
+            </TouchableOpacity>
+          </LiquidGlassCard>
         </View>
       </Modal>
     </SafeAreaView>
@@ -315,229 +486,283 @@ export default function PatrolModeScreen({ onBack, onLogout, isDedicatedOfficer 
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#0A0E17',
+    backgroundColor: palette.canvas,
   },
-  header: {
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+  },
+  shell: {
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+    gap: 14,
+  },
+  topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backBtn: {
-    paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#1E293B',
-    borderRadius: 8,
+    paddingVertical: 9,
+    borderRadius: 999,
   },
-  backBtnText: {
-    color: '#94A3B8',
+  navChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 23, 42, 0.05)',
+  },
+  navChipText: {
+    fontFamily: fontSans,
     fontSize: 13,
     fontWeight: '600',
+    color: palette.textPrimary,
   },
-  headerTitle: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  statusBanner: {
-    flexDirection: 'row',
+  mainStageCard: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    paddingVertical: 28,
   },
-  statusText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  mainButtonArea: {
+  titleCluster: {
     alignItems: 'center',
-    marginVertical: 24,
+    marginBottom: 22,
   },
-  patrolButton: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
+  screenTitle: {
+    fontFamily: fontSans,
+    fontSize: 25,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    color: palette.textPrimary,
+    marginTop: 10,
   },
-  patrolButtonInactive: {
-    backgroundColor: '#1E293B',
-    borderColor: '#38BDF8',
-  },
-  patrolButtonActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: '#10B981',
-  },
-  patrolButtonIcon: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  patrolButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+  screenSub: {
+    fontFamily: fontSans,
+    fontSize: 13.5,
+    color: palette.textSecondary,
     textAlign: 'center',
+    marginTop: 4,
+    maxWidth: 300,
   },
-  statusSelector: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statusGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  statusOption: {
-    flex: 1,
+  medallionWrap: {
+    width: 194,
+    height: 194,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    backgroundColor: '#0F172A',
+  },
+  outerBezel: {
+    position: 'absolute',
+    width: 194,
+    height: 194,
+    borderRadius: 97,
+  },
+  innerMedallion: {
+    width: 156,
+    height: 156,
+    borderRadius: 78,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     gap: 4,
   },
-  statusOptionText: {
-    color: '#64748B',
-    fontSize: 10,
+  innerMedallionActive: {
+    backgroundColor: palette.obsidianPill,
+  },
+  innerMedallionIdle: {
+    backgroundColor: '#FFFFFF',
+  },
+  medallionLabel: {
+    fontFamily: fontSans,
+    fontSize: 18,
+    fontWeight: '700',
+    color: palette.textPrimary,
+    marginTop: 4,
+  },
+  medallionHint: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    color: palette.textSecondary,
+  },
+  segmentedWrap: {
+    width: '100%',
+    marginTop: 24,
+  },
+  segmentedTrack: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(15, 23, 42, 0.05)',
+    padding: 4,
+    borderRadius: 999,
+    gap: 4,
+  },
+  segmentPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  segmentPillSelected: {
+    backgroundColor: palette.obsidianPill,
+  },
+  segmentDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+  },
+  segmentText: {
+    fontFamily: fontSans,
+    fontSize: 12,
     fontWeight: '600',
-    textAlign: 'center',
+    color: palette.textSecondary,
   },
-  telemetryCard: {
-    marginHorizontal: 20,
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+  segmentTextSelected: {
+    color: '#FFFFFF',
   },
-  telemetryGrid: {
+  metricsCard: {
+    padding: 20,
+  },
+  metricsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  metricsTitle: {
+    fontFamily: fontSans,
+    fontSize: 16,
+    fontWeight: '700',
+    color: palette.textPrimary,
+  },
+  metricsSub: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    color: palette.textMuted,
+    marginTop: 1,
+  },
+  metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  telemetryItem: {
-    width: '48%',
-    backgroundColor: '#1E293B',
-    borderRadius: 8,
-    padding: 10,
+  metricTile: {
+    width: '48.5%',
+    flexGrow: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.55)',
+    paddingHorizontal: 13,
+    paddingVertical: 10,
   },
-  telemetryLabel: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '600',
+  metricName: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    color: palette.textMuted,
     marginBottom: 2,
   },
-  telemetryValue: {
-    color: '#E2E8F0',
+  metricValue: {
+    fontFamily: fontSans,
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: palette.textPrimary,
   },
   privacyNote: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: 'rgba(2, 132, 199, 0.08)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.2)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
   },
   privacyText: {
-    color: '#94A3B8',
-    fontSize: 10,
-    textAlign: 'center',
-    lineHeight: 15,
-  },
-  modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    fontFamily: fontSans,
+    fontSize: 12,
+    lineHeight: 17,
+    color: palette.textSecondary,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.36)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   dispatchCard: {
     width: '100%',
-    backgroundColor: '#0F172A',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#EF4444',
+    maxWidth: 440,
+    padding: 26,
   },
   dispatchHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(239, 68, 68, 0.3)',
   },
-  dispatchIcon: {
-    fontSize: 36,
+  dispatchBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.crimsonTint,
+    borderWidth: 1,
+    borderColor: palette.crimsonBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  dispatchAlertTag: {
-    color: '#EF4444',
-    fontSize: 11,
-    fontWeight: 'bold',
-    letterSpacing: 1,
+  dispatchTag: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.crimsonDeep,
   },
-  dispatchType: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
+  dispatchTitle: {
+    fontFamily: fontSans,
+    fontSize: 19,
+    fontWeight: '700',
+    color: palette.textPrimary,
   },
-  dispatchBody: {
+  dispatchDetails: {
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(203, 213, 225, 0.65)',
+    padding: 15,
+    gap: 11,
     marginBottom: 20,
   },
-  dispatchLabel: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 8,
+  dispatchRow: {
+    gap: 2,
   },
-  dispatchValue: {
-    color: '#FFFFFF',
+  dispatchKey: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    color: palette.textMuted,
+  },
+  dispatchVal: {
+    fontFamily: fontSans,
     fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 2,
+    fontWeight: '600',
+    color: palette.textPrimary,
   },
-  dispatchActions: {
-    gap: 10,
-  },
-  acceptRouteBtn: {
-    backgroundColor: '#059669',
-    paddingVertical: 14,
-    borderRadius: 10,
+  dismissLink: {
+    paddingVertical: 12,
     alignItems: 'center',
+    marginTop: 4,
   },
-  acceptRouteBtnText: {
-    color: '#FFFFFF',
+  dismissLinkText: {
+    fontFamily: fontSans,
     fontSize: 13,
-    fontWeight: 'bold',
-  },
-  dismissDispatchBtn: {
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  dismissDispatchText: {
-    color: '#64748B',
-    fontSize: 12,
+    fontWeight: '500',
+    color: palette.textSecondary,
   },
 });

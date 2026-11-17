@@ -1,10 +1,26 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService } from '../services/auth';
+import { palette, fontSans, glassSurfaceStyle } from '../theme/prismTheme';
+import {
+  AmbientPrismCanvas,
+  LiquidGlassCard,
+  LiquidInput,
+  LiquidPillButton,
+  PrismEmblem,
+  PrismIcon,
+  StatusPill,
+} from '../components/ui/PrismPrimitives';
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -14,128 +30,282 @@ interface LoginScreenProps {
 export default function LoginScreen({ onLogin, onGoRegister }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const notifyError = (title: string, message: string) => {
+    setErrorMsg(message);
+    if (Platform.OS !== 'web') {
+      Alert.alert(title, message);
+    }
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Por favor ingresa tu email y contraseña');
+    setErrorMsg(null);
+    if (!email.trim() || !password) {
+      notifyError('Campos pendientes', 'Ingresa tu correo electrónico y contraseña para continuar.');
       return;
     }
+
     setLoading(true);
     try {
       await authService.login({ email: email.trim().toLowerCase(), password });
       onLogin();
     } catch (e: any) {
-      const msg = e.response?.data?.message || 'Credenciales incorrectas';
-      Alert.alert('Error de acceso', msg);
+      const msg = e.response?.data?.message || 'Credenciales inválidas o servicio temporalmente no disponible.';
+      notifyError('No pudimos iniciar sesión', msg);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleFillDemo = () => {
+    setErrorMsg(null);
+    setEmail('demo@redciudadana.org');
+    setPassword('password123');
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0A0E17' }}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.logoArea}>
-          <Text style={styles.logo}>🛡️</Text>
-          <Text style={styles.appName}>Red Ciudadana</Text>
-          <Text style={styles.appSub}>Sistema de Seguridad</Text>
-        </View>
+    <SafeAreaView style={styles.safeArea}>
+      <AmbientPrismCanvas intensity="normal" />
 
-        <View style={styles.card}>
-          <Text style={styles.title}>Iniciar Sesión</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.shell}>
+            {/* Top Sculpted Studio Bar (Inspired by Reference 2) */}
+            <View style={[styles.topNavBar, glassSurfaceStyle(24, true)]}>
+              <View style={styles.brandRow}>
+                <PrismEmblem size={36} />
+                <Text style={styles.brandName}>Red Ciudadana</Text>
+              </View>
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="correo@ejemplo.com"
-            placeholderTextColor="#718096"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+              <View style={styles.topNavRight}>
+                <TouchableOpacity
+                  onPress={handleFillDemo}
+                  activeOpacity={0.75}
+                  style={styles.demoCapsule}
+                >
+                  <Text style={styles.demoCapsuleText}>Cuenta demo</Text>
+                </TouchableOpacity>
+                <StatusPill label="Conectado" tone="emerald" />
+              </View>
+            </View>
 
-          <Text style={styles.label}>Contraseña</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            placeholderTextColor="#718096"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+            {/* Center Floating Frosted Liquid Glass Card */}
+            <LiquidGlassCard style={styles.mainCard} strong blurPx={34}>
+              <View style={styles.heroBlock}>
+                <Text style={styles.heroTitle}>Bienvenido de nuevo</Text>
+                <Text style={styles.heroSubtitle}>
+                  Acompañamiento comunitario y atención inmediata, diseñados para cuidarte con calma y claridad.
+                </Text>
+              </View>
 
-          <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.loginBtnText}>Ingresar</Text>
-            )}
-          </TouchableOpacity>
+              {errorMsg ? (
+                <View style={styles.errorBanner}>
+                  <PrismIcon name="alert" size={17} color={palette.crimson} />
+                  <Text style={styles.errorBannerText}>{errorMsg}</Text>
+                </View>
+              ) : null}
 
-          {/* Botón de acceso rápido con cuenta de prueba */}
-          <TouchableOpacity
-            style={styles.demoBtn}
-            onPress={() => {
-              setEmail('demo@redciudadana.org');
-              setPassword('password123');
-            }}
-          >
-            <Text style={styles.demoBtnText}>⚡ Autocompletar Cuenta Demo</Text>
-          </TouchableOpacity>
+              <LiquidInput
+                label="Correo electrónico"
+                icon="mail"
+                placeholder="nombre@correo.com"
+                value={email}
+                onChangeText={(val) => {
+                  setEmail(val);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
 
-          <TouchableOpacity onPress={onGoRegister} style={styles.registerLink}>
-            <Text style={styles.registerText}>¿No tienes cuenta? <Text style={{ color: '#38BDF8', fontWeight: 'bold' }}>Regístrate</Text></Text>
-          </TouchableOpacity>
+              <LiquidInput
+                label="Contraseña"
+                icon="lock"
+                placeholder="Ingresa tu contraseña"
+                value={password}
+                onChangeText={(val) => {
+                  setPassword(val);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                secureTextEntry={!showPassword}
+                onSubmitEditing={handleLogin}
+                returnKeyType="go"
+                rightElement={
+                  <TouchableOpacity
+                    onPress={() => setShowPassword((prev) => !prev)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={styles.eyeBtn}
+                  >
+                    <PrismIcon
+                      name={showPassword ? 'eyeOff' : 'eye'}
+                      size={17}
+                      color={palette.textSecondary}
+                    />
+                  </TouchableOpacity>
+                }
+              />
 
-          <View style={styles.serverBadge}>
-            <Text style={styles.serverText}>📡 Servidor: {authService.getApiUrl()}</Text>
+              {/* Signature Solid Jet-Black Capsule Button (Reference 2) */}
+              <LiquidPillButton
+                label="Iniciar sesión"
+                variant="obsidian"
+                size="lg"
+                icon="arrowRight"
+                loading={loading}
+                onPress={handleLogin}
+                style={styles.submitBtn}
+              />
+
+              <View style={styles.footerRow}>
+                <Text style={styles.footerPrompt}>¿Primera vez en la red?</Text>
+                <LiquidPillButton
+                  label="Crear cuenta"
+                  variant="glass"
+                  size="sm"
+                  icon="arrowRight"
+                  onPress={onGoRegister}
+                />
+              </View>
+            </LiquidGlassCard>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  </SafeAreaView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: '#0A0E17', justifyContent: 'center', padding: 24 },
-  logoArea: { alignItems: 'center', marginBottom: 32 },
-  logo: { fontSize: 64 },
-  appName: { color: '#38BDF8', fontSize: 28, fontWeight: 'bold', marginTop: 8 },
-  appSub: { color: '#94A3B8', fontSize: 14 },
-  card: { backgroundColor: '#0F172A', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  title: { color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
-  label: { color: '#94A3B8', fontSize: 13, marginBottom: 6, marginTop: 12 },
-  input: {
-    backgroundColor: '#1E293B', color: 'white', borderRadius: 10,
-    padding: 14, fontSize: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  safeArea: {
+    flex: 1,
+    backgroundColor: palette.canvas,
   },
-  loginBtn: {
-    backgroundColor: '#0284C7', borderRadius: 10, padding: 16,
-    alignItems: 'center', marginTop: 24,
+  flex: {
+    flex: 1,
   },
-  loginBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-  registerLink: { alignItems: 'center', marginTop: 16 },
-  registerText: { color: '#94A3B8', fontSize: 14 },
-  demoBtn: {
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    borderRadius: 10,
-    padding: 12,
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 26,
+  },
+  shell: {
+    width: '100%',
+    maxWidth: 470,
+    alignSelf: 'center',
+    gap: 20,
+  },
+  topNavBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandName: {
+    fontFamily: fontSans,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    color: palette.textPrimary,
+  },
+  topNavRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  demoCapsule: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 23, 42, 0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
+    borderColor: 'rgba(15, 23, 42, 0.08)',
   },
-  demoBtnText: { color: '#38BDF8', fontWeight: '700', fontSize: 13 },
-  serverBadge: {
-    marginTop: 18,
+  demoCapsuleText: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.textSecondary,
+  },
+  mainCard: {
+    paddingHorizontal: 28,
+    paddingVertical: 32,
+  },
+  heroBlock: {
     alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    marginBottom: 26,
   },
-  serverText: { color: '#64748B', fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  heroTitle: {
+    fontFamily: fontSans,
+    fontSize: 30,
+    fontWeight: '700',
+    letterSpacing: -0.8,
+    color: palette.textPrimary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    fontFamily: fontSans,
+    fontSize: 14.5,
+    lineHeight: 21,
+    color: palette.textSecondary,
+    textAlign: 'center',
+    maxWidth: 340,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: palette.crimsonTint,
+    borderWidth: 1,
+    borderColor: palette.crimsonBorder,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginBottom: 16,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontFamily: fontSans,
+    fontSize: 13,
+    lineHeight: 18,
+    color: palette.crimsonDeep,
+  },
+  eyeBtn: {
+    padding: 2,
+  },
+  submitBtn: {
+    marginTop: 10,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: palette.borderSubtle,
+  },
+  footerPrompt: {
+    fontFamily: fontSans,
+    fontSize: 13.5,
+    color: palette.textSecondary,
+  },
 });

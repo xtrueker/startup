@@ -1,66 +1,55 @@
-# PROTOCOLO DE CONVIVENCIA Y TRABAJO EN EQUIPO (MONOREPO)
+# PROTOCOLO DE CONVIVENCIA Y TRABAJO EN EQUIPO (MONOREPO — 2 INTEGRANTES)
 
-Este proyecto está desarrollado por un equipo de 3 personas trabajando simultáneamente con Antigravity.
+Este proyecto está desarrollado por un equipo de **2 personas** (**Andrés** y **Nyck**) trabajando simultáneamente con Antigravity.
 Para evitar colisiones, sobreescrituras y conflictos de Git, TODO agente de Antigravity debe obedecer estrictamente este reglamento.
 
 ---
 
-## 1. ZONAS EXCLUSIVAS (TERRITORIOS SAGRADOS)
+## 1. ZONAS EXCLUSIVAS Y ZONA COMPARTIDA
 
-El repositorio está dividido en 3 carpetas independientes. Cada desarrollador es el dueño absoluto de su carpeta:
+El repositorio se organiza en dos territorios exclusivos de frontend y un territorio compartido de backend:
 
-| Integrante | Carpeta Exclusiva | Rol y Responsabilidad |
+| Integrante | Carpeta / Alcance | Rol y Responsabilidad |
 | :--- | :--- | :--- |
-| 📱 **Andrés** | `apps/mobile/` | App del Ciudadano: Botón de pánico, modo fantasma, KYC, mapas móviles. |
-| 🖥️ **Nyck** | `apps/web/` | Centro de Mando: Pantallas de operadores policiales, mosaico de cámaras, despacho. |
-| ⚙️ **Joan** | `apps/api/` + DB | Servidor Central: Endpoints REST, WebSockets, Supabase/PostgreSQL y Swagger. |
+| 📱 **Andrés** | `apps/mobile/` *(Exclusiva)* | App del Ciudadano y Patrulla Móvil: Botón SOS, modo silencioso/fantasma, KYC, mapas móviles. |
+| 🖥️ **Nyck** | `apps/web/` *(Exclusiva)* | Centro de Mando Web: Pantallas de operadores, mosaico de cámaras, despacho y paneles admin. |
+| ⚙️ **Andrés + Nyck** | `apps/api/` + `supabase/` + `postman/` *(Compartida)* | Servidor Central: Endpoints REST, WebSockets, modelos PostgreSQL/Supabase, migraciones SQL y Swagger. |
 
 ### ⛔ PROHIBICIONES ESTRICTAS DE INVASIÓN:
-1. El Antigravity de **Andrés** tiene PROHIBIDO editar archivos en `apps/web/` y `apps/api/`.
-2. El Antigravity de **Nyck** tiene PROHIBIDO editar archivos en `apps/mobile/` y `apps/api/`.
-3. El Antigravity de **Joan** tiene PROHIBIDO editar archivos en `apps/mobile/` y `apps/web/`.
-4. **Archivos de la Raíz (Zona Neutral)**: Ningún agente puede modificar archivos de la raíz (`package.json`, `.gitignore`, scripts globales) sin consenso previo del equipo.
+1. El Antigravity de **Andrés** tiene **PROHIBIDO** editar archivos en `apps/web/`.
+2. El Antigravity de **Nyck** tiene **PROHIBIDO** editar archivos en `apps/mobile/`.
+3. **Backend Compartido (`apps/api/`, `supabase/`, `postman/`)**: Tanto el Antigravity de **Andrés** como el de **Nyck** están **AUTORIZADOS** para crear y modificar endpoints, sockets, modelos y migraciones siguiendo las reglas de la Sección 3.
+4. **Archivos de la Raíz (Zona Neutral)**: Ningún agente puede modificar archivos de la raíz (`package.json`, `.gitignore`, scripts globales) sin consenso previo entre Andrés y Nyck.
 
 ---
 
-## 2. PROHIBICIÓN DE REDUNDANCIA Y BASES DE DATOS LOCALES
+## 2. BASE DE DATOS ÚNICA Y CONSUMO VÍA API CENTRAL
 
-1. **La Base de Datos es ÚNICA**: Está en Supabase (PostgreSQL) y su único administrador es el backend de Joan (`apps/api`).
-2. **Andrés (Móvil) y Nyck (Web) son CLIENTES CONSUMIDORES**:
-   - Está **TERMINANTEMENTE PROHIBIDO** que el agente de Andrés o el de Nyck cree bases de datos locales (SQLite, Realm, JSONs locales de persistencia de negocio, mocks permanentes) para simular almacenamiento.
-   - Está prohibido que el Móvil o la Web instancien clientes directos de Supabase para saltarse la API.
-3. Todo dato (alertas, usuarios, incidentes, cámaras, reportes) se envía y se consulta a través de la API central (`http://localhost:3001/api`) y los WebSockets del backend.
+1. **La Base de Datos es ÚNICA**: Está en Supabase (PostgreSQL) y su único punto de acceso de negocio es el servidor central (`apps/api/`).
+2. **Prohibición de Clientes Directos y Persistencia Paralela en Frontend**:
+   - Está **PROHIBIDO** que `apps/mobile/` o `apps/web/` instancien clientes directos de Supabase para saltarse la API central.
+   - Está prohibido crear bases de datos paralelas de negocio o mocks permanentes para simular el backend (solo se permite cola/caché temporal offline de emergencia en móvil que sincronice contra la API).
+3. Todo dato (alertas, usuarios, incidentes, cámaras, operadores, equipos, reportes) se envía y consulta a través de `http://localhost:3001/api` y los WebSockets del backend.
 
 ---
 
-## 3. PROTOCOLO DE COMUNICACIÓN: CÓMO PEDIR ENDPOINTS A JOAN
+## 3. REGLAS DE CONVIVENCIA EN EL BACKEND COMPARTIDO (`apps/api/` + `supabase/`)
 
-Si **Andrés** (en el Móvil) o **Nyck** (en la Web) necesitan una pantalla o función que requiere datos que la API todavía no tiene:
+Para que **Andrés** y **Nyck** puedan trabajar en `apps/api/` sin pisarse cambios ni generar conflictos de Git:
 
-### Lo que hace el agente de Frontend (Andrés o Nyck):
-1. Diseña la interfaz visual en su carpeta correspondiente.
-2. Define la interfaz TypeScript del contrato (qué datos necesita enviar y qué espera recibir).
-3. **Genera la "Ficha Técnica para Joan"**: Un bloque exacto y formateado para entregarle a Joan, con:
-   - Método y Ruta (`GET /api/...`, `POST /api/...`).
-   - Ubicación exacta del archivo en `apps/api/src/modules/...` donde Joan debe colocarlo.
-   - Parámetros / Body esperados.
-   - Estructura JSON de respuesta.
-   - Consulta a la tabla de Supabase requerida.
-   - Código backend sugerido listo para que el Antigravity de Joan solo lo pegue y ejecute.
-
-### Lo que hace el agente de Joan (Backend):
-1. Recibe la Ficha Técnica, crea el endpoint en `apps/api/` y realiza la consulta en Supabase.
-2. Añade la documentación en Swagger (`/api/docs`).
-3. Avisa a Andrés o Nyck: *"Endpoint listo y verificado, ya lo pueden consumir"*.
+1. **Aislamiento por módulos**: Crear o editar la lógica dentro de su carpeta correspondiente en `apps/api/src/modules/<modulo>/` sin alterar módulos ajenos que no estén relacionados con la tarea.
+2. **Edición quirúrgica en archivos troncales (`server.ts`, `socket.ts`, `models/index.ts`)**: Añadir únicamente las importaciones, rutas o eventos necesarios sin reformatear ni reordenar el resto del archivo, facilitando el merge automático de Git.
+3. **Respeto de contratos existentes**: Nunca eliminar campos ni romper la estructura JSON de un endpoint o evento WebSocket que ya consuma la otra aplicación (`apps/mobile/` o `apps/web/`) sin mantener retrocompatibilidad o acordarlo previamente.
+4. **Migraciones SQL limpias e idempotentes**: Cualquier cambio de esquema en Supabase debe guardarse como un archivo nuevo en `supabase/migrations/YYYYMMDD_descripcion.sql` usando cláusulas seguras (`IF NOT EXISTS`), además de actualizar Swagger (`/api/docs`) y/o la colección en `postman/` cuando aplique.
+5. **Compilación limpia obligatoria**: Todo cambio en `apps/api/` debe compilar sin errores de TypeScript (`npm run build:api` o `tsc --noEmit`) antes de entregarse.
 
 ---
 
 ## 4. GESTIÓN DE RAMAS Y GIT (CERO CONFLICTOS)
 
-1. Cada uno trabaja en su propia rama:
-   - Andrés trabaja en: `andres`
-   - Nyck trabaja en: `Nyck`
-   - Joan trabaja en: `notbread` (o `joan`)
-2. Al iniciar la jornada: Ejecutar `git pull origin main` para tener lo último.
-3. Al finalizar una tarea: Hacer commit y push exclusivamente a su propia rama remota.
-4. Como nadie toca los archivos de los demás, los `merge` hacia `main` se integran automáticamente sin conflictos de código.
+1. Ramas activas del equipo:
+   - **Andrés** trabaja en: `andres`
+   - **Nyck** trabaja en: `Nyck`
+   *(La antigua rama `notbread` / `joan` queda fuera de uso).*
+2. **Antes de editar `apps/api/`**: Ejecutar `git fetch origin` y sincronizar los últimos cambios (`main` o la rama del compañero) para trabajar siempre sobre la versión más reciente del backend.
+3. **Al finalizar una tarea**: Hacer `commit` y `push` exclusivamente a la propia rama remota (`andres` o `Nyck`), integrando hacia `main` de forma coordinada.

@@ -1,5 +1,4 @@
 import * as Location from 'expo-location';
-import { api } from './auth';
 import { config } from '../config';
 import io, { Socket } from 'socket.io-client';
 import { authService } from './auth';

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { api } from './auth';
 import { CovertAudioService } from '../features/panic/services/CovertAudioService';
@@ -82,16 +83,43 @@ class PanicService {
         latitude = loc.coords.latitude;
         longitude = loc.coords.longitude;
 
-        try {
-          const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
-          if (geo) {
-            const street = geo.street || geo.name || '';
-            const district = geo.district || geo.subregion || '';
-            const city = geo.city || '';
-            address = [street, district, city].filter(Boolean).join(', ') || 'Dirección detectada por GPS';
+        if (Platform.OS !== 'web') {
+          try {
+            const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
+            if (geo) {
+              const street = geo.street || geo.name || '';
+              const district = geo.district || geo.subregion || '';
+              const city = geo.city || '';
+              address = [street, district, city].filter(Boolean).join(', ') || 'Dirección detectada por GPS';
+            }
+          } catch (geoError) {
+            console.warn('[PanicService] Error en geocodificación inversa:', geoError);
           }
-        } catch (geoError) {
-          console.warn('[PanicService] Error en geocodificación inversa:', geoError);
+        } else {
+          try {
+            const resp = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=es`
+            );
+            if (resp.ok) {
+              const data = await resp.json();
+              const addr = data?.address;
+              if (addr) {
+                const parts = [
+                  addr.road || addr.pedestrian || addr.suburb,
+                  addr.neighbourhood || addr.city_district,
+                  addr.city || addr.town || addr.municipality,
+                ].filter(Boolean);
+                address = parts.length > 0 ? parts.join(', ') : 'Dirección detectada por GPS';
+              } else {
+                address = 'Dirección detectada por GPS';
+              }
+            } else {
+              address = 'Dirección detectada por GPS';
+            }
+          } catch (geoError) {
+            console.warn('[PanicService] Error en geocodificación inversa (web):', geoError);
+            address = 'Dirección detectada por GPS';
+          }
         }
       } else {
         // Fallback a última posición conocida si el permiso no fue concedido recientemente

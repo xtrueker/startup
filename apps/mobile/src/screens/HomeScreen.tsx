@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
   Vibration,
   Platform,
-  Dimensions,
   Animated,
+  Easing,
   StatusBar,
+  useWindowDimensions,
+  ViewStyle,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TacticalMap } from '../components/TacticalMap';
@@ -20,10 +22,22 @@ import { panicService, PanicState } from '../services/panicService';
 import { ghostModeService } from '../services/GhostModeService';
 import { useLocationStreaming } from '../hooks/useLocationStreaming';
 import { useCameras } from '../hooks/useCameras';
+import {
+  palette,
+  fontSans,
+  glassSurfaceStyle,
+  sculptedShadow,
+  USE_NATIVE_DRIVER,
+} from '../theme/prismTheme';
+import {
+  LiquidGlassCard,
+  LiquidPillButton,
+  PrismEmblem,
+  PrismIcon,
+  StatusPill,
+  TelemetryEqualizer,
+} from '../components/ui/PrismPrimitives';
 
-const { width } = Dimensions.get('window');
-
-// 📍 Coordenadas de contingencia iniciales (Bogotá, Colombia)
 const INITIAL_REGION = {
   latitude: 4.6097,
   longitude: -74.0817,
@@ -38,61 +52,73 @@ export interface HomeScreenProps {
 
 export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps = {}) {
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
+  const isCompact = viewportHeight < 740;
+
   const mapRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const radarAnim = useRef(new Animated.Value(0)).current;
+  const waveAnim = useRef(new Animated.Value(0)).current;
 
-  // Estado del servicio de pánico
   const [panicState, setPanicState] = useState<PanicState>(panicService.getState());
-
-  // Ubicación del ciudadano
   const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
-  const [currentAddress, setCurrentAddress] = useState<string>('Obteniendo ubicación satelital...');
+  const [currentAddress, setCurrentAddress] = useState<string>(
+    'Obteniendo tu ubicación actual...'
+  );
   const [gpsReady, setGpsReady] = useState(false);
   const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
-    authService.getProfile().then(p => setProfile(p)).catch(() => {});
+    authService
+      .getProfile()
+      .then((p) => setProfile(p))
+      .catch(() => {});
   }, []);
 
-  // Streaming de GPS continuo mientras la alerta esté activa
   const { currentLocation } = useLocationStreaming({ alertId: panicState.alertId });
   const { cameras, fetchCameras } = useCameras();
 
-  // Animación de pulso táctico para el botón central de pánico
   useEffect(() => {
     const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.08,
-          duration: 1000,
-          useNativeDriver: true,
+          toValue: 1.035,
+          duration: 1600,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
+          duration: 1600,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ])
     );
     pulseLoop.start();
 
-    const radarLoop = Animated.loop(
-      Animated.timing(radarAnim, {
-        toValue: 1,
-        duration: 2500,
-        useNativeDriver: true,
-      })
+    const waveLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(waveAnim, {
+          toValue: 1,
+          duration: 2600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+        Animated.timing(waveAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+      ])
     );
-    radarLoop.start();
+    waveLoop.start();
 
     return () => {
       pulseLoop.stop();
-      radarLoop.stop();
+      waveLoop.stop();
     };
-  }, [pulseAnim, radarAnim]);
+  }, [pulseAnim, waveAnim]);
 
-  // Suscripción al estado unificado de pánico (actualiza si se dispara desde botón o Modo Fantasma)
   useEffect(() => {
     const unsubscribe = panicService.subscribe((state) => {
       setPanicState(state);
@@ -100,101 +126,204 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
     return unsubscribe;
   }, []);
 
-  // 1. Inicialización de GPS y cámaras de la red ciudadana
-  useEffect(() => {
-    let isMounted = true;
-
-    async function initLocation() {
+  // Cross-platform reverse geocoding (iOS, Android & Web)
+  const resolveReadableAddress = useCallback(async (lat: number, lng: number) => {
+    if (Platform.OS !== 'web') {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-
-          if (!isMounted) return;
-          setUserLocation(loc.coords);
-          setGpsReady(true);
-
-          // Animar mapa a la posición del usuario
-          mapRef.current?.animateToRegion({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            latitudeDelta: 0.012,
-            longitudeDelta: 0.012,
-          });
-
-          // Obtener dirección
-          try {
-            const [geo] = await Location.reverseGeocodeAsync({
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-            });
-            if (geo && isMounted) {
-              const str = [geo.street, geo.name, geo.district || geo.city]
-                .filter(Boolean)
-                .join(', ');
-              setCurrentAddress(str || 'Ubicación GPS identificada');
-            }
-          } catch (e) {
-            if (isMounted) setCurrentAddress('Coordenadas GPS fijadas');
-          }
-        } else {
-          if (isMounted) setCurrentAddress('Permiso de GPS no concedido');
+        const [geo] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (geo) {
+          const str = [geo.street, geo.name, geo.district || geo.city]
+            .filter(Boolean)
+            .join(', ');
+          if (str) return str;
         }
-      } catch (err) {
-        console.warn('Error inicializando GPS en HomeScreen:', err);
-        if (isMounted) setCurrentAddress('Ubicación aproximada');
+      } catch {
+        // Fallback below
       }
     }
 
-    initLocation();
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=es`
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        const addr = data?.address;
+        if (addr) {
+          const parts = [
+            addr.road || addr.pedestrian || addr.suburb,
+            addr.neighbourhood || addr.city_district,
+            addr.city || addr.town || addr.municipality,
+          ].filter(Boolean);
+          if (parts.length > 0) return parts.join(', ');
+        }
+      }
+    } catch {
+      // Ignore network reverse geocode errors
+    }
+
+    return 'Ubicación GPS confirmada';
+  }, []);
+
+  // Reliable geolocation across iOS, Android, and Web/Mobile Browsers
+  const acquireLocation = useCallback(async () => {
+    setCurrentAddress('Sincronizando tu posición...');
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        setCurrentAddress('Geolocalización no soportada en este navegador');
+        return;
+      }
+
+      const applyWebPosition = async (pos: GeolocationPosition) => {
+        const coords: Location.LocationObjectCoords = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          altitude: pos.coords.altitude,
+          accuracy: pos.coords.accuracy,
+          altitudeAccuracy: pos.coords.altitudeAccuracy,
+          heading: pos.coords.heading,
+          speed: pos.coords.speed,
+        };
+        setUserLocation(coords);
+        setGpsReady(true);
+        mapRef.current?.animateToRegion({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+        const label = await resolveReadableAddress(coords.latitude, coords.longitude);
+        setCurrentAddress(label);
+      };
+
+      navigator.geolocation.getCurrentPosition(
+        applyWebPosition,
+        () => {
+          // Fallback to Wi-Fi / network accuracy if hardware GPS times out
+          navigator.geolocation.getCurrentPosition(
+            applyWebPosition,
+            () => {
+              setCurrentAddress('Toca aquí para permitir tu ubicación');
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 7000, maximumAge: 15000 }
+      );
+      return;
+    }
+
+    // Native iOS & Android
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setCurrentAddress('Toca aquí para activar tu ubicación');
+        return;
+      }
+
+      // 1. Fast initial lock from cached last-known position on iOS/Android
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      if (lastKnown?.coords) {
+        setUserLocation(lastKnown.coords);
+        setGpsReady(true);
+        mapRef.current?.animateToRegion({
+          latitude: lastKnown.coords.latitude,
+          longitude: lastKnown.coords.longitude,
+          latitudeDelta: 0.012,
+          longitudeDelta: 0.012,
+        });
+      }
+
+      // 2. Fresh GPS fix (Balanced resolves quickly indoors & outdoors on Android/iOS)
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setUserLocation(loc.coords);
+      setGpsReady(true);
+
+      mapRef.current?.animateToRegion({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+
+      const readable = await resolveReadableAddress(
+        loc.coords.latitude,
+        loc.coords.longitude
+      );
+      setCurrentAddress(readable);
+    } catch (err) {
+      console.warn('Error inicializando GPS en HomeScreen:', err);
+      setCurrentAddress('Ubicación aproximada · Toca para reintentar');
+    }
+  }, [resolveReadableAddress]);
+
+  useEffect(() => {
+    acquireLocation();
     fetchCameras();
+  }, [acquireLocation, fetchCameras]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchCameras]);
-
-  // 2. Disparar Pánico desde el Botón Visual
   const handleTriggerPanic = async () => {
     if (panicState.status === 'triggering' || panicState.status === 'active') return;
 
-    // Vibración de advertencia
     Vibration.vibrate(Platform.OS === 'android' ? [0, 250, 100, 250] : 400);
 
     try {
       await panicService.sendPanicAlert({
         triggerType: 'button',
-        description: '🚨 PÁNICO CIUDADANO activado desde Botón Central SOS',
-        customCoords: userLocation ? { latitude: userLocation.latitude, longitude: userLocation.longitude } : undefined,
+        description: 'PÁNICO CIUDADANO activado desde Botón Central SOS',
+        customCoords: userLocation
+          ? { latitude: userLocation.latitude, longitude: userLocation.longitude }
+          : undefined,
       });
-    } catch (err: any) {
-      Alert.alert(
-        'Alerta de Emergencia',
-        'Hubo un problema de red directa, pero su alerta fue guardada en el buffer seguro para transmisión inmediata.',
-        [{ text: 'Entendido' }]
-      );
+    } catch {
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined') {
+          window.alert(
+            'Tu alerta fue guardada de forma segura y se enviará en cuanto regrese la señal.'
+          );
+        }
+      } else {
+        Alert.alert(
+          'Alerta resguardada',
+          'Detectamos poca señal, pero tu alerta quedó guardada para enviarse de inmediato.',
+          [{ text: 'Entendido' }]
+        );
+      }
     }
   };
 
-  // 3. Cancelar Alerta / Falsa Alarma
-  const handleCancelAlert = () => {
+  const handleCancelAlert = async () => {
+    const executeCancel = async () => {
+      try {
+        await panicService.cancelPanicAlert();
+      } catch {
+        if (Platform.OS !== 'web') {
+          Alert.alert('Aviso', 'Alerta desactivada en tu dispositivo.');
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const ok =
+        typeof window !== 'undefined'
+          ? window.confirm('¿Deseas cancelar la alerta activa y reportarla como falsa alarma?')
+          : true;
+      if (ok) await executeCancel();
+      return;
+    }
+
     Alert.alert(
-      'Cancelar Alerta de Emergencia',
-      '¿Deseas reportar como falsa alarma y desactivar el estado de emergencia?',
+      'Cancelar alerta',
+      '¿Deseas reportar como falsa alarma y detener el envío de ubicación?',
       [
-        { text: 'Continuar con Alerta', style: 'cancel' },
+        { text: 'Seguir con alerta', style: 'cancel' },
         {
-          text: 'Sí, Cancelar',
+          text: 'Sí, cancelar',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await panicService.cancelPanicAlert();
-            } catch (err) {
-              Alert.alert('Aviso', 'Alerta desactivada en el dispositivo local.');
-            }
-          },
+          onPress: executeCancel,
         },
       ]
     );
@@ -202,7 +331,12 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
 
   const handleLogout = () => {
     if (panicState.status === 'active' || panicState.status === 'triggering') {
-      Alert.alert('Alerta Activa', 'Debes desactivar la emergencia antes de salir.');
+      const msg = 'Cancela primero la alerta activa antes de cerrar tu sesión.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Alerta en curso', msg);
+      }
       return;
     }
 
@@ -212,43 +346,44 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
         onLogout?.();
       } catch (err) {
         console.error('Error al cerrar sesión:', err);
-        Alert.alert('Error', 'No se pudo cerrar la sesión correctamente.');
+        if (Platform.OS !== 'web') {
+          Alert.alert('Error', 'No se pudo cerrar la sesión correctamente.');
+        }
       }
     };
 
     if (Platform.OS === 'web') {
       const confirmed =
         typeof window !== 'undefined'
-          ? window.confirm('¿Estás seguro de que deseas salir y cerrar tu sesión?')
+          ? window.confirm('¿Deseas cerrar tu sesión en Red Ciudadana?')
           : true;
-      if (confirmed) {
-        performLogout();
-      }
+      if (confirmed) performLogout();
     } else {
-      Alert.alert(
-        'Cerrar Sesión',
-        '¿Estás seguro de que deseas salir de tu cuenta?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Salir',
-            style: 'destructive',
-            onPress: performLogout,
-          },
-        ]
-      );
+      Alert.alert('Cerrar sesión', '¿Seguro que deseas salir de tu cuenta?', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Salir', style: 'destructive', onPress: performLogout },
+      ]);
     }
   };
 
   const centerOnUser = () => {
-    const lat = currentLocation?.lat || userLocation?.latitude;
-    const lng = currentLocation?.lng || userLocation?.longitude;
-    if (lat && lng) {
+    const lat = currentLocation?.lat ?? userLocation?.latitude;
+    const lng = currentLocation?.lng ?? userLocation?.longitude;
+    if (lat != null && lng != null) {
       mapRef.current?.animateToRegion({
         latitude: lat,
         longitude: lng,
         latitudeDelta: 0.008,
         longitudeDelta: 0.008,
+      });
+    } else {
+      // Si aún no se concedió GPS, volver a solicitarlo y centrar en región activa
+      acquireLocation();
+      mapRef.current?.animateToRegion({
+        latitude: INITIAL_REGION.latitude,
+        longitude: INITIAL_REGION.longitude,
+        latitudeDelta: 0.012,
+        longitudeDelta: 0.012,
       });
     }
   };
@@ -257,11 +392,24 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
   const isTriggering = panicState.status === 'triggering';
   const isCancelling = panicState.status === 'cancelling';
 
+  const waveScale = waveAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.95, 1.24],
+  });
+  const waveOpacity = waveAnim.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [0.42, 0.16, 0],
+  });
+
+  const topOffset = Math.max(insets.top + 8, 16);
+  const bezelSize = isCompact ? 168 : 190;
+  const domeSize = isCompact ? 136 : 154;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A0E17" />
+      <StatusBar barStyle="dark-content" />
 
-      {/* 🗺️ MAPA TÁCTICO OSCURO DE FONDO (Nativo en iOS/Android, Radar en Web) */}
+      {/* Mapa real interactivo (Apple Maps en iOS, Google Maps en Android, Leaflet en Web) */}
       <TacticalMap
         mapRef={mapRef as any}
         initialRegion={INITIAL_REGION}
@@ -271,187 +419,280 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
         isAlertActive={isAlertActive}
       />
 
-      {/* Capa de Oscurecimiento Táctico sobre el mapa */}
-      <View style={styles.darkBackdrop} pointerEvents="none" />
+      {/* ================================================================== */}
+      {/* TOP FLOATING LIQUID GLASS BAR + LOCATION CARD                      */}
+      {/* ================================================================== */}
+      <View style={[styles.topClusterWrap, { top: topOffset }]}>
+        <View style={styles.topShell}>
+          <View style={[styles.headerBar, glassSurfaceStyle(28, true)]}>
+            <View style={styles.brandGroup}>
+              <PrismEmblem size={38} activeAlert={isAlertActive} />
+              <View style={styles.brandTextCol}>
+                <View style={styles.brandTitleRow}>
+                  <Text style={styles.brandTitle}>Red Ciudadana</Text>
+                  {profile?.isVerified ? (
+                    <View style={styles.verifiedBadge}>
+                      <Text style={styles.verifiedBadgeText}>Verificado</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.statusInline}>
+                  <View
+                    style={[
+                      styles.liveDot,
+                      {
+                        backgroundColor: isAlertActive
+                          ? palette.crimson
+                          : palette.emeraldBright,
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.statusSubLabel,
+                      isAlertActive && { color: palette.crimsonDeep },
+                    ]}
+                  >
+                    {isAlertActive ? 'Enviando ayuda en vivo' : 'Acompañamiento activo'}
+                  </Text>
+                </View>
+              </View>
+            </View>
 
-      {/* 🛡️ HEADER MINIMALISTA OSCURO */}
-      <View style={[styles.header, { top: Math.max(insets.top + 6, 16) }]}>
-        <View style={styles.brandRow}>
-          <Text style={styles.brandShield}>🛡️</Text>
-          <View>
-            <Text style={styles.brandTitle}>RED CIUDADANA</Text>
-            <View style={styles.connectionBadge}>
-              <View style={[styles.statusDot, isAlertActive && styles.statusDotAlert]} />
-              <Text style={styles.connectionText}>
-                {isAlertActive ? 'TRANSMITIENDO EMERGENCIA' : 'RED ACTIVA & ENLAZADA'}
-              </Text>
-              {profile?.isVerified ? (
-                <Text style={{ color: '#4ADE80', fontSize: 10, fontWeight: 'bold', marginLeft: 6 }}>
-                  • 🛡️ KYC OK
-                </Text>
+            <View style={styles.headerActions}>
+              {['operator', 'police', 'admin'].includes(profile?.role) && onOpenPatrol ? (
+                <LiquidPillButton
+                  label="Patrulla"
+                  variant="obsidian"
+                  size="sm"
+                  icon="beacon"
+                  iconPosition="left"
+                  onPress={onOpenPatrol}
+                />
               ) : null}
+
+              <TouchableOpacity
+                onPress={handleLogout}
+                activeOpacity={0.75}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.logoutCapsule}
+              >
+                <PrismIcon name="logout" size={14} color={palette.textPrimary} />
+                <Text style={styles.logoutLabel}>Salir</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {['operator', 'police', 'admin'].includes(profile?.role) && onOpenPatrol ? (
-            <TouchableOpacity
-              onPress={onOpenPatrol}
-              style={[styles.logoutBtn, { backgroundColor: '#0284C7', borderColor: '#38BDF8' }]}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.logoutText, { color: '#FFFFFF' }]}>🚔 PATRULLA</Text>
-            </TouchableOpacity>
-          ) : null}
-
+          {/* Frosted Pearl Location & Signal Card (tappable to refresh/enable GPS) */}
           <TouchableOpacity
-            onPress={handleLogout}
-            style={styles.logoutBtn}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.9}
+            onPress={!gpsReady ? acquireLocation : centerOnUser}
           >
-            <Text style={styles.logoutText}>SALIR</Text>
+            <LiquidGlassCard style={styles.locationCard} blurPx={28}>
+              <View style={styles.locationRow}>
+                <View style={styles.locationMain}>
+                  <View style={styles.badgesInline}>
+                    <StatusPill
+                      label={gpsReady ? 'Ubicación precisa' : 'Ubicación en mapa'}
+                      tone={gpsReady ? 'aqua' : 'amber'}
+                    />
+                    {panicState.isOffline ? (
+                      <StatusPill label="Sin red · Guardado seguro" tone="crimson" />
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.addressLine} numberOfLines={1}>
+                    {panicState.address || currentAddress}
+                  </Text>
+
+                  <Text style={styles.coordsCaption}>
+                    {currentLocation || userLocation
+                      ? `${(currentLocation?.lat ?? userLocation!.latitude).toFixed(5)}, ${(currentLocation?.lng ?? userLocation!.longitude).toFixed(5)}`
+                      : `${INITIAL_REGION.latitude.toFixed(4)}, ${INITIAL_REGION.longitude.toFixed(4)} · Arrastra o acerca el mapa`}
+                  </Text>
+                </View>
+
+                <View style={styles.signalCol}>
+                  <TelemetryEqualizer
+                    color={isAlertActive ? palette.crimson : palette.aqua}
+                    active
+                  />
+                  <Text style={styles.camerasCountLabel}>
+                    {cameras.length} {cameras.length === 1 ? 'cámara' : 'cámaras'}
+                  </Text>
+                </View>
+              </View>
+            </LiquidGlassCard>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* 📍 CARD DE TELEMETRÍA GPS MINIMALISTA */}
-      <View style={[styles.telemetryCard, { top: Math.max(insets.top + 6, 16) + 68 }]}>
-        <View style={styles.telemetryHeader}>
-          <View style={styles.gpsRow}>
-            <View style={[styles.gpsDot, gpsReady && styles.gpsDotActive]} />
-            <Text style={styles.gpsLabel}>
-              {gpsReady ? 'GPS FIJADO (ALTA PRECISIÓN)' : 'LOCALIZANDO...'}
-            </Text>
-          </View>
-          {panicState.isOffline && (
-            <View style={styles.offlineChip}>
-              <Text style={styles.offlineChipText}>MODO COLA OFFLINE</Text>
-            </View>
-          )}
-        </View>
-
-        <Text style={styles.addressText} numberOfLines={1}>
-          {panicState.address || currentAddress}
-        </Text>
-
-        <View style={styles.coordsRow}>
-          <Text style={styles.coordText}>
-            LAT: {(currentLocation?.lat || userLocation?.latitude || 0).toFixed(5)}
-          </Text>
-          <Text style={styles.coordSeparator}>|</Text>
-          <Text style={styles.coordText}>
-            LNG: {(currentLocation?.lng || userLocation?.longitude || 0).toFixed(5)}
-          </Text>
-        </View>
-      </View>
-
-      {/* 🧭 BOTÓN FLOTANTE PARA CENTRAR UBICACIÓN */}
+      {/* ================================================================== */}
+      {/* FLOATING RECENTER BUTTON                                           */}
+      {/* ================================================================== */}
       <TouchableOpacity
-        style={[styles.centerMapBtn, { bottom: Math.max(insets.bottom, 16) + 330 }]}
+        style={[
+          styles.recenterButton,
+          glassSurfaceStyle(24, true),
+          { bottom: Math.max(insets.bottom, 16) + (isCompact ? 276 : 312) },
+        ]}
         onPress={centerOnUser}
+        activeOpacity={0.8}
       >
-        <Text style={styles.centerIcon}>🎯</Text>
+        <PrismIcon name="crosshair" size={20} color={palette.textPrimary} />
       </TouchableOpacity>
 
-      {/* 🚨 ZONA DE ACCIÓN CENTRAL: BOTÓN DE PÁNICO MASIVO */}
-      <View style={[styles.centerActionArea, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        {/* Banner de Estado Dinámico */}
-        <View
-          style={[
-            styles.statusBanner,
-            isAlertActive
-              ? styles.statusBannerActive
-              : isCancelling
-              ? styles.statusBannerCancelling
-              : styles.statusBannerIdle,
-          ]}
-        >
-          <Text style={styles.statusBannerText}>
-            {isAlertActive
-              ? '🚨 ALERTA ACTIVA · AYUDA EN CAMINO'
-              : isTriggering
-              ? '📡 CONECTANDO CON CENTRO DE OPERACIONES...'
-              : isCancelling
-              ? '⏳ CANCELANDO ALERTA...'
-              : 'PROTECCIÓN CIUDADANA ACTIVA'}
-          </Text>
-        </View>
+      {/* ================================================================== */}
+      {/* BOTTOM STAGE: 3D LIQUID-GLASS BEZEL SOS MEDALLION + SILENT DOCK    */}
+      {/* ================================================================== */}
+      <View
+        style={[
+          styles.bottomStage,
+          { paddingBottom: Math.max(insets.bottom + 6, 18) },
+        ]}
+      >
+        <View style={styles.bottomShell}>
+          <View style={{ marginBottom: isCompact ? 12 : 16 }}>
+            <StatusPill
+              label={
+                isAlertActive
+                  ? 'Alerta activa · Unidades en camino'
+                  : isTriggering
+                  ? 'Conectando con el centro de ayuda...'
+                  : isCancelling
+                  ? 'Cancelando alerta...'
+                  : 'Estamos listos para asistirte'
+              }
+              tone={
+                isAlertActive
+                  ? 'crimson'
+                  : isTriggering || isCancelling
+                  ? 'amber'
+                  : 'neutral'
+              }
+            />
+          </View>
 
-        {/* Anillos de Radar Pulsante */}
-        <View style={styles.panicButtonWrapper}>
-          <Animated.View
+          <View
             style={[
-              styles.radarRing,
-              isAlertActive && styles.radarRingAlert,
+              styles.medallionStage,
               {
-                transform: [
-                  {
-                    scale: isAlertActive ? pulseAnim : 1,
-                  },
-                ],
+                width: bezelSize,
+                height: bezelSize,
+                marginBottom: isCompact ? 14 : 18,
               },
             ]}
-          />
+          >
+            <Animated.View
+              style={[
+                styles.rippleWave,
+                {
+                  width: bezelSize,
+                  height: bezelSize,
+                  borderRadius: bezelSize / 2,
+                  borderColor: isAlertActive
+                    ? 'rgba(225, 29, 72, 0.45)'
+                    : 'rgba(225, 29, 72, 0.22)',
+                  opacity: waveOpacity,
+                  transform: [{ scale: waveScale }],
+                },
+              ]}
+            />
 
-          {/* El Botón Central Masivo de Emergencia */}
-          {!isAlertActive ? (
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <View
+              style={[
+                styles.outerGlassBezel,
+                glassSurfaceStyle(26, true),
+                {
+                  width: bezelSize,
+                  height: bezelSize,
+                  borderRadius: bezelSize / 2,
+                },
+              ]}
+            />
+
+            {!isAlertActive ? (
+              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                <TouchableOpacity
+                  style={[
+                    styles.sosDome,
+                    {
+                      width: domeSize,
+                      height: domeSize,
+                      borderRadius: domeSize / 2,
+                    },
+                    sculptedShadow('rgba(225, 29, 72, 0.42)', 28, 0.34, 10),
+                    isTriggering && styles.sosDomeTriggering,
+                  ]}
+                  onPress={handleTriggerPanic}
+                  disabled={isTriggering}
+                  activeOpacity={0.86}
+                >
+                  <View style={styles.domeInnerRim} />
+
+                  {isTriggering ? (
+                    <View style={styles.domeCenter}>
+                      <ActivityIndicator color="#FFFFFF" size="large" />
+                      <Text style={styles.sosSubtitle}>Enviando...</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.domeCenter}>
+                      <Text style={[styles.sosTitle, isCompact && { fontSize: 32 }]}>
+                        SOS
+                      </Text>
+                      <Text style={styles.sosSubtitle}>Pedir ayuda</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+            ) : (
               <TouchableOpacity
-                style={[styles.panicButton, isTriggering && styles.panicButtonTriggering]}
-                onPress={handleTriggerPanic}
-                disabled={isTriggering}
-                activeOpacity={0.8}
+                style={[
+                  styles.cancelObsidianDome,
+                  {
+                    width: domeSize,
+                    height: domeSize,
+                    borderRadius: domeSize / 2,
+                  },
+                  sculptedShadow('rgba(12, 15, 20, 0.32)', 26, 0.28, 10),
+                ]}
+                onPress={handleCancelAlert}
+                disabled={isCancelling}
+                activeOpacity={0.86}
               >
-                {isTriggering ? (
-                  <View style={styles.buttonInnerLoading}>
-                    <ActivityIndicator color="#FFFFFF" size="large" />
-                    <Text style={styles.panicSubtext}>ENVIANDO...</Text>
-                  </View>
+                {isCancelling ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <View style={styles.buttonInner}>
-                    <Text style={styles.panicLabel}>SOS</Text>
-                    <Text style={styles.panicSubtext}>BOTÓN DE PÁNICO</Text>
+                  <View style={styles.domeCenter}>
+                    <Text style={styles.cancelDomeTitle}>Cancelar</Text>
+                    <Text style={styles.cancelDomeSub}>Falsa alarma</Text>
                   </View>
                 )}
               </TouchableOpacity>
-            </Animated.View>
-          ) : (
+            )}
+          </View>
+
+          <View style={[styles.silentDock, glassSurfaceStyle(26, true)]}>
+            <View style={styles.silentIconCircle}>
+              <PrismIcon name="waves" size={16} color={palette.aqua} />
+            </View>
+            <View style={styles.silentTextCol}>
+              <Text style={styles.silentTitle}>
+                Modo silencioso · <Text style={styles.silentHighlight}>3× bajar volumen</Text>
+              </Text>
+              <Text style={styles.silentSub}>
+                Apaga la pantalla y comparte ubicación y audio sin ser notado
+              </Text>
+            </View>
             <TouchableOpacity
-              style={styles.cancelAlertButton}
-              onPress={handleCancelAlert}
-              disabled={isCancelling}
-              activeOpacity={0.85}
+              style={styles.testBlackChip}
+              onPress={() => ghostModeService.simulateTrigger()}
+              activeOpacity={0.8}
             >
-              {isCancelling ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <View style={styles.buttonInner}>
-                  <Text style={styles.cancelLabel}>FALSA ALARMA</Text>
-                  <Text style={styles.cancelSubtext}>Toca para cancelar alerta</Text>
-                </View>
-              )}
+              <Text style={styles.testBlackChipText}>Probar</Text>
             </TouchableOpacity>
-          )}
+          </View>
         </View>
-
-        {/* 👻 BANNER DISCRETO DE MODO FANTASMA */}
-        <View style={styles.ghostHintContainer}>
-          <Text style={styles.ghostHintIcon}>👻</Text>
-          <Text style={styles.ghostHintText}>
-            Modo Fantasma: Presiona{' '}
-            <Text style={styles.ghostHintHighlight}>Bajar Volumen 3 veces</Text> para pánico sigiloso
-          </Text>
-        </View>
-
-        {/* Atajo rápido para probar Modo Fantasma en simuladores/emuladores */}
-        <TouchableOpacity
-          style={styles.stealthTestBtn}
-          onPress={() => ghostModeService.simulateTrigger()}
-        >
-          <Text style={styles.stealthTestText}>⚡ Simular 3x Volumen (Prueba Sigilosa)</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -460,358 +701,297 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E17',
-  },
-  darkBackdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(10, 14, 23, 0.45)',
+    backgroundColor: palette.canvas,
   },
 
-  // 🛡️ Header Táctico
-  header: {
+  topClusterWrap: {
     position: 'absolute',
-    top: 50,
     left: 16,
     right: 16,
+    alignItems: 'center',
+    zIndex: 20,
+    pointerEvents: 'box-none',
+  } as ViewStyle,
+  topShell: {
+    width: '100%',
+    maxWidth: 540,
+    gap: 10,
+    pointerEvents: 'box-none',
+  } as ViewStyle,
+
+  headerBar: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
   },
-  brandRow: {
+  brandGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    flexShrink: 1,
   },
-  brandShield: {
-    fontSize: 24,
-    marginRight: 10,
+  brandTextCol: {
+    flexShrink: 1,
+  },
+  brandTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
   },
   brandTitle: {
-    color: '#F8FAFC',
+    fontFamily: fontSans,
     fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 1.5,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    color: palette.textPrimary,
   },
-  connectionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
+  verifiedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: palette.emeraldTint,
+    borderWidth: 1,
+    borderColor: palette.emeraldBorder,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#10B981',
-    marginRight: 6,
-  },
-  statusDotAlert: {
-    backgroundColor: '#EF4444',
-  },
-  connectionText: {
-    color: '#94A3B8',
+  verifiedBadgeText: {
+    fontFamily: fontSans,
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    color: '#0F766E',
   },
-  logoutBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  logoutText: {
-    color: '#CBD5E1',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-
-  // 📍 Telemetría GPS
-  telemetryCard: {
-    position: 'absolute',
-    top: 125,
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(15, 23, 42, 0.88)',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.15)',
-  },
-  telemetryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  gpsRow: {
+  statusInline: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+    marginTop: 1,
   },
-  gpsDot: {
+  liveDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#F59E0B',
-    marginRight: 6,
   },
-  gpsDotActive: {
-    backgroundColor: '#38BDF8',
+  statusSubLabel: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    fontWeight: '500',
+    color: palette.textSecondary,
   },
-  gpsLabel: {
-    color: '#38BDF8',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  offlineChip: {
-    backgroundColor: '#DC2626',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  offlineChipText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  addressText: {
-    color: '#F1F5F9',
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 2,
-    marginBottom: 4,
-  },
-  coordsRow: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  coordText: {
-    color: '#64748B',
-    fontSize: 10,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  logoutCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 23, 42, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(15, 23, 42, 0.08)',
+  },
+  logoutLabel: {
+    fontFamily: fontSans,
+    fontSize: 12.5,
     fontWeight: '600',
-  },
-  coordSeparator: {
-    color: '#334155',
-    marginHorizontal: 8,
+    color: palette.textPrimary,
   },
 
-  // 🧭 Botón Flotante Map
-  centerMapBtn: {
+  locationCard: {
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 24,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  locationMain: {
+    flex: 1,
+  },
+  badgesInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  addressLine: {
+    fontFamily: fontSans,
+    fontSize: 14.5,
+    fontWeight: '600',
+    color: palette.textPrimary,
+    marginBottom: 2,
+  },
+  coordsCaption: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    color: palette.textMuted,
+  },
+  signalCol: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingLeft: 14,
+    borderLeftWidth: 1,
+    borderLeftColor: palette.borderSubtle,
+    gap: 6,
+  },
+  camerasCountLabel: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: palette.textSecondary,
+  },
+
+  recenterButton: {
     position: 'absolute',
     right: 20,
-    bottom: 340,
-    backgroundColor: 'rgba(15, 23, 42, 0.95)',
     width: 48,
     height: 48,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  centerIcon: {
-    fontSize: 20,
+    zIndex: 20,
   },
 
-  cameraMarker: {
-    backgroundColor: 'rgba(14, 165, 233, 0.9)',
-    padding: 6,
-    borderRadius: 18,
+  bottomStage: {
+    position: 'absolute',
+    bottom: 0,
+    left: 16,
+    right: 16,
+    alignItems: 'center',
+    zIndex: 20,
+    pointerEvents: 'box-none',
+  } as ViewStyle,
+  bottomShell: {
+    width: '100%',
+    maxWidth: 520,
+    alignItems: 'center',
+    pointerEvents: 'box-none',
+  } as ViewStyle,
+
+  medallionStage: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rippleWave: {
+    position: 'absolute',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(225, 29, 72, 0.05)',
+  },
+  outerGlassBezel: {
+    position: 'absolute',
+  },
+  sosDome: {
+    backgroundColor: palette.crimson,
     borderWidth: 2,
     borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    elevation: 4,
-  },
-  cameraIcon: {
-    fontSize: 14,
-  },
-
-  // 🚨 Zona Central de Acción
-  centerActionArea: {
-    position: 'absolute',
-    bottom: 30,
-    left: 0,
-    right: 0,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
-
-  statusBanner: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 20,
+  sosDomeTriggering: {
+    backgroundColor: palette.crimsonDeep,
+  },
+  domeInnerRim: {
+    position: 'absolute',
+    top: 7,
+    left: 7,
+    right: 7,
+    bottom: 7,
+    borderRadius: 999,
     borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.34)',
   },
-  statusBannerIdle: {
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  statusBannerActive: {
-    backgroundColor: 'rgba(220, 38, 38, 0.92)',
-    borderColor: '#F87171',
-  },
-  statusBannerCancelling: {
-    backgroundColor: 'rgba(217, 119, 6, 0.92)',
-    borderColor: '#FBBF24',
-  },
-  statusBannerText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    textAlign: 'center',
-  },
-
-  // Botón Masivo
-  panicButtonWrapper: {
-    width: 200,
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  radarRing: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    backgroundColor: 'rgba(239, 68, 68, 0.05)',
-  },
-  radarRingAlert: {
-    borderColor: 'rgba(239, 68, 68, 0.7)',
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-  },
-  panicButton: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: '#DC2626',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 6,
-    borderColor: '#FCA5A5',
-    shadowColor: '#DC2626',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 15,
-  },
-  panicButtonTriggering: {
-    backgroundColor: '#991B1B',
-    borderColor: '#F87171',
-  },
-  buttonInner: {
+  domeCenter: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonInnerLoading: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  panicLabel: {
-    color: '#FFFFFF',
-    fontSize: 38,
-    fontWeight: '900',
-    letterSpacing: 3,
-  },
-  panicSubtext: {
-    color: '#FEE2E2',
-    fontSize: 9,
+  sosTitle: {
+    fontFamily: fontSans,
+    fontSize: 36,
     fontWeight: '800',
-    letterSpacing: 1,
-    marginTop: 4,
+    letterSpacing: 1.5,
+    color: '#FFFFFF',
   },
-
-  cancelAlertButton: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: '#1E293B',
+  sosSubtitle: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.92)',
+    marginTop: 2,
+  },
+  cancelObsidianDome: {
+    backgroundColor: palette.obsidianPill,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 5,
-    borderColor: '#94A3B8',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 12,
   },
-  cancelLabel: {
+  cancelDomeTitle: {
+    fontFamily: fontSans,
+    fontSize: 18,
+    fontWeight: '700',
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 1,
-    textAlign: 'center',
   },
-  cancelSubtext: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 4,
+  cancelDomeSub: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.72)',
+    marginTop: 2,
   },
 
-  // 👻 Banner de Modo Fantasma
-  ghostHintContainer: {
+  silentDock: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginBottom: 8,
-    maxWidth: width - 40,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 11,
   },
-  ghostHintIcon: {
-    fontSize: 16,
-    marginRight: 8,
+  silentIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.aquaTint,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  ghostHintText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '500',
-    flexShrink: 1,
+  silentTextCol: {
+    flex: 1,
   },
-  ghostHintHighlight: {
-    color: '#38BDF8',
-    fontWeight: '800',
-  },
-
-  // Botón de prueba simulada
-  stealthTestBtn: {
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-  },
-  stealthTestText: {
-    color: '#475569',
-    fontSize: 11,
+  silentTitle: {
+    fontFamily: fontSans,
+    fontSize: 12.5,
     fontWeight: '600',
-    textDecorationLine: 'underline',
+    color: palette.textPrimary,
+  },
+  silentHighlight: {
+    color: '#0284C7',
+    fontWeight: '700',
+  },
+  silentSub: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    color: palette.textSecondary,
+    marginTop: 1,
+  },
+  testBlackChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: palette.obsidianPill,
+  },
+  testBlackChipText: {
+    fontFamily: fontSans,
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

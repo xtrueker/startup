@@ -5,17 +5,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A0E17"
-    },
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.redciudadana.seguridad",
       "buildNumber": "1",
-      "userInterfaceStyle": "dark",
+      "userInterfaceStyle": "light",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación para enviar ayuda y alertar a la red ciudadana en caso de emergencia.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos tu ubicación en segundo plano durante una emergencia activa para que los rescatistas y cuadrantes puedan rastrearte.",
@@ -32,11 +27,11 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0E17"
+        "backgroundColor": "#F2F5F9"
       },
       "package": "com.redciudadana.seguridad",
       "versionCode": 1,
-      "userInterfaceStyle": "dark",
+      "userInterfaceStyle": "light",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -72,7 +67,18 @@
         }
       ],
       "expo-sqlite",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F2F5F9"
+        }
+      ],
+      "expo-secure-store",
+      "expo-status-bar"
     ],
     "scheme": "redciudadana",
     "extra": {
