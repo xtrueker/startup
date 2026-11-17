@@ -47,6 +47,9 @@ app.use(cors({
       allowedOrigins.includes(origin) ||
       /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
       origin.endsWith('.awsapprunner.com') ||
+      origin.endsWith('.onrender.com') ||
+      origin.endsWith('.railway.app') ||
+      origin.endsWith('.sslip.io') ||
       origin.endsWith('.netlify.app') ||
       origin.endsWith('.vercel.app');
     callback(null, isAllowed ? true : allowedOrigins[0] || false);
