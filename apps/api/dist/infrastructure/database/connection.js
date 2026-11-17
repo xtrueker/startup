@@ -21,7 +21,8 @@ class DatabaseConnection {
             return;
         }
         try {
-            this.supabaseClient = (0, supabase_js_1.createClient)(env_1.env.SUPABASE_URL, env_1.env.SUPABASE_KEY, {
+            const effectiveSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || env_1.env.SUPABASE_KEY;
+            this.supabaseClient = (0, supabase_js_1.createClient)(env_1.env.SUPABASE_URL, effectiveSupabaseKey, {
                 auth: {
                     persistSession: false,
                 },

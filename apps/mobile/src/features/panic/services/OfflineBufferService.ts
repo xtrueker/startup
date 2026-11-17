@@ -2,7 +2,9 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
 const BUFFER_FILE = (FileSystem.documentDirectory ?? '') + 'emergency_buffer.json';
+const RESOLVED_MAP_FILE = (FileSystem.documentDirectory ?? '') + 'emergency_resolved_ids.json';
 const WEB_STORAGE_KEY = 'rc_emergency_offline_buffer_v2';
+const WEB_RESOLVED_MAP_KEY = 'rc_emergency_resolved_ids_v1';
 
 export interface BufferedPayload {
   id: string;
@@ -11,11 +13,146 @@ export interface BufferedPayload {
   timestamp: string;
 }
 
+type AlertResolvedListener = (tempAlertId: string, realAlertId: string) => void;
+
 let memoryQueue: BufferedPayload[] = [];
+let resolvedAlertMap: Record<string, string> = {};
+let resolvedMapLoaded = false;
+const cancelledTempIds = new Set<string>();
+const resolvedListeners = new Set<AlertResolvedListener>();
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let isFlushing = false;
 
 export class OfflineBufferService {
+  static isTemporaryAlertId(alertId: unknown): boolean {
+    return (
+      typeof alertId === 'string' &&
+      (alertId.startsWith('OFFLINE_') || alertId.startsWith('LOCAL_BUFFER_'))
+    );
+  }
+
+  static onAlertResolved(listener: AlertResolvedListener): () => void {
+    resolvedListeners.add(listener);
+    return () => {
+      resolvedListeners.delete(listener);
+    };
+  }
+
+  private static notifyAlertResolved(tempAlertId: string, realAlertId: string): void {
+    resolvedListeners.forEach((fn) => {
+      try {
+        fn(tempAlertId, realAlertId);
+      } catch (err) {
+        console.warn('[OfflineBuffer] Error en listener onAlertResolved:', err);
+      }
+    });
+  }
+
+  private static async ensureResolvedMapLoaded(): Promise<void> {
+    if (resolvedMapLoaded) return;
+    resolvedMapLoaded = true;
+
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem(WEB_RESOLVED_MAP_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+              resolvedAlertMap = { ...parsed, ...resolvedAlertMap };
+            }
+          }
+        }
+      } catch {
+        // Ignore web storage read errors
+      }
+      return;
+    }
+
+    try {
+      if (FileSystem.documentDirectory) {
+        const info = await FileSystem.getInfoAsync(RESOLVED_MAP_FILE);
+        if (info.exists) {
+          const raw = await FileSystem.readAsStringAsync(RESOLVED_MAP_FILE);
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            resolvedAlertMap = { ...parsed, ...resolvedAlertMap };
+          }
+        }
+      }
+    } catch {
+      // Ignore file read errors
+    }
+  }
+
+  private static async persistResolvedMap(): Promise<void> {
+    const entries = Object.entries(resolvedAlertMap);
+    if (entries.length > 50) {
+      resolvedAlertMap = Object.fromEntries(entries.slice(entries.length - 50));
+    }
+
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(WEB_RESOLVED_MAP_KEY, JSON.stringify(resolvedAlertMap));
+        }
+      } catch {
+        // Ignore storage quota errors
+      }
+      return;
+    }
+
+    try {
+      if (FileSystem.documentDirectory) {
+        await FileSystem.writeAsStringAsync(RESOLVED_MAP_FILE, JSON.stringify(resolvedAlertMap));
+      }
+    } catch {
+      // Ignore persistence errors
+    }
+  }
+
+  static resolveAlertId(alertId: string | null | undefined): string | null {
+    if (!alertId) return null;
+    return resolvedAlertMap[alertId] || alertId;
+  }
+
+  /**
+   * Purga de la cola offline todos los eventos ligados a una alerta cancelada localmente
+   * y devuelve el UUID real si el disparo ya había alcanzado a sincronizarse en background.
+   */
+  static async purgeOfflineAlert(alertId: string): Promise<string | null> {
+    await this.ensureResolvedMapLoaded();
+    if (this.isTemporaryAlertId(alertId)) {
+      cancelledTempIds.add(alertId);
+    }
+
+    const syncedRealId = resolvedAlertMap[alertId] || null;
+    const queue = await this.getBuffer();
+    const remaining: BufferedPayload[] = [];
+
+    for (const item of queue) {
+      const itemTempId = item.payload?.tempAlertId;
+      const itemAlertId = item.payload?.alertId;
+      const matchesTarget =
+        itemTempId === alertId ||
+        itemAlertId === alertId ||
+        (syncedRealId !== null && itemAlertId === syncedRealId);
+
+      if (matchesTarget) {
+        if (item.type === 'AUDIO_CHUNK' && item.payload?.fileUri && Platform.OS !== 'web') {
+          FileSystem.deleteAsync(item.payload.fileUri, { idempotent: true }).catch(() => {});
+        }
+        continue;
+      }
+      remaining.push(item);
+    }
+
+    if (remaining.length !== queue.length) {
+      await this.persistQueue(remaining);
+    }
+
+    return syncedRealId;
+  }
   private static async persistQueue(queue: BufferedPayload[]): Promise<void> {
     memoryQueue = [...queue];
 
@@ -107,24 +244,44 @@ export class OfflineBufferService {
     isFlushing = true;
 
     try {
+      await this.ensureResolvedMapLoaded();
       const queue = await this.getBuffer();
       if (queue.length === 0) return;
-
-      const offlineIdMap = new Map<string, string>();
 
       for (const event of queue) {
         try {
           if (event.type === 'PANIC_TRIGGER') {
             const tempAlertId: string | undefined = event.payload?.tempAlertId;
+            if (tempAlertId && cancelledTempIds.has(tempAlertId)) {
+              await this.dequeue(event.id);
+              continue;
+            }
+
             const res = await apiClient.post('/mobile/panic', event.payload);
             const realAlertId: string | undefined = res.data?.data?.alertId;
+
+            if (tempAlertId && cancelledTempIds.has(tempAlertId)) {
+              if (realAlertId) {
+                apiClient.patch(`/mobile/alerts/${realAlertId}/cancel`).catch(() => {});
+              }
+              await this.dequeue(event.id);
+              continue;
+            }
+
             if (tempAlertId && realAlertId) {
-              offlineIdMap.set(tempAlertId, realAlertId);
+              resolvedAlertMap[tempAlertId] = realAlertId;
+              await this.persistResolvedMap();
+              this.notifyAlertResolved(tempAlertId, realAlertId);
             }
           } else if (event.type === 'GPS_UPDATE') {
-            const mappedAlertId =
-              offlineIdMap.get(event.payload?.alertId) || event.payload?.alertId;
-            if (mappedAlertId && !String(mappedAlertId).startsWith('OFFLINE_')) {
+            const rawAlertId: string | undefined = event.payload?.alertId;
+            if (rawAlertId && cancelledTempIds.has(rawAlertId)) {
+              await this.dequeue(event.id);
+              continue;
+            }
+
+            const mappedAlertId = this.resolveAlertId(rawAlertId);
+            if (mappedAlertId && !this.isTemporaryAlertId(mappedAlertId)) {
               await apiClient.post('/mobile/location', {
                 ...event.payload,
                 alertId: mappedAlertId,
@@ -133,14 +290,23 @@ export class OfflineBufferService {
               continue;
             }
           } else if (event.type === 'AUDIO_CHUNK') {
-            const mappedAlertId =
-              offlineIdMap.get(event.payload?.alertId) || event.payload?.alertId;
-            if (!mappedAlertId || String(mappedAlertId).startsWith('OFFLINE_')) {
+            const rawAlertId: string | undefined = event.payload?.alertId;
+            const fileUri: string | undefined = event.payload?.fileUri;
+
+            if (rawAlertId && cancelledTempIds.has(rawAlertId)) {
+              if (fileUri && Platform.OS !== 'web') {
+                FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+              }
+              await this.dequeue(event.id);
+              continue;
+            }
+
+            const mappedAlertId = this.resolveAlertId(rawAlertId);
+            if (!mappedAlertId || this.isTemporaryAlertId(mappedAlertId)) {
               continue;
             }
 
             let audioBase64: string | null = event.payload?.audioBase64 || null;
-            const fileUri: string | undefined = event.payload?.fileUri;
 
             if (!audioBase64 && fileUri && Platform.OS !== 'web') {
               const info = await FileSystem.getInfoAsync(fileUri);

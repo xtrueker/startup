@@ -2,16 +2,24 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Camera = void 0;
 const connection_1 = require("../connection");
+const postgis_1 = require("../../../shared/utils/postgis");
 class Camera {
     /**
      * Fetch all cameras
      */
     static async find() {
-        const pool = (0, connection_1.getPgPool)();
-        const query = `SELECT id, name, stream_url, status, coverage_radius, is_public, authority_id, ST_AsText(location) as location, address, created_at, updated_at FROM cameras ORDER BY created_at DESC`;
+        const sb = (0, connection_1.supabase)();
         try {
-            const result = await pool.query(query);
-            return result.rows;
+            const { data, error } = await sb
+                .from('cameras')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error)
+                throw error;
+            return (data || []).map(cam => ({
+                ...cam,
+                location: (0, postgis_1.normalizePostgisLocationToWkt)(cam.location)
+            }));
         }
         catch (error) {
             console.error('Error fetching cameras:', error);

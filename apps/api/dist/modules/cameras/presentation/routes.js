@@ -13,7 +13,12 @@ exports.cameraRouter = router;
 // 2. Controladores Ligeros (Solo gestionan HTTP y respuestas)
 router.post('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (req, res) => {
     try {
-        const newCamera = await cameraService.createCamera(req.body);
+        const authReq = req;
+        const body = {
+            ...req.body,
+            authorityId: req.body.authorityId || authReq.user?.userId || authReq.user?.id || '00000000-0000-0000-0000-000000000000'
+        };
+        const newCamera = await cameraService.createCamera(body);
         return res.status(201).json({
             success: true,
             message: 'Cámara creada exitosamente',
@@ -28,13 +33,23 @@ router.post('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervis
         });
     }
 });
-router.get('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (_req, res) => {
+router.get('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator', 'police', 'citizen']), async (req, res) => {
     try {
+        const userRole = req.user?.role;
         const cameras = await cameraService.getAllCameras();
+        // Los ciudadanos reciben únicamente las cámaras comunitarias públicas sin exponer URLs internas RTSP
+        const responseData = userRole === 'citizen'
+            ? cameras
+                .filter((cam) => cam.isPublic !== false)
+                .map((cam) => ({
+                ...cam,
+                streamUrl: '',
+            }))
+            : cameras;
         return res.json({
             success: true,
-            count: cameras.length,
-            data: cameras,
+            count: responseData.length,
+            data: responseData,
         });
     }
     catch (error) {

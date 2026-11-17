@@ -114,21 +114,34 @@ export default function PatrolModeScreen({
 
   const handleOpenFastestRoute = (dispatch: TacticalDispatch) => {
     patrolService.setStatus('responding');
-    const { latitude, longitude, citizenName } = dispatch;
+    const { latitude, longitude, citizenName, address } = dispatch;
+    const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
 
-    const label = encodeURIComponent(`Auxilio: ${citizenName}`);
-    const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
-      android: `google.navigation:q=${latitude},${longitude}&mode=d`,
-      default: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
-    });
-
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        Linking.openURL(
-          `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
-        );
+    if (hasCoords) {
+      const label = encodeURIComponent(`Auxilio: ${citizenName}`);
+      const url = Platform.select({
+        ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
+        android: `google.navigation:q=${latitude},${longitude}&mode=d`,
+        default: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
       });
+
+      if (url) {
+        Linking.openURL(url).catch(() => {
+          Linking.openURL(
+            `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+          );
+        });
+      }
+      return;
+    }
+
+    const fallbackQuery = encodeURIComponent(address || citizenName || 'Emergencia');
+    const fallbackUrl = Platform.select({
+      ios: `maps:0,0?q=${fallbackQuery}`,
+      default: `https://www.google.com/maps/search/?api=1&query=${fallbackQuery}`,
+    });
+    if (fallbackUrl) {
+      Linking.openURL(fallbackUrl).catch(() => {});
     }
   };
 
@@ -462,7 +475,10 @@ export default function PatrolModeScreen({
                 <Text style={styles.dispatchKey}>Ubicación</Text>
                 <Text style={styles.dispatchVal}>
                   {activeDispatch?.address ||
-                    `${activeDispatch?.latitude.toFixed(5)}, ${activeDispatch?.longitude.toFixed(5)}`}
+                    (Number.isFinite(activeDispatch?.latitude) &&
+                    Number.isFinite(activeDispatch?.longitude)
+                      ? `${Number(activeDispatch?.latitude).toFixed(5)}, ${Number(activeDispatch?.longitude).toFixed(5)}`
+                      : 'Ubicación reportada a central')}
                 </Text>
               </View>
               {activeDispatch?.notes ? (

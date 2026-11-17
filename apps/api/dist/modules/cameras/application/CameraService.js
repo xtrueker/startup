@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CameraService = void 0;
 const socket_1 = require("../../../shared/utils/socket");
+const postgis_1 = require("../../../shared/utils/postgis");
 class CameraService {
     constructor(cameraRepository) {
         this.cameraRepository = cameraRepository;
@@ -46,19 +47,9 @@ class CameraService {
         return deleted;
     }
     mapToDTO(camera) {
-        let lat = 0, lng = 0;
-        if (camera.location && typeof camera.location === 'object' && camera.location.coordinates) {
-            lng = camera.location.coordinates[0];
-            lat = camera.location.coordinates[1];
-        }
-        else if (typeof camera.location === 'string') {
-            // fallback si viene en WKT
-            const match = camera.location.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-            if (match) {
-                lng = parseFloat(match[1]);
-                lat = parseFloat(match[2]);
-            }
-        }
+        const parsedCoords = (0, postgis_1.parsePostgisPoint)(camera.location);
+        const lat = parsedCoords ? parsedCoords.latitude : 0;
+        const lng = parsedCoords ? parsedCoords.longitude : 0;
         return {
             id: camera.id || camera._id, // soporta ambos
             name: camera.name,

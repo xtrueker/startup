@@ -223,6 +223,10 @@ export const initSocket = async (server: HttpServer) => {
 
     // Operator dispatches alert to police
     socket.on('patrol:dispatch', (data: any) => {
+      if (!user || !['admin', 'supervisor', 'operator'].includes(user.role)) {
+        logger.warn({ socketId: socket.id }, '⚠️ Intento no autorizado de patrol:dispatch en namespace raíz');
+        return;
+      }
       dispatchTacticalAlert(data);
     });
 
@@ -350,6 +354,11 @@ export const initSocket = async (server: HttpServer) => {
 
     // Despacho táctico emitido desde la consola web
     socket.on('patrol:dispatch', (data: any) => {
+      const opUser = extractUserFromSocket(socket);
+      if (opUser && !['admin', 'supervisor', 'operator'].includes(opUser.role)) {
+        logger.warn({ socketId: socket.id, role: opUser.role }, '⚠️ Rol no autorizado para patrol:dispatch');
+        return;
+      }
       dispatchTacticalAlert(data);
     });
 
@@ -394,12 +403,22 @@ export const dispatchTacticalAlert = (data: {
   officerId?: string;
   notes?: string;
 }) => {
+  const latitude = Number(data?.latitude);
+  const longitude = Number(data?.longitude);
+  if (!data?.alertId || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    logger.warn(
+      { alertId: data?.alertId, latitude: data?.latitude, longitude: data?.longitude },
+      '⚠️ Despacho táctico omitido: coordenadas GPS ausentes o no finitas'
+    );
+    return;
+  }
+
   const dispatchPayload = {
     alertId: data.alertId,
     citizenName: data.citizenName || 'Ciudadano en Riesgo',
     emergencyType: data.emergencyType || 'emergency',
-    latitude: data.latitude,
-    longitude: data.longitude,
+    latitude,
+    longitude,
     address: data.address || 'Ubicación referenciada en mapa táctico',
     dispatchedAt: new Date().toISOString(),
     notes: data.notes || '🚨 Despacho prioritario del Centro de Mando',

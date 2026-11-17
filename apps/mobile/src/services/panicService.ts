@@ -39,6 +39,20 @@ class PanicService {
 
   private listeners: Set<PanicListener> = new Set();
 
+  constructor() {
+    OfflineBufferService.onAlertResolved((tempAlertId, realAlertId) => {
+      if (this.state.alertId === tempAlertId) {
+        CovertAudioService.updateActiveAlertId(realAlertId);
+        this.state = {
+          ...this.state,
+          alertId: realAlertId,
+          isOffline: false,
+        };
+        this.notify();
+      }
+    });
+  }
+
   public getState(): PanicState {
     return { ...this.state };
   }
@@ -266,6 +280,8 @@ class PanicService {
     const { alertId } = this.state;
     if (!alertId) return;
 
+    const isTemp = OfflineBufferService.isTemporaryAlertId(alertId);
+
     this.state = {
       ...this.state,
       status: 'cancelling',
@@ -273,10 +289,13 @@ class PanicService {
     this.notify();
 
     try {
-      if (!alertId.startsWith('OFFLINE_')) {
-        await api.patch(`/mobile/alerts/${alertId}/cancel`);
+      await CovertAudioService.stopCovertRecording({ discardFinalChunk: isTemp });
+      const syncedRealId = await OfflineBufferService.purgeOfflineAlert(alertId);
+      const serverAlertId = isTemp ? syncedRealId : alertId;
+
+      if (serverAlertId && !OfflineBufferService.isTemporaryAlertId(serverAlertId)) {
+        await api.patch(`/mobile/alerts/${serverAlertId}/cancel`);
       }
-      await CovertAudioService.stopCovertRecording();
 
       this.state = {
         alertId: null,
@@ -292,7 +311,7 @@ class PanicService {
     } catch (err: any) {
       console.error('[PanicService] Error cancelando alerta:', err);
       // Aún así restablecemos el estado en el dispositivo si el usuario confirmó falsa alarma
-      await CovertAudioService.stopCovertRecording();
+      await CovertAudioService.stopCovertRecording({ discardFinalChunk: true });
       this.state = {
         alertId: null,
         status: 'idle',

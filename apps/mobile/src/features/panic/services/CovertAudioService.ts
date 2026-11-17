@@ -17,8 +17,15 @@ export class CovertAudioService {
   private static webStream: any = null;
   private static isRecording = false;
   private static activeAlertId: string | null = null;
+  private static discardOnStop = false;
   private static chunkCounter = 0;
   private static chunkTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  static updateActiveAlertId(newAlertId: string) {
+    if (this.isRecording && newAlertId) {
+      this.activeAlertId = newAlertId;
+    }
+  }
 
   /**
    * Inicia captura acústica discreta en fragmentos de 15s (iOS, Android y Web)
@@ -27,6 +34,7 @@ export class CovertAudioService {
   static async startCovertRecording(alertId: string) {
     if (this.isRecording) return;
     this.activeAlertId = alertId;
+    this.discardOnStop = false;
     this.chunkCounter = 0;
 
     if (Platform.OS === 'web') {
@@ -50,8 +58,10 @@ export class CovertAudioService {
     }
   }
 
-  static async stopCovertRecording() {
+  static async stopCovertRecording(options?: { discardFinalChunk?: boolean }) {
+    const discard = Boolean(options?.discardFinalChunk);
     this.isRecording = false;
+    this.discardOnStop = discard;
     if (this.chunkTimeout) {
       clearTimeout(this.chunkTimeout);
       this.chunkTimeout = null;
@@ -70,6 +80,7 @@ export class CovertAudioService {
       }
       this.webMediaRecorder = null;
       this.webStream = null;
+      this.activeAlertId = null;
       return;
     }
 
@@ -83,6 +94,12 @@ export class CovertAudioService {
       try {
         await finalRecorder.stop();
         const uri = finalRecorder.uri;
+        if (discard) {
+          if (uri) {
+            FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+          }
+          return;
+        }
         if (uri && pendingAlertId) {
           await this.transmitOrBufferAudio({
             alertId: pendingAlertId,
@@ -106,11 +123,12 @@ export class CovertAudioService {
     mimeType: string;
     chunkIndex: number;
   }) {
-    const { alertId, fileUri, mimeType, chunkIndex } = params;
+    const { fileUri, mimeType, chunkIndex } = params;
+    const alertId = OfflineBufferService.resolveAlertId(params.alertId) || params.alertId;
     let audioBase64 = params.audioBase64;
 
     // Si la alerta empezó sin red, encolar directamente hasta que tenga UUID real
-    if (alertId.startsWith('OFFLINE_')) {
+    if (OfflineBufferService.isTemporaryAlertId(alertId)) {
       await OfflineBufferService.enqueue('AUDIO_CHUNK', {
         alertId,
         audioBase64,
@@ -178,9 +196,10 @@ export class CovertAudioService {
           const uri = recorder.uri;
           this.recording = null;
 
+          const targetAlertId = this.activeAlertId || alertId;
           if (uri) {
             await this.transmitOrBufferAudio({
-              alertId,
+              alertId: targetAlertId,
               fileUri: uri,
               mimeType: 'audio/mp4',
               chunkIndex: currentIdx,
@@ -188,7 +207,7 @@ export class CovertAudioService {
           }
 
           if (this.isRecording) {
-            this.recordNativeChunk(alertId);
+            this.recordNativeChunk(this.activeAlertId || targetAlertId);
           }
         } catch (err) {
           console.warn('[CovertAudio] Error cerrando fragmento nativo:', err);
@@ -228,14 +247,15 @@ export class CovertAudioService {
         };
 
         recorder.onstop = () => {
-          if (chunks.length === 0) return;
+          if (this.discardOnStop || chunks.length === 0) return;
+          const targetAlertId = this.activeAlertId || alertId;
           const idx = this.chunkCounter++;
           const blob = new Blob(chunks, { type: mimeType });
           const reader = new FileReader();
           reader.onloadend = () => {
             if (typeof reader.result === 'string') {
               this.transmitOrBufferAudio({
-                alertId,
+                alertId: targetAlertId,
                 audioBase64: reader.result,
                 mimeType: 'audio/webm',
                 chunkIndex: idx,

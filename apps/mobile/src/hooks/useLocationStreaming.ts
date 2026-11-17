@@ -43,8 +43,9 @@ export function useLocationStreaming({
       if (!active) return;
       setCurrentLocation({ lat: coords.latitude, lng: coords.longitude });
 
+      const resolvedAlertId = OfflineBufferService.resolveAlertId(alertId) || alertId;
       const payload = {
-        alertId,
+        alertId: resolvedAlertId,
         latitude: coords.latitude,
         longitude: coords.longitude,
         accuracy: coords.accuracy ?? null,
@@ -52,7 +53,7 @@ export function useLocationStreaming({
         heading: coords.heading ?? null,
       };
 
-      if (alertId.startsWith('OFFLINE_')) {
+      if (OfflineBufferService.isTemporaryAlertId(resolvedAlertId)) {
         await OfflineBufferService.enqueue('GPS_UPDATE', payload);
         return;
       }

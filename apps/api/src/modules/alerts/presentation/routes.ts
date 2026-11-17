@@ -74,19 +74,10 @@ router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), a
     res.json({
       success: true,
       count: alerts.length,
-      data: alerts.map((alert: any) => {
-        let lat = 0, lng = 0;
-        if (alert.location && typeof alert.location === 'object' && alert.location.coordinates) {
-           lng = alert.location.coordinates[0];
-           lat = alert.location.coordinates[1];
-        } else if (typeof alert.location === 'string') {
-           const match = alert.location.match(/POINT\(([^ ]+) ([^)]+)\)/);
-           if (match) {
-             lng = parseFloat(match[1]);
-             lat = parseFloat(match[2]);
-           }
-        }
-        
+      data: alerts.map((alert) => {
+        const lat = alert.latitude ?? 0;
+        const lng = alert.longitude ?? 0;
+
         return {
           id: alert.id,
           type: alert.type,
@@ -190,9 +181,10 @@ router.post('/:id/dispatch', requireAuth, requireRole(['admin', 'supervisor', 'o
     }
 
     let citizenName = 'Ciudadano en Emergencia';
-    if (alert.userId || alert.user_id) {
+    const targetUserId = alert.userId || alert.user_id;
+    if (targetUserId) {
       try {
-        const citizen = await User.findById(alert.userId || alert.user_id);
+        const citizen = await User.findById(targetUserId);
         if (citizen?.full_name) {
           citizenName = citizen.full_name;
         }
@@ -201,12 +193,26 @@ router.post('/:id/dispatch', requireAuth, requireRole(['admin', 'supervisor', 'o
       }
     }
 
+    const rawLat = alert.latitude ?? req.body?.latitude;
+    const rawLng = alert.longitude ?? req.body?.longitude;
+    const latitude =
+      rawLat !== null && rawLat !== undefined && rawLat !== '' ? Number(rawLat) : NaN;
+    const longitude =
+      rawLng !== null && rawLng !== undefined && rawLng !== '' ? Number(rawLng) : NaN;
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return res.status(422).json({
+        success: false,
+        message: 'La alerta no contiene coordenadas GPS válidas para el despacho táctico',
+      });
+    }
+
     dispatchTacticalAlert({
       alertId: alert.id,
       citizenName,
       emergencyType: alert.type || 'emergency',
-      latitude: alert.latitude,
-      longitude: alert.longitude,
+      latitude,
+      longitude,
       address: alert.address || '',
       officerId,
       notes: notes || '🚨 Despacho prioritario del Centro de Mando Web'
@@ -218,6 +224,8 @@ router.post('/:id/dispatch', requireAuth, requireRole(['admin', 'supervisor', 'o
       data: {
         alertId: alert.id,
         citizenName,
+        latitude,
+        longitude,
         dispatchedAt: new Date().toISOString()
       }
     });

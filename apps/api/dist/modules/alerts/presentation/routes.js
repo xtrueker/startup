@@ -10,6 +10,10 @@ const auth_1 = require("../../../shared/middlewares/auth");
 const escapeRouting_1 = require("../services/escapeRouting");
 const socket_1 = require("../../../shared/utils/socket");
 const AuditService_1 = require("../../../shared/services/AuditService");
+const connection_1 = require("../../../infrastructure/database/connection");
+const models_1 = require("../../../infrastructure/database/models");
+const EvidenceStorageService_1 = require("../../mobile/services/EvidenceStorageService");
+const env_1 = require("../../../config/env");
 const router = (0, express_1.Router)();
 exports.alertRouter = router;
 // CREAR ALERTA DE EMERGENCIA
@@ -69,18 +73,8 @@ router.get('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'superviso
             success: true,
             count: alerts.length,
             data: alerts.map((alert) => {
-                let lat = 0, lng = 0;
-                if (alert.location && typeof alert.location === 'object' && alert.location.coordinates) {
-                    lng = alert.location.coordinates[0];
-                    lat = alert.location.coordinates[1];
-                }
-                else if (typeof alert.location === 'string') {
-                    const match = alert.location.match(/POINT\(([^ ]+) ([^)]+)\)/);
-                    if (match) {
-                        lng = parseFloat(match[1]);
-                        lat = parseFloat(match[2]);
-                    }
-                }
+                const lat = alert.latitude ?? 0;
+                const lng = alert.longitude ?? 0;
                 return {
                     id: alert.id,
                     type: alert.type,
@@ -163,23 +157,107 @@ router.patch('/:id/status', auth_1.requireAuth, (0, auth_1.requireRole)(['admin'
         res.status(500).json({ success: false, message: 'Error interno', error: error.message });
     }
 });
+// DESPACHO TÁCTICO DE ALERTA A PATRULLAS POLICIALES
+// POST /api/alerts/:id/dispatch
+router.post('/:id/dispatch', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { officerId, notes } = req.body;
+        const alert = await Alert_1.default.findById(id);
+        if (!alert) {
+            return res.status(404).json({ success: false, message: 'Alerta no encontrada' });
+        }
+        let citizenName = 'Ciudadano en Emergencia';
+        const targetUserId = alert.userId || alert.user_id;
+        if (targetUserId) {
+            try {
+                const citizen = await models_1.User.findById(targetUserId);
+                if (citizen?.full_name) {
+                    citizenName = citizen.full_name;
+                }
+            }
+            catch (userErr) {
+                console.warn('No se pudo obtener nombre del ciudadano:', userErr);
+            }
+        }
+        const rawLat = alert.latitude ?? req.body?.latitude;
+        const rawLng = alert.longitude ?? req.body?.longitude;
+        const latitude = rawLat !== null && rawLat !== undefined && rawLat !== '' ? Number(rawLat) : NaN;
+        const longitude = rawLng !== null && rawLng !== undefined && rawLng !== '' ? Number(rawLng) : NaN;
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return res.status(422).json({
+                success: false,
+                message: 'La alerta no contiene coordenadas GPS válidas para el despacho táctico',
+            });
+        }
+        (0, socket_1.dispatchTacticalAlert)({
+            alertId: alert.id,
+            citizenName,
+            emergencyType: alert.type || 'emergency',
+            latitude,
+            longitude,
+            address: alert.address || '',
+            officerId,
+            notes: notes || '🚨 Despacho prioritario del Centro de Mando Web'
+        });
+        res.json({
+            success: true,
+            message: '🚨 Despacho táctico transmitido a patrullas policiales exitosamente',
+            data: {
+                alertId: alert.id,
+                citizenName,
+                latitude,
+                longitude,
+                dispatchedAt: new Date().toISOString()
+            }
+        });
+    }
+    catch (error) {
+        console.error('ERROR en despacho táctico:', error.message);
+        res.status(500).json({ success: false, message: 'Error interno al despachar alerta', error: error.message });
+    }
+});
 // HISTORIAL DE EVENTOS DE ALERTA
 // GET /api/alerts/:id/events
 router.get('/:id/events', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (req, res) => {
     try {
         const { id } = req.params;
-        const pool = require('../../../infrastructure/database/connection').getPgPool();
-        const result = await pool.query(`
-      SELECT id, event_type, previous_status, new_status, notes, created_at 
-      FROM alert_events 
-      WHERE alert_id = $1 
-      ORDER BY created_at ASC
-    `, [id]);
-        res.json({ success: true, data: result.rows });
+        const { data, error } = await (0, connection_1.supabase)()
+            .from('alert_events')
+            .select('id, event_type, previous_status, new_status, notes, created_at')
+            .eq('alert_id', id)
+            .order('created_at', { ascending: true });
+        if (error) {
+            throw error;
+        }
+        res.json({ success: true, data: data || [] });
     }
     catch (error) {
         console.error('ERROR obteniendo eventos de alerta:', error.message);
         res.status(500).json({ success: false, message: 'Error interno', error: error.message });
+    }
+});
+// EVIDENCIAS ACÚSTICAS DE UNA ALERTA (CON URLS FIRMADAS DE REPRODUCCIÓN)
+// GET /api/alerts/:id/evidence
+router.get('/:id/evidence', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator', 'police']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const rawProto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+        const proto = rawProto.split(',')[0].trim();
+        const host = req.get('host') || `localhost:${env_1.env.PORT}`;
+        const apiBaseUrl = process.env.PUBLIC_API_URL
+            ? process.env.PUBLIC_API_URL.replace(/\/+$/, '')
+            : `${proto}://${host}`;
+        const clips = await EvidenceStorageService_1.EvidenceStorageService.listAlertEvidence(id, apiBaseUrl);
+        res.json({
+            success: true,
+            count: clips.length,
+            data: clips,
+        });
+    }
+    catch (error) {
+        console.error('ERROR obteniendo evidencias de alerta:', error.message);
+        res.status(500).json({ success: false, message: 'Error obteniendo evidencias de audio' });
     }
 });
 //# sourceMappingURL=routes.js.map

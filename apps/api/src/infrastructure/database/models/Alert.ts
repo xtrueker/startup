@@ -1,5 +1,8 @@
 import { supabase } from '../connection';
-import { normalizePostgisLocationToWkt } from '../../../shared/utils/postgis';
+import {
+  normalizePostgisLocationToWkt,
+  parsePostgisPoint,
+} from '../../../shared/utils/postgis';
 
 export interface CreateAlertDTO {
   userId: string;
@@ -12,11 +15,40 @@ export interface CreateAlertDTO {
   escapeRoutes?: any[];
 }
 
+export interface HydratedAlertRecord {
+  id: string;
+  user_id: string | null;
+  userId: string | null;
+  type: string;
+  status: string;
+  latitude: number | null;
+  longitude: number | null;
+  location: unknown;
+  address: string;
+  description: string;
+  direction: string | null;
+  escape_routes: any[];
+  created_at: string;
+  updated_at?: string;
+  [key: string]: any;
+}
+
 export class Alert {
+  private static hydrateRow(row: any): HydratedAlertRecord {
+    const coords = parsePostgisPoint(row?.location);
+    return {
+      ...row,
+      userId: row?.user_id ?? row?.userId ?? null,
+      latitude: coords?.latitude ?? null,
+      longitude: coords?.longitude ?? null,
+      location: normalizePostgisLocationToWkt(row?.location),
+    };
+  }
+
   /**
-   * Fetch active alerts with their PostGIS location cast to JSON/WKT
+   * Fetch active alerts with their PostGIS location hydrated to numeric coords + WKT
    */
-  static async findActive(limit = 50) {
+  static async findActive(limit = 50): Promise<HydratedAlertRecord[]> {
     const sb = supabase();
     const { data, error } = await sb
       .from('alerts')
@@ -30,13 +62,10 @@ export class Alert {
       throw error;
     }
 
-    return (data || []).map(alert => ({
-      ...alert,
-      location: normalizePostgisLocationToWkt(alert.location)
-    }));
+    return (data || []).map((alert) => this.hydrateRow(alert));
   }
 
-  static async findById(id: string) {
+  static async findById(id: string): Promise<HydratedAlertRecord | null> {
     const sb = supabase();
     const { data, error } = await sb
       .from('alerts')
@@ -50,10 +79,7 @@ export class Alert {
     }
 
     if (!data) return null;
-    return {
-      ...data,
-      location: normalizePostgisLocationToWkt(data.location)
-    };
+    return this.hydrateRow(data);
   }
 
   static async create(data: CreateAlertDTO) {
@@ -105,10 +131,10 @@ export class Alert {
       console.warn('Warning logging alert event:', eventErr.message);
     }
 
-    return {
+    return this.hydrateRow({
       ...inserted,
-      location: wktLocation
-    };
+      location: wktLocation,
+    });
   }
 
   static async updateStatus(id: string, newStatus: string, actorId: string, notes?: string) {

@@ -8,6 +8,7 @@ import { supabase } from '../../../infrastructure/database/connection';
 import { emitToOperators, emitToAlertRoom } from '../../../shared/utils/socket';
 import { EvidenceStorageService } from '../services/EvidenceStorageService';
 import { verifyEvidenceStreamSignature } from '../../../shared/utils/cryptoVault';
+import { parsePostgisPoint } from '../../../shared/utils/postgis';
 import { PushDispatchService } from '../../../shared/services/PushDispatchService';
 import { WhatsAppDispatchService } from '../../../shared/services/WhatsAppDispatchService';
 
@@ -431,18 +432,9 @@ router.get('/alerts/me', requireAuth, async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: (alerts || []).map((a: any) => {
-        let lat = 0,
-          lng = 0;
-        if (typeof a.location === 'object' && a.location?.coordinates) {
-          lng = a.location.coordinates[0];
-          lat = a.location.coordinates[1];
-        } else if (typeof a.location === 'string') {
-          const match = a.location.match(/POINT\(([^ ]+) ([^)]+)\)/);
-          if (match) {
-            lng = parseFloat(match[1]);
-            lat = parseFloat(match[2]);
-          }
-        }
+        const coords = parsePostgisPoint(a.location);
+        const lat = coords?.latitude ?? 0;
+        const lng = coords?.longitude ?? 0;
         return {
           id: a.id,
           type: a.type,
