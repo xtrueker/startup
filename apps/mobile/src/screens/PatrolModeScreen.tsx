@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   Vibration,
   Animated,
   Easing,
@@ -22,6 +21,7 @@ import {
   TacticalDispatch,
 } from '../services/PatrolService';
 import { EvidenceVaultModal } from '../components/EvidenceVaultModal';
+import { confirmAction, showAlert } from '../utils/dialogs';
 import {
   palette,
   fontSans,
@@ -176,41 +176,26 @@ export default function PatrolModeScreen({
 
   const handleTogglePatrol = async () => {
     if (state.isActive) {
-      if (Platform.OS === 'web') {
-        const ok =
-          typeof window !== 'undefined'
-            ? window.confirm(
-                '¿Deseas finalizar tu turno de patrullaje? Tu ubicación dejará de compartirse con la central.'
-              )
-            : true;
-        if (ok) await stopPatrolConfirmed();
-        return;
-      }
-
-      Alert.alert(
-        'Finalizar turno',
-        '¿Deseas finalizar tu turno? Tu ubicación dejará de compartirse con la central.',
-        [
-          { text: 'Seguir activo', style: 'cancel' },
-          {
-            text: 'Finalizar',
-            style: 'destructive',
-            onPress: stopPatrolConfirmed,
-          },
-        ]
-      );
+      const confirmed = await confirmAction({
+        title: 'Finalizar turno',
+        message: '¿Deseas finalizar tu turno? Tu ubicación dejará de compartirse con la central.',
+        webMessage:
+          '¿Deseas finalizar tu turno de patrullaje? Tu ubicación dejará de compartirse con la central.',
+        confirmText: 'Finalizar',
+        cancelText: 'Seguir activo',
+        destructive: true,
+      });
+      if (confirmed) await stopPatrolConfirmed();
     } else {
       setLoading(true);
       const success = await patrolService.startPatrol();
       if (success) {
         Vibration.vibrate([0, 100, 50, 100]);
       } else {
-        const errMsg = state.errorMessage || 'No se pudo iniciar el turno de patrullaje.';
-        if (Platform.OS === 'web' && typeof window !== 'undefined') {
-          window.alert(errMsg);
-        } else {
-          Alert.alert('No se pudo conectar', errMsg);
-        }
+        const errMsg =
+          patrolService.getState().errorMessage ||
+          'No se pudo iniciar el turno de patrullaje.';
+        showAlert('No se pudo conectar', errMsg);
       }
       setLoading(false);
     }

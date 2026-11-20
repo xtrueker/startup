@@ -1,4 +1,5 @@
-import { supabase } from '../../infrastructure/database/connection';
+import { getPgPool } from '../../infrastructure/database/connection';
+import { SYSTEM_ADMIN_UUID, UUID_REGEX } from '../constants/system';
 
 export interface AuditLogEntry {
   actorId: string;
@@ -11,34 +12,47 @@ export interface AuditLogEntry {
 
 export class AuditService {
   /**
-   * Logs a significant action to the audit_logs table.
-   * Useful for tracking operator actions, escalations, and settings changes.
+   * Logs a significant action to the audit_logs table using the native PG pool.
    */
   static async log(entry: AuditLogEntry) {
     try {
-      const sb = supabase();
-      
-      const { error } = await sb.from('audit_logs').insert({
-        actor_id: entry.actorId || null,
-        action: entry.action,
-        resource_type: entry.resourceType,
-        resource_id: entry.resourceId || null,
-        ip_address: entry.ipAddress || null,
-        details: entry.details || {}
-      });
+      const pool = getPgPool();
+      const safeActorId =
+        entry.actorId && UUID_REGEX.test(entry.actorId)
+          ? entry.actorId
+          : entry.actorId === 'system'
+          ? SYSTEM_ADMIN_UUID
+          : null;
+      const safeResourceId =
+        entry.resourceId && UUID_REGEX.test(entry.resourceId)
+          ? entry.resourceId
+          : null;
 
-      if (error) {
-        console.error('AuditService: Failed to log action', error);
-      }
+      await pool.query(
+        `INSERT INTO public.audit_logs
+           (actor_id, action, resource_type, resource_id, ip_address, details)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+        [
+          safeActorId,
+          entry.action,
+          entry.resourceType,
+          safeResourceId,
+          entry.ipAddress || null,
+          JSON.stringify(entry.details || {}),
+        ]
+      );
     } catch (err) {
       console.error('AuditService: Exception during logging', err);
     }
   }
 
-  /**
-   * Helper specifically for Alert state transitions
-   */
-  static async logAlertTransition(actorId: string, alertId: string, oldStatus: string, newStatus: string, ipAddress?: string) {
+  static async logAlertTransition(
+    actorId: string,
+    alertId: string,
+    oldStatus: string,
+    newStatus: string,
+    ipAddress?: string
+  ) {
     return this.log({
       actorId,
       action: 'ALERT_STATE_TRANSITION',
@@ -47,8 +61,8 @@ export class AuditService {
       ipAddress,
       details: {
         from: oldStatus,
-        to: newStatus
-      }
+        to: newStatus,
+      },
     });
   }
 }

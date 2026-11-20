@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import { config } from '../../../config';
 
 const BUFFER_FILE = (FileSystem.documentDirectory ?? '') + 'emergency_buffer.json';
 const RESOLVED_MAP_FILE = (FileSystem.documentDirectory ?? '') + 'emergency_resolved_ids.json';
@@ -22,6 +23,59 @@ const cancelledTempIds = new Set<string>();
 const resolvedListeners = new Set<AlertResolvedListener>();
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let isFlushing = false;
+
+async function readJsonStore<T>(webKey: string, nativeFilePath: string): Promise<T | null> {
+  if (Platform.OS === 'web') {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(webKey);
+        if (raw) return JSON.parse(raw) as T;
+      }
+    } catch {}
+    return null;
+  }
+
+  try {
+    if (FileSystem.documentDirectory) {
+      const info = await FileSystem.getInfoAsync(nativeFilePath);
+      if (info.exists) {
+        const raw = await FileSystem.readAsStringAsync(nativeFilePath);
+        return JSON.parse(raw) as T;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+async function writeJsonStore(
+  webKey: string,
+  nativeFilePath: string,
+  data: unknown
+): Promise<void> {
+  const serialized = JSON.stringify(data);
+  if (Platform.OS === 'web') {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(webKey, serialized);
+      }
+    } catch {}
+    return;
+  }
+
+  try {
+    if (FileSystem.documentDirectory) {
+      await FileSystem.writeAsStringAsync(nativeFilePath, serialized);
+    }
+  } catch (err) {
+    console.warn('[OfflineBuffer] No se pudo persistir almacenamiento en disco:', err);
+  }
+}
+
+function deleteNativeAudioFile(fileUri?: string): void {
+  if (fileUri && Platform.OS !== 'web') {
+    FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+  }
+}
 
 export class OfflineBufferService {
   static isTemporaryAlertId(alertId: unknown): boolean {
@@ -52,36 +106,12 @@ export class OfflineBufferService {
     if (resolvedMapLoaded) return;
     resolvedMapLoaded = true;
 
-    if (Platform.OS === 'web') {
-      try {
-        if (typeof localStorage !== 'undefined') {
-          const raw = localStorage.getItem(WEB_RESOLVED_MAP_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === 'object') {
-              resolvedAlertMap = { ...parsed, ...resolvedAlertMap };
-            }
-          }
-        }
-      } catch {
-        // Ignore web storage read errors
-      }
-      return;
-    }
-
-    try {
-      if (FileSystem.documentDirectory) {
-        const info = await FileSystem.getInfoAsync(RESOLVED_MAP_FILE);
-        if (info.exists) {
-          const raw = await FileSystem.readAsStringAsync(RESOLVED_MAP_FILE);
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            resolvedAlertMap = { ...parsed, ...resolvedAlertMap };
-          }
-        }
-      }
-    } catch {
-      // Ignore file read errors
+    const parsed = await readJsonStore<Record<string, string>>(
+      WEB_RESOLVED_MAP_KEY,
+      RESOLVED_MAP_FILE
+    );
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      resolvedAlertMap = { ...parsed, ...resolvedAlertMap };
     }
   }
 
@@ -90,25 +120,7 @@ export class OfflineBufferService {
     if (entries.length > 50) {
       resolvedAlertMap = Object.fromEntries(entries.slice(entries.length - 50));
     }
-
-    if (Platform.OS === 'web') {
-      try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(WEB_RESOLVED_MAP_KEY, JSON.stringify(resolvedAlertMap));
-        }
-      } catch {
-        // Ignore storage quota errors
-      }
-      return;
-    }
-
-    try {
-      if (FileSystem.documentDirectory) {
-        await FileSystem.writeAsStringAsync(RESOLVED_MAP_FILE, JSON.stringify(resolvedAlertMap));
-      }
-    } catch {
-      // Ignore persistence errors
-    }
+    await writeJsonStore(WEB_RESOLVED_MAP_KEY, RESOLVED_MAP_FILE, resolvedAlertMap);
   }
 
   static resolveAlertId(alertId: string | null | undefined): string | null {
@@ -139,8 +151,8 @@ export class OfflineBufferService {
         (syncedRealId !== null && itemAlertId === syncedRealId);
 
       if (matchesTarget) {
-        if (item.type === 'AUDIO_CHUNK' && item.payload?.fileUri && Platform.OS !== 'web') {
-          FileSystem.deleteAsync(item.payload.fileUri, { idempotent: true }).catch(() => {});
+        if (item.type === 'AUDIO_CHUNK') {
+          deleteNativeAudioFile(item.payload?.fileUri);
         }
         continue;
       }
@@ -153,62 +165,17 @@ export class OfflineBufferService {
 
     return syncedRealId;
   }
+
   private static async persistQueue(queue: BufferedPayload[]): Promise<void> {
     memoryQueue = [...queue];
-
-    if (Platform.OS === 'web') {
-      try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(WEB_STORAGE_KEY, JSON.stringify(queue));
-        }
-      } catch {
-        // Ignore storage quota errors
-      }
-      return;
-    }
-
-    try {
-      if (FileSystem.documentDirectory) {
-        await FileSystem.writeAsStringAsync(BUFFER_FILE, JSON.stringify(queue));
-      }
-    } catch (err) {
-      console.warn('[OfflineBuffer] No se pudo persistir cola en disco:', err);
-    }
+    await writeJsonStore(WEB_STORAGE_KEY, BUFFER_FILE, queue);
   }
 
   static async getBuffer(): Promise<BufferedPayload[]> {
-    if (Platform.OS === 'web') {
-      try {
-        if (typeof localStorage !== 'undefined') {
-          const raw = localStorage.getItem(WEB_STORAGE_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              memoryQueue = parsed;
-              return parsed;
-            }
-          }
-        }
-      } catch {
-        // Fallback to memory
-      }
-      return [...memoryQueue];
-    }
-
-    try {
-      if (FileSystem.documentDirectory) {
-        const fileInfo = await FileSystem.getInfoAsync(BUFFER_FILE);
-        if (fileInfo.exists) {
-          const contents = await FileSystem.readAsStringAsync(BUFFER_FILE);
-          const parsed = JSON.parse(contents) as BufferedPayload[];
-          if (Array.isArray(parsed)) {
-            memoryQueue = parsed;
-            return parsed;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[OfflineBuffer] Error leyendo archivo de buffer:', e);
+    const parsed = await readJsonStore<BufferedPayload[]>(WEB_STORAGE_KEY, BUFFER_FILE);
+    if (Array.isArray(parsed)) {
+      memoryQueue = parsed;
+      return parsed;
     }
     return [...memoryQueue];
   }
@@ -294,9 +261,7 @@ export class OfflineBufferService {
             const fileUri: string | undefined = event.payload?.fileUri;
 
             if (rawAlertId && cancelledTempIds.has(rawAlertId)) {
-              if (fileUri && Platform.OS !== 'web') {
-                FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
-              }
+              deleteNativeAudioFile(fileUri);
               await this.dequeue(event.id);
               continue;
             }
@@ -323,17 +288,28 @@ export class OfflineBufferService {
                 audioBase64,
                 mimeType: event.payload?.mimeType || 'audio/mp4',
                 chunkIndex: event.payload?.chunkIndex ?? 0,
-                durationMs: event.payload?.durationMs ?? 15000,
+                durationMs: event.payload?.durationMs ?? config.AUDIO_CHUNK_DURATION_MS,
               });
 
-              if (fileUri && Platform.OS !== 'web') {
-                FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
-              }
+              deleteNativeAudioFile(fileUri);
             }
           }
 
           await this.dequeue(event.id);
-        } catch (err) {
+        } catch (err: any) {
+          const httpStatus: number | undefined = err?.response?.status;
+          // Si el servidor rechaza permanentemente un evento inválido/no autorizado (400/403/404/422),
+          // descartarlo para evitar bloquear indefinidamente los eventos siguientes en la cola offline.
+          if (httpStatus && [400, 403, 404, 422].includes(httpStatus)) {
+            if (event.type === 'AUDIO_CHUNK') {
+              deleteNativeAudioFile(event.payload?.fileUri);
+            }
+            await this.dequeue(event.id);
+            console.warn(
+              `[OfflineBuffer] Evento ${event.type} descartado por rechazo definitivo HTTP ${httpStatus}.`
+            );
+            continue;
+          }
           console.warn(`[OfflineBuffer] Sin red al sincronizar ${event.type}, reintentará luego.`);
           break;
         }
@@ -344,7 +320,7 @@ export class OfflineBufferService {
   }
 
   /**
-   * Inicia sincronización automática en segundo plano cada 15 segundos.
+   * Inicia sincronización automática en segundo plano.
    */
   static startAutoSync(apiClient: any): () => void {
     if (syncTimer) clearInterval(syncTimer);
@@ -352,7 +328,7 @@ export class OfflineBufferService {
 
     syncTimer = setInterval(() => {
       this.flushQueue(apiClient).catch(() => {});
-    }, 15000);
+    }, config.OFFLINE_SYNC_INTERVAL_MS);
 
     return () => {
       if (syncTimer) {

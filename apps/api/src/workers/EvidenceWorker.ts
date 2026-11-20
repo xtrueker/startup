@@ -1,13 +1,18 @@
 import { Redis } from 'ioredis';
 import crypto from 'crypto';
-// Mocks para Storage y Base de datos (en la vida real usar @google-cloud/storage y Mongoose)
+import { env } from '../config/env';
+// Mocks para Storage y Base de datos (referencia de arquitectura asíncrona)
 const mockS3Upload = async (_buffer: Buffer, key: string) => `https://storage.cloud.net/evidence/${key}`;
 const mockSaveToDB = async (metadata: any) => console.log('📁 [DB] Meta Guardada:', metadata);
 
 export class EvidenceWorker {
+  private readonly redis: Redis;
+
   constructor() {
-    new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-    console.log('🛡️ [EvidenceWorker] Booted up & Listening to Evidence Streams');
+    this.redis = new Redis(env.REDIS_URL || 'redis://127.0.0.1:6379', {
+      lazyConnect: true,
+    });
+    void this.redis;
   }
 
   /**

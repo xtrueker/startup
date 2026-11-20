@@ -6,13 +6,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EvidenceWorker = void 0;
 const ioredis_1 = require("ioredis");
 const crypto_1 = __importDefault(require("crypto"));
-// Mocks para Storage y Base de datos (en la vida real usar @google-cloud/storage y Mongoose)
+const env_1 = require("../config/env");
+// Mocks para Storage y Base de datos (referencia de arquitectura asíncrona)
 const mockS3Upload = async (_buffer, key) => `https://storage.cloud.net/evidence/${key}`;
 const mockSaveToDB = async (metadata) => console.log('📁 [DB] Meta Guardada:', metadata);
 class EvidenceWorker {
     constructor() {
-        new ioredis_1.Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-        console.log('🛡️ [EvidenceWorker] Booted up & Listening to Evidence Streams');
+        this.redis = new ioredis_1.Redis(env_1.env.REDIS_URL || 'redis://127.0.0.1:6379', {
+            lazyConnect: true,
+        });
+        void this.redis;
     }
     /**
      * BUCLE INFINITO DE CONSUMO (Simulación de Consumer Group)

@@ -2,13 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.globalEventPublisher = exports.EventPublisher = void 0;
 const ioredis_1 = require("ioredis");
-// En un sistema real masivo (Uber/911 scale), reemplazaríamos Redis Pub/Sub por Apache Kafka 
-// o Google Cloud Pub/Sub para garantizar retención ("Exactly-Once").
-// Para este ejemplo de infraestructura base, simulamos la capa de abstracción.
+const env_1 = require("../../config/env");
 class EventPublisher {
     constructor() {
-        this.publisher = new ioredis_1.Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-        console.log('⚡ [EventPublisher] Conectado al Message Broker');
+        this.publisher = new ioredis_1.Redis(env_1.env.REDIS_URL || 'redis://127.0.0.1:6379', {
+            lazyConnect: true,
+        });
     }
     /**
      * INGESTA (Fast Route)

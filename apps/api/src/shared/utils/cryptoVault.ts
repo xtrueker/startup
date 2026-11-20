@@ -4,7 +4,7 @@ import { env } from '../../config/env';
 const VAULT_SALT = 'rc-ley1581-vault-v1';
 
 function getMasterKey(): Buffer {
-  const secret = process.env.VAULT_ENCRYPTION_KEY || env.JWT_SECRET;
+  const secret = env.VAULT_ENCRYPTION_KEY || env.JWT_SECRET;
   return crypto.scryptSync(secret, VAULT_SALT, 32);
 }
 

@@ -5,13 +5,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mobileRouter = void 0;
 const express_1 = require("express");
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const env_1 = require("../../../config/env");
 const auth_1 = require("../../../shared/middlewares/auth");
+const system_1 = require("../../../shared/constants/system");
 const Alert_1 = __importDefault(require("../../../infrastructure/database/models/Alert"));
 const User_1 = __importDefault(require("../../../infrastructure/database/models/User"));
 const connection_1 = require("../../../infrastructure/database/connection");
 const socket_1 = require("../../../shared/utils/socket");
+const url_1 = require("../../../shared/utils/url");
 const EvidenceStorageService_1 = require("../services/EvidenceStorageService");
 const cryptoVault_1 = require("../../../shared/utils/cryptoVault");
 const postgis_1 = require("../../../shared/utils/postgis");
@@ -19,31 +19,27 @@ const PushDispatchService_1 = require("../../../shared/services/PushDispatchServ
 const WhatsAppDispatchService_1 = require("../../../shared/services/WhatsAppDispatchService");
 const router = (0, express_1.Router)();
 exports.mobileRouter = router;
-function extractUserFromOptionalToken(req) {
-    const existing = req.user;
-    if (existing?.userId || existing?.id) {
-        return { userId: existing.userId || existing.id, role: existing.role };
+/**
+ * Verifica que la alerta exista y que el emisor sea el propietario legítimo de la emergencia,
+ * impidiendo inyección externa de coordenadas GPS o audios falsos mediante UUID filtrado.
+ */
+async function verifyMobileAlertOwnership(alertId, callerUserId) {
+    if (!system_1.UUID_REGEX.test(alertId)) {
+        return { ok: false, status: 400, message: 'Identificador de alerta no válido' };
     }
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-            const token = authHeader.split(' ')[1];
-            const payload = jsonwebtoken_1.default.verify(token, env_1.env.JWT_SECRET);
-            return { userId: payload?.userId || payload?.id, role: payload?.role };
-        }
-        catch {
-            return {};
-        }
+    const existingAlert = await Alert_1.default.findById(alertId);
+    if (!existingAlert) {
+        return { ok: false, status: 404, message: 'Alerta no encontrada' };
     }
-    return {};
-}
-function getRequestBaseUrl(req) {
-    if (process.env.PUBLIC_API_URL)
-        return process.env.PUBLIC_API_URL.replace(/\/+$/, '');
-    const rawProto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const proto = rawProto.split(',')[0].trim();
-    const host = req.get('host') || `localhost:${env_1.env.PORT}`;
-    return `${proto}://${host}`;
+    const alertOwnerId = existingAlert.userId || existingAlert.user_id || system_1.ANONYMOUS_CITIZEN_UUID;
+    if (alertOwnerId !== callerUserId) {
+        return {
+            ok: false,
+            status: 403,
+            message: 'No estás autorizado para transmitir telemetría o evidencia sobre esta alerta',
+        };
+    }
+    return { ok: true };
 }
 /**
  * @swagger
@@ -55,11 +51,8 @@ function getRequestBaseUrl(req) {
 router.post('/panic', async (req, res) => {
     try {
         const { latitude, longitude, address, description, triggerType } = req.body;
-        const tokenUser = extractUserFromOptionalToken(req);
-        let userId = tokenUser.userId;
-        if (!userId) {
-            userId = '00000000-0000-0000-0000-000000000002';
-        }
+        const tokenUser = (0, auth_1.extractOptionalUser)(req);
+        const userId = tokenUser.userId || system_1.ANONYMOUS_CITIZEN_UUID;
         if (latitude === undefined || longitude === undefined) {
             return res
                 .status(400)
@@ -75,7 +68,7 @@ router.post('/panic', async (req, res) => {
         });
         // Consultar identidad verificada del ciudadano para enriquecer despacho sin bloquear respuesta
         let citizenProfile = null;
-        if (userId !== '00000000-0000-0000-0000-000000000002') {
+        if (userId !== system_1.ANONYMOUS_CITIZEN_UUID) {
             try {
                 citizenProfile = await User_1.default.findById(userId);
             }
@@ -98,8 +91,7 @@ router.post('/panic', async (req, res) => {
         };
         (0, socket_1.emitToOperators)('alert:new', alertData);
         // Despacho asíncrono en paralelo: Push a patrullas + WhatsApp operativo con link de rastreo
-        const frontendBase = (env_1.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
-        const trackingUrl = `${frontendBase}/citizen-tracker?alertId=${encodeURIComponent(alert.id)}`;
+        const trackingUrl = (0, url_1.buildCitizenTrackingUrl)(alert.id);
         PushDispatchService_1.PushDispatchService.broadcastEmergencyToResponders({
             alertId: alert.id,
             title: triggerType === 'ghost_mode'
@@ -150,12 +142,19 @@ router.post('/panic', async (req, res) => {
 router.post('/location', async (req, res) => {
     try {
         const { alertId, latitude, longitude, accuracy, speed, heading } = req.body;
-        const tokenUser = extractUserFromOptionalToken(req);
-        const userId = tokenUser.userId || '00000000-0000-0000-0000-000000000002';
+        const tokenUser = (0, auth_1.extractOptionalUser)(req);
+        const userId = tokenUser.userId || system_1.ANONYMOUS_CITIZEN_UUID;
         if (!alertId || latitude === undefined || longitude === undefined) {
             return res.status(400).json({
                 success: false,
                 message: 'alertId, latitude y longitude son obligatorios',
+            });
+        }
+        const ownership = await verifyMobileAlertOwnership(String(alertId), userId);
+        if (!ownership.ok) {
+            return res.status(ownership.status).json({
+                success: false,
+                message: ownership.message,
             });
         }
         const locationData = {
@@ -171,13 +170,8 @@ router.post('/location', async (req, res) => {
         (0, socket_1.emitToAlertRoom)(alertId, 'user:location_update', locationData);
         (0, socket_1.emitToOperators)('user:location_update', locationData);
         try {
-            await (0, connection_1.supabase)().from('alert_events').insert({
-                alert_id: alertId,
-                actor_id: userId,
-                event_type: 'location_update',
-                location: `POINT(${longitude} ${latitude})`,
-                notes: 'Mobile live location update',
-            });
+            await (0, connection_1.getPgPool)().query(`INSERT INTO public.alert_events (alert_id, actor_id, event_type, location, notes)
+         VALUES ($1, $2, 'location_update', ST_SetSRID(ST_MakePoint($3, $4), 4326), 'Mobile live location update')`, [alertId, userId, Number(longitude), Number(latitude)]);
         }
         catch (lErr) {
             console.warn('Warning logging mobile location update:', lErr.message);
@@ -205,7 +199,15 @@ router.post('/evidence/audio', async (req, res) => {
                 message: 'alertId y audioBase64 son obligatorios',
             });
         }
-        const tokenUser = extractUserFromOptionalToken(req);
+        const tokenUser = (0, auth_1.extractOptionalUser)(req);
+        const callerUserId = tokenUser.userId || system_1.ANONYMOUS_CITIZEN_UUID;
+        const ownership = await verifyMobileAlertOwnership(String(alertId), callerUserId);
+        if (!ownership.ok) {
+            return res.status(ownership.status).json({
+                success: false,
+                message: ownership.message,
+            });
+        }
         const saved = await EvidenceStorageService_1.EvidenceStorageService.saveAudioChunk({
             alertId,
             userId: tokenUser.userId || null,
@@ -213,7 +215,7 @@ router.post('/evidence/audio', async (req, res) => {
             mimeType,
             chunkIndex,
             durationMs,
-            apiBaseUrl: getRequestBaseUrl(req),
+            apiBaseUrl: (0, url_1.resolveRequestBaseUrl)(req),
         });
         // Notificar en vivo al Centro de Mando Web (compatible con useCommandStore.pushAudioChunk)
         (0, socket_1.emitToOperators)('evidence:audio_chunk', {
@@ -259,9 +261,8 @@ router.get('/evidence/stream/:id', async (req, res) => {
         const sig = req.query.sig;
         const validSignature = (0, cryptoVault_1.verifyEvidenceStreamSignature)(id, exp, sig);
         if (!validSignature) {
-            const tokenUser = extractUserFromOptionalToken(req);
-            const allowedRoles = ['operator', 'supervisor', 'admin', 'police'];
-            if (!tokenUser.role || !allowedRoles.includes(tokenUser.role)) {
+            const tokenUser = (0, auth_1.extractOptionalUser)(req);
+            if (!tokenUser.role || !system_1.AUTHORITY_ROLES.includes(tokenUser.role)) {
                 return res.status(403).json({
                     success: false,
                     message: 'Firma de acceso expirada o no autorizada',
@@ -312,12 +313,12 @@ router.get('/evidence/stream/:id', async (req, res) => {
 router.get('/evidence/vault', auth_1.requireAuth, async (req, res) => {
     try {
         const authUser = req.user;
-        const userId = authUser?.userId || authUser?.id;
+        const userId = (0, auth_1.getRequestUserId)(req) || '';
         const role = authUser?.role || 'citizen';
         const bundles = await EvidenceStorageService_1.EvidenceStorageService.listEvidenceVault({
             userId,
             role,
-            apiBaseUrl: getRequestBaseUrl(req),
+            apiBaseUrl: (0, url_1.resolveRequestBaseUrl)(req),
         });
         res.json({ success: true, count: bundles.length, data: bundles });
     }
@@ -336,7 +337,7 @@ router.get('/evidence/vault', auth_1.requireAuth, async (req, res) => {
 router.get('/alerts/:id/evidence', auth_1.requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const items = await EvidenceStorageService_1.EvidenceStorageService.listAlertEvidence(id, getRequestBaseUrl(req));
+        const items = await EvidenceStorageService_1.EvidenceStorageService.listAlertEvidence(id, (0, url_1.resolveRequestBaseUrl)(req));
         res.json({ success: true, data: items });
     }
     catch (error) {
@@ -353,7 +354,7 @@ router.get('/alerts/:id/evidence', auth_1.requireAuth, async (req, res) => {
 router.post('/push-token', auth_1.requireAuth, async (req, res) => {
     try {
         const user = req.user;
-        const userId = user?.userId || user?.id;
+        const userId = (0, auth_1.getRequestUserId)(req) || '';
         const { expoPushToken, platform } = req.body;
         if (!expoPushToken) {
             return res
@@ -393,20 +394,19 @@ router.delete('/push-token', auth_1.requireAuth, async (req, res) => {
 // GET /api/mobile/alerts/me
 router.get('/alerts/me', auth_1.requireAuth, async (req, res) => {
     try {
-        const userId = req.user?.userId || req.user?.id;
-        const { data: alerts, error } = await (0, connection_1.supabase)()
-            .from('alerts')
-            .select('id, type, status, address, description, created_at, location')
-            .eq('user_id', userId)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false })
-            .limit(10);
-        if (error)
-            throw error;
+        const userId = (0, auth_1.getRequestUserId)(req);
+        if (!userId || !system_1.UUID_REGEX.test(userId)) {
+            return res.json({ success: true, data: [] });
+        }
+        const alertsRes = await (0, connection_1.getPgPool)().query(`SELECT id, type, status, address, description, created_at, ST_AsText(location) AS location_wkt, location
+       FROM public.alerts
+       WHERE user_id = $1 AND status = 'pending'
+       ORDER BY created_at DESC
+       LIMIT 10`, [userId]);
         res.json({
             success: true,
-            data: (alerts || []).map((a) => {
-                const coords = (0, postgis_1.parsePostgisPoint)(a.location);
+            data: alertsRes.rows.map((a) => {
+                const coords = (0, postgis_1.parsePostgisPoint)(a.location_wkt ?? a.location);
                 const lat = coords?.latitude ?? 0;
                 const lng = coords?.longitude ?? 0;
                 return {
@@ -428,10 +428,9 @@ router.get('/alerts/me', auth_1.requireAuth, async (req, res) => {
 router.patch('/alerts/:id/cancel', auth_1.requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.user?.userId || req.user?.id;
-        const sb = (0, connection_1.supabase)();
-        const { data: existing } = await sb.from('alerts').select('*').eq('id', id).single();
-        if (!existing || existing.user_id !== userId) {
+        const userId = (0, auth_1.getRequestUserId)(req) || '';
+        const existing = await Alert_1.default.findById(id);
+        if (!existing || (existing.userId || existing.user_id) !== userId) {
             return res
                 .status(404)
                 .json({ success: false, message: 'Alerta no encontrada o no autorizada' });

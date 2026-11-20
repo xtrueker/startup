@@ -28,6 +28,20 @@ export interface KycEvaluationResult {
 }
 
 const MIN_SIMILARITY_THRESHOLD = 85;
+const PRIVACY_POLICY_VERSION = 'L1581-2026.1';
+
+function createKycError(
+  message: string,
+  statusCode = 422,
+  code?: string,
+  extra?: Record<string, unknown>
+): Error {
+  const err: any = new Error(message);
+  err.statusCode = statusCode;
+  if (code) err.code = code;
+  if (extra) Object.assign(err, extra);
+  return err;
+}
 
 function decodeBase64Image(raw: string): Buffer {
   const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/s);
@@ -47,17 +61,14 @@ async function inspectAndNormalizeImage(buf: Buffer, label: string) {
     meta = await img.metadata();
     stats = await img.stats();
   } catch {
-    const err: any = new Error(`El archivo de ${label} no es una imagen válida.`);
-    err.statusCode = 422;
-    throw err;
+    throw createKycError(`El archivo de ${label} no es una imagen válida.`, 422);
   }
 
   if ((meta.width || 0) < 180 || (meta.height || 0) < 180) {
-    const err: any = new Error(
-      `La captura de ${label} tiene resolución insuficiente (${meta.width}x${meta.height}). Toma una fotografía más nítida.`
+    throw createKycError(
+      `La captura de ${label} tiene resolución insuficiente (${meta.width}x${meta.height}). Toma una fotografía más nítida.`,
+      422
     );
-    err.statusCode = 422;
-    throw err;
   }
 
   const avgStdev =
@@ -65,11 +76,10 @@ async function inspectAndNormalizeImage(buf: Buffer, label: string) {
     Math.max(1, Math.min(3, stats.channels.length));
 
   if (avgStdev < 8) {
-    const err: any = new Error(
-      `La captura de ${label} carece de detalle visual (imagen en negro, velada o borrosa).`
+    throw createKycError(
+      `La captura de ${label} carece de detalle visual (imagen en negro, velada o borrosa).`,
+      422
     );
-    err.statusCode = 422;
-    throw err;
   }
 
   // Normalizar orientación EXIF (crítico en iOS/Android) y preservar nitidez facial (1600px @ JPEG 88)
@@ -92,16 +102,15 @@ async function invokeAwsRekognition(
   action: 'CompareFaces' | 'DetectText' | 'DetectFaces' | 'DetectLabels',
   payloadObj: Record<string, unknown>
 ): Promise<{ ok: boolean; status: number; data: any; rawText: string }> {
-  const accessKey = (process.env.AWS_ACCESS_KEY_ID || '').trim().replace(/^["']|["']$/g, '');
-  const secretKey = (process.env.AWS_SECRET_ACCESS_KEY || '').trim().replace(/^["']|["']$/g, '');
-  const region = (process.env.AWS_REGION || 'us-east-1').trim();
+  const accessKey = env.AWS_ACCESS_KEY_ID || '';
+  const secretKey = env.AWS_SECRET_ACCESS_KEY || '';
+  const region = env.AWS_REGION;
 
   if (!accessKey || !secretKey) {
-    const cfgErr: any = new Error(
-      'El motor de inteligencia biométrica no está configurado en el servidor.'
+    throw createKycError(
+      'El motor de inteligencia biométrica no está configurado en el servidor.',
+      503
     );
-    cfgErr.statusCode = 503;
-    throw cfgErr;
   }
 
   const service = 'rekognition';
@@ -286,41 +295,37 @@ function extractColombianIdIntelligence(lines: string[]): {
   const isDigitalLayout =
     joinedUpper.includes('SURNAME') || joinedUpper.includes('GIVEN NAME');
 
+  const findAdjacentCleanField = (idx: number): string => {
+    const firstCandidateIdx = isDigitalLayout ? idx + 1 : idx - 1;
+    const secondCandidateIdx = isDigitalLayout ? idx - 1 : idx + 1;
+
+    if (
+      firstCandidateIdx >= 0 &&
+      firstCandidateIdx < cleanLines.length &&
+      isCleanPersonNameCandidate(cleanLines[firstCandidateIdx])
+    ) {
+      return cleanLines[firstCandidateIdx];
+    }
+    if (
+      secondCandidateIdx >= 0 &&
+      secondCandidateIdx < cleanLines.length &&
+      isCleanPersonNameCandidate(cleanLines[secondCandidateIdx])
+    ) {
+      return cleanLines[secondCandidateIdx];
+    }
+    return '';
+  };
+
   let apellidos = '';
   let nombres = '';
 
   for (let i = 0; i < cleanLines.length; i++) {
     const upper = cleanLines[i].toUpperCase();
     if (!apellidos && upper.includes('APELLIDO')) {
-      if (isDigitalLayout) {
-        if (i + 1 < cleanLines.length && isCleanPersonNameCandidate(cleanLines[i + 1])) {
-          apellidos = cleanLines[i + 1];
-        } else if (i > 0 && isCleanPersonNameCandidate(cleanLines[i - 1])) {
-          apellidos = cleanLines[i - 1];
-        }
-      } else {
-        if (i > 0 && isCleanPersonNameCandidate(cleanLines[i - 1])) {
-          apellidos = cleanLines[i - 1];
-        } else if (i + 1 < cleanLines.length && isCleanPersonNameCandidate(cleanLines[i + 1])) {
-          apellidos = cleanLines[i + 1];
-        }
-      }
+      apellidos = findAdjacentCleanField(i);
     }
-
     if (!nombres && upper.includes('NOMBRE')) {
-      if (isDigitalLayout) {
-        if (i + 1 < cleanLines.length && isCleanPersonNameCandidate(cleanLines[i + 1])) {
-          nombres = cleanLines[i + 1];
-        } else if (i > 0 && isCleanPersonNameCandidate(cleanLines[i - 1])) {
-          nombres = cleanLines[i - 1];
-        }
-      } else {
-        if (i > 0 && isCleanPersonNameCandidate(cleanLines[i - 1])) {
-          nombres = cleanLines[i - 1];
-        } else if (i + 1 < cleanLines.length && isCleanPersonNameCandidate(cleanLines[i + 1])) {
-          nombres = cleanLines[i + 1];
-        }
-      }
+      nombres = findAdjacentCleanField(i);
     }
   }
 
@@ -441,21 +446,32 @@ interface LiveFrameBioProfile {
   boxWidth: number;
 }
 
+interface PadSpoofFinding {
+  kind: 'document' | 'screen' | 'id_text';
+  detail: string;
+}
+
+interface PadFrameScanResult {
+  spoof: PadSpoofFinding | null;
+  primaryFace: any | null;
+  bio: LiveFrameBioProfile | null;
+}
+
 /**
- * Presentation Attack Detection (PAD - ISO 30107-3):
- * Bloquea el uso de una cédula física, fotografía impresa o pantalla de otro celular/monitor
- * frente a la cámara de selfie, y extrae la geometría 3D/muscular del rostro humano en vivo.
+ * Ejecuta las 3 inspecciones Rekognition en paralelo (DetectLabels + DetectText + DetectFaces)
+ * y extrae hallazgos PAD (ISO 30107-3) + biometría 3D/muscular del rostro principal.
+ * Compartido entre guía interactiva en vivo y validación final antifraude.
  */
-async function analyzeLiveFrameAntiSpoofing(
+async function scanFrameForPadAndFace(
   normalizedJpeg: Buffer,
-  frameLabel: string
-): Promise<LiveFrameBioProfile> {
+  maxLabels = 25
+): Promise<PadFrameScanResult> {
   const b64 = normalizedJpeg.toString('base64');
 
   const [labelsResp, textResp, facesResp] = await Promise.all([
     invokeAwsRekognition('DetectLabels', {
       Image: { Bytes: b64 },
-      MaxLabels: 25,
+      MaxLabels: maxLabels,
       MinConfidence: 62,
     }),
     invokeAwsRekognition('DetectText', {
@@ -467,92 +483,52 @@ async function analyzeLiveFrameAntiSpoofing(
     }),
   ]);
 
-  // 1. Bloquear documentos físicos, papel, marcos o pantallas electrónicas frente al lente
+  let spoof: PadSpoofFinding | null = null;
   const labels: any[] = Array.isArray(labelsResp.data?.Labels) ? labelsResp.data.Labels : [];
   for (const lbl of labels) {
     const name = String(lbl?.Name || '');
     const conf = Number(lbl?.Confidence || 0);
-
     if (SPOOF_DOCUMENT_LABELS.has(name) && conf >= 65) {
-      logger.warn(`🚫 [PAD Anti-Spoof] Documento/foto física detectada en ${frameLabel}: ${name} (${conf.toFixed(1)}%)`);
-      const err: any = new Error(
-        'Alerta antifraude: Se detectó una cédula, fotografía impresa o documento frente a la cámara. Debes mostrar únicamente tu rostro real en vivo.'
-      );
-      err.statusCode = 422;
-      err.code = 'SPOOF_DOCUMENT_DETECTED';
-      throw err;
+      spoof = { kind: 'document', detail: `${name} (${conf.toFixed(1)}%)` };
+      break;
     }
-
     if (SPOOF_SCREEN_LABELS.has(name) && conf >= 68) {
-      logger.warn(`🚫 [PAD Anti-Spoof] Pantalla/dispositivo detectado en ${frameLabel}: ${name} (${conf.toFixed(1)}%)`);
-      const err: any = new Error(
-        'Alerta antifraude: Se detectó la pantalla de otro teléfono o monitor frente a la cámara. Realiza el escaneo con tu rostro real en vivo.'
-      );
-      err.statusCode = 422;
-      err.code = 'SPOOF_SCREEN_DETECTED';
-      throw err;
+      spoof = { kind: 'screen', detail: `${name} (${conf.toFixed(1)}%)` };
+      break;
     }
   }
 
-  // 2. Bloquear texto propio de cédulas/documentos dentro de la captura facial en vivo
-  const textLines: any[] = Array.isArray(textResp.data?.TextDetections)
-    ? textResp.data.TextDetections.filter((t: any) => t?.Type === 'LINE' && Number(t?.Confidence || 0) >= 75)
+  if (!spoof) {
+    const textLines: any[] = Array.isArray(textResp.data?.TextDetections)
+      ? textResp.data.TextDetections.filter(
+          (t: any) => t?.Type === 'LINE' && Number(t?.Confidence || 0) >= 75
+        )
+      : [];
+    const upperAllText = textLines
+      .map((t) => String(t.DetectedText || '').toUpperCase())
+      .join(' ');
+    const matchedIdKeyword = ID_SPOOF_TEXT_KEYWORDS.find((kw) => upperAllText.includes(kw));
+    if (matchedIdKeyword || textLines.length >= 4) {
+      spoof = { kind: 'id_text', detail: matchedIdKeyword || 'multi-line' };
+    }
+  }
+
+  const faces: any[] = Array.isArray(facesResp.data?.FaceDetails)
+    ? [...facesResp.data.FaceDetails]
     : [];
-
-  const upperAllText = textLines.map((t) => String(t.DetectedText || '').toUpperCase()).join(' ');
-  const matchedIdKeyword = ID_SPOOF_TEXT_KEYWORDS.find((kw) => upperAllText.includes(kw));
-
-  if (matchedIdKeyword || textLines.length >= 4) {
-    logger.warn(
-      `🚫 [PAD Anti-Spoof] Texto documental detectado en selfie (${frameLabel}): kw=${matchedIdKeyword || 'multi-line'}`
-    );
-    const err: any = new Error(
-      'Alerta antifraude: No se permite usar la foto de la cédula ni imágenes con texto en la prueba de rostro en vivo.'
-    );
-    err.statusCode = 422;
-    err.code = 'SPOOF_ID_CARD_IN_SELFIE';
-    throw err;
-  }
-
-  // 3. Validar anatomía y proporción real de rostro humano frente a cámara frontal
-  const faces: any[] = Array.isArray(facesResp.data?.FaceDetails) ? facesResp.data.FaceDetails : [];
   if (faces.length === 0) {
-    const err: any = new Error(
-      'No se detectó un rostro humano frente a la cámara. Encuadra tu cara dentro del óvalo con buena iluminación.'
-    );
-    err.statusCode = 422;
-    err.code = 'NO_LIVE_FACE';
-    throw err;
+    return { spoof, primaryFace: null, bio: null };
   }
 
-  // Seleccionar rostro principal por área
   faces.sort(
     (a, b) =>
       Number(b?.BoundingBox?.Width || 0) * Number(b?.BoundingBox?.Height || 0) -
       Number(a?.BoundingBox?.Width || 0) * Number(a?.BoundingBox?.Height || 0)
   );
   const f = faces[0];
-  const boxH = Number(f?.BoundingBox?.Height || 0);
-  const boxW = Number(f?.BoundingBox?.Width || 0);
-
-  if (boxH < 0.16 || boxW < 0.12) {
-    const err: any = new Error(
-      'Tu rostro se ve demasiado pequeño o lejano (típico de retratos impresos). Acerca tu rostro al óvalo de la cámara frontal.'
-    );
-    err.statusCode = 422;
-    err.code = 'FACE_TOO_SMALL_OR_PRINTED';
-    throw err;
-  }
-
-  if (f?.Sunglasses?.Value === true && Number(f?.Sunglasses?.Confidence || 0) >= 80) {
-    const err: any = new Error('Por favor retira las gafas oscuras para validar tus rasgos en vivo.');
-    err.statusCode = 422;
-    throw err;
-  }
 
   const smileVal = Boolean(f?.Smile?.Value);
   const smileConf = Number(f?.Smile?.Confidence || 0);
-  // Puntuación continua [0..100] de sonrisa (0 = completamente serio, 100 = sonrisa amplia)
   const smileScore = smileVal ? smileConf : Math.max(0, 100 - smileConf);
 
   const mouthVal = Boolean(f?.MouthOpen?.Value);
@@ -560,17 +536,90 @@ async function analyzeLiveFrameAntiSpoofing(
   const mouthOpenScore = mouthVal ? mouthConf : Math.max(0, 100 - mouthConf);
 
   return {
-    smile: smileVal,
-    smileScore,
-    mouthOpen: mouthVal,
-    mouthOpenScore,
-    eyesOpen: f?.EyesOpen?.Value !== false,
-    yaw: Number(f?.Pose?.Yaw || 0),
-    pitch: Number(f?.Pose?.Pitch || 0),
-    roll: Number(f?.Pose?.Roll || 0),
-    boxHeight: boxH,
-    boxWidth: boxW,
+    spoof,
+    primaryFace: f,
+    bio: {
+      smile: smileVal,
+      smileScore,
+      mouthOpen: mouthVal,
+      mouthOpenScore,
+      eyesOpen: f?.EyesOpen?.Value !== false,
+      yaw: Number(f?.Pose?.Yaw || 0),
+      pitch: Number(f?.Pose?.Pitch || 0),
+      roll: Number(f?.Pose?.Roll || 0),
+      boxHeight: Number(f?.BoundingBox?.Height || 0),
+      boxWidth: Number(f?.BoundingBox?.Width || 0),
+    },
   };
+}
+
+/**
+ * Presentation Attack Detection (PAD - ISO 30107-3):
+ * Bloquea el uso de una cédula física, fotografía impresa o pantalla de otro celular/monitor
+ * frente a la cámara de selfie, y extrae la geometría 3D/muscular del rostro humano en vivo.
+ */
+async function analyzeLiveFrameAntiSpoofing(
+  normalizedJpeg: Buffer,
+  frameLabel: string
+): Promise<LiveFrameBioProfile> {
+  const scan = await scanFrameForPadAndFace(normalizedJpeg, 25);
+
+  if (scan.spoof?.kind === 'document') {
+    logger.warn(`🚫 [PAD Anti-Spoof] Documento/foto física detectada en ${frameLabel}: ${scan.spoof.detail}`);
+    throw createKycError(
+      'Alerta antifraude: Se detectó una cédula, fotografía impresa o documento frente a la cámara. Debes mostrar únicamente tu rostro real en vivo.',
+      422,
+      'SPOOF_DOCUMENT_DETECTED'
+    );
+  }
+
+  if (scan.spoof?.kind === 'screen') {
+    logger.warn(`🚫 [PAD Anti-Spoof] Pantalla/dispositivo detectado en ${frameLabel}: ${scan.spoof.detail}`);
+    throw createKycError(
+      'Alerta antifraude: Se detectó la pantalla de otro teléfono o monitor frente a la cámara. Realiza el escaneo con tu rostro real en vivo.',
+      422,
+      'SPOOF_SCREEN_DETECTED'
+    );
+  }
+
+  if (scan.spoof?.kind === 'id_text') {
+    logger.warn(
+      `🚫 [PAD Anti-Spoof] Texto documental detectado en selfie (${frameLabel}): kw=${scan.spoof.detail}`
+    );
+    throw createKycError(
+      'Alerta antifraude: No se permite usar la foto de la cédula ni imágenes con texto en la prueba de rostro en vivo.',
+      422,
+      'SPOOF_ID_CARD_IN_SELFIE'
+    );
+  }
+
+  if (!scan.primaryFace || !scan.bio) {
+    throw createKycError(
+      'No se detectó un rostro humano frente a la cámara. Encuadra tu cara dentro del óvalo con buena iluminación.',
+      422,
+      'NO_LIVE_FACE'
+    );
+  }
+
+  if (scan.bio.boxHeight < 0.16 || scan.bio.boxWidth < 0.12) {
+    throw createKycError(
+      'Tu rostro se ve demasiado pequeño o lejano (típico de retratos impresos). Acerca tu rostro al óvalo de la cámara frontal.',
+      422,
+      'FACE_TOO_SMALL_OR_PRINTED'
+    );
+  }
+
+  if (
+    scan.primaryFace?.Sunglasses?.Value === true &&
+    Number(scan.primaryFace?.Sunglasses?.Confidence || 0) >= 80
+  ) {
+    throw createKycError(
+      'Por favor retira las gafas oscuras para validar tus rasgos en vivo.',
+      422
+    );
+  }
+
+  return scan.bio;
 }
 
 function signTokenPayload(payload: Record<string, unknown>): string {
@@ -702,55 +751,24 @@ export class KycVerificationService {
       };
     }
 
-    const b64 = normalizedProbe.toString('base64');
-    const [labelsResp, textResp, facesResp] = await Promise.all([
-      invokeAwsRekognition('DetectLabels', {
-        Image: { Bytes: b64 },
-        MaxLabels: 20,
-        MinConfidence: 62,
-      }),
-      invokeAwsRekognition('DetectText', {
-        Image: { Bytes: b64 },
-      }),
-      invokeAwsRekognition('DetectFaces', {
-        Image: { Bytes: b64 },
-        Attributes: ['ALL'],
-      }),
-    ]);
+    const scan = await scanFrameForPadAndFace(normalizedProbe, 20);
 
     // 1. Bloqueo en vivo contra fotos impresas, pantallas o cédulas frente al lente
-    const labels: any[] = Array.isArray(labelsResp.data?.Labels) ? labelsResp.data.Labels : [];
-    for (const lbl of labels) {
-      const name = String(lbl?.Name || '');
-      const conf = Number(lbl?.Confidence || 0);
-      if (SPOOF_DOCUMENT_LABELS.has(name) && conf >= 65) {
-        return {
-          status: 'spoof_blocked',
-          tone: 'crimson',
-          guidance: 'No uses cédulas ni fotos impresas. Muestra únicamente tu rostro real.',
-        };
-      }
-      if (SPOOF_SCREEN_LABELS.has(name) && conf >= 68) {
-        return {
-          status: 'spoof_blocked',
-          tone: 'crimson',
-          guidance: 'Retira otros celulares o pantallas. Muestra únicamente tu rostro real.',
-        };
-      }
+    if (scan.spoof?.kind === 'document') {
+      return {
+        status: 'spoof_blocked',
+        tone: 'crimson',
+        guidance: 'No uses cédulas ni fotos impresas. Muestra únicamente tu rostro real.',
+      };
     }
-
-    const textLines: any[] = Array.isArray(textResp.data?.TextDetections)
-      ? textResp.data.TextDetections.filter(
-          (t: any) => t?.Type === 'LINE' && Number(t?.Confidence || 0) >= 75
-        )
-      : [];
-    const upperAllText = textLines
-      .map((t) => String(t.DetectedText || '').toUpperCase())
-      .join(' ');
-    if (
-      ID_SPOOF_TEXT_KEYWORDS.some((kw) => upperAllText.includes(kw)) ||
-      textLines.length >= 4
-    ) {
+    if (scan.spoof?.kind === 'screen') {
+      return {
+        status: 'spoof_blocked',
+        tone: 'crimson',
+        guidance: 'Retira otros celulares o pantallas. Muestra únicamente tu rostro real.',
+      };
+    }
+    if (scan.spoof?.kind === 'id_text') {
       return {
         status: 'spoof_blocked',
         tone: 'crimson',
@@ -759,10 +777,7 @@ export class KycVerificationService {
     }
 
     // 2. Guía amable paso a paso de posición del rostro
-    const faces: any[] = Array.isArray(facesResp.data?.FaceDetails)
-      ? facesResp.data.FaceDetails
-      : [];
-    if (faces.length === 0) {
+    if (!scan.primaryFace || !scan.bio) {
       return {
         status: 'coaching',
         tone: 'neutral',
@@ -770,14 +785,16 @@ export class KycVerificationService {
       };
     }
 
-    faces.sort(
-      (a, b) =>
-        Number(b?.BoundingBox?.Width || 0) * Number(b?.BoundingBox?.Height || 0) -
-        Number(a?.BoundingBox?.Width || 0) * Number(a?.BoundingBox?.Height || 0)
-    );
-    const f = faces[0];
-    const boxH = Number(f?.BoundingBox?.Height || 0);
-    const boxW = Number(f?.BoundingBox?.Width || 0);
+    const f = scan.primaryFace;
+    const {
+      boxHeight: boxH,
+      boxWidth: boxW,
+      yaw,
+      pitch,
+      roll,
+      smile: smileVal,
+      smileScore,
+    } = scan.bio;
 
     if (boxH < 0.19 || boxW < 0.14) {
       return {
@@ -802,13 +819,6 @@ export class KycVerificationService {
         guidance: 'Mira hacia la pantalla con los ojos abiertos',
       };
     }
-
-    const yaw = Number(f?.Pose?.Yaw || 0);
-    const pitch = Number(f?.Pose?.Pitch || 0);
-    const roll = Number(f?.Pose?.Roll || 0);
-    const smileVal = Boolean(f?.Smile?.Value);
-    const smileConf = Number(f?.Smile?.Confidence || 0);
-    const smileScore = smileVal ? smileConf : Math.max(0, 100 - smileConf);
 
     // ETAPA 1: Esperar sin prisa hasta que mire tranquilo de frente a la cámara
     if (stage === 'align_neutral') {
@@ -1300,8 +1310,8 @@ export class KycVerificationService {
            kyc_metadata = $6::jsonb,
            kyc_encrypted_vault = $7::jsonb,
            privacy_consent_at = NOW(),
-           privacy_policy_version = 'L1581-2026.1'
-       WHERE id = $1`,
+            privacy_policy_version = $8
+        WHERE id = $1`,
       [
         userId,
         evaluation.isVerified,
@@ -1310,6 +1320,7 @@ export class KycVerificationService {
         evaluation.provider,
         JSON.stringify(evaluation.metadata),
         evaluation.encryptedVault ? JSON.stringify(evaluation.encryptedVault) : null,
+        PRIVACY_POLICY_VERSION,
       ]
     );
 
@@ -1321,7 +1332,7 @@ export class KycVerificationService {
         userId,
         ipAddress || null,
         JSON.stringify({
-          policy: 'L1581-2026.1',
+          policy: PRIVACY_POLICY_VERSION,
           provider: evaluation.provider,
           status: evaluation.facialVerificationStatus,
           similarityScore: evaluation.similarityScore,

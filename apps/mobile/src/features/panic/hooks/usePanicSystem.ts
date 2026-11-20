@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Alert, Vibration, Platform } from 'react-native';
+import { Vibration, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { panicService, PanicState } from '../../../services/panicService';
+import { showAlert } from '../../../utils/dialogs';
 
 export function usePanicSystem() {
   const [panicState, setPanicState] = useState<PanicState>(() => panicService.getState());
@@ -31,13 +32,13 @@ export function usePanicSystem() {
       });
 
       if (nextState.isOffline) {
-        Alert.alert(
+        showAlert(
           'Modo Offline',
           'Se perdió la conexión. Su alerta y audio se transmitirán tan pronto intercepte señal.'
         );
       }
     } catch {
-      Alert.alert('Error Fatal', 'No se pudo acceder a los sensores del dispositivo.');
+      showAlert('Error Fatal', 'No se pudo acceder a los sensores del dispositivo.');
     } finally {
       setLoading(false);
     }
@@ -48,7 +49,7 @@ export function usePanicSystem() {
     try {
       await panicService.cancelPanicAlert();
     } catch {
-      Alert.alert('Error', 'No se pudo cancelar la alerta en la red.');
+      showAlert('Error', 'No se pudo cancelar la alerta en la red.');
     }
   };
 

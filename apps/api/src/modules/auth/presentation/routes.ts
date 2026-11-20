@@ -1,11 +1,66 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { User } from '../../../infrastructure/database/models';
 import { env } from '../../../config/env';
-import { requireAuth } from '../../../shared/middlewares/auth';
+import { requireAuth, getRequestUserId } from '../../../shared/middlewares/auth';
 import { KycVerificationService } from '../../kyc/services/KycVerificationService';
 
 const router = Router();
+
+// Rate limiters granulares por costo computacional / facturación AWS Rekognition
+const credentialsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 25,
+  standardHeaders: true,
+  message: {
+    success: false,
+    message: 'Demasiados intentos de acceso desde esta red. Espera unos minutos.',
+  },
+});
+
+const documentOcrLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  message: {
+    success: false,
+    message: 'Límite temporal de lecturas de documento alcanzado. Intenta nuevamente en unos minutos.',
+  },
+});
+
+const biometricVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 12,
+  standardHeaders: true,
+  message: {
+    success: false,
+    message: 'Demasiadas validaciones biométricas seguidas. Espera unos minutos.',
+  },
+});
+
+const livenessProbeLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  message: {
+    success: false,
+    message: 'Sesión de cámara excedida temporalmente. Espera un momento e intenta de nuevo.',
+  },
+});
+
+function signAuthToken(user: Record<string, any>): string {
+  return jwt.sign(
+    {
+      userId: user.id,
+      role: user.role,
+      cedula: user.cedula,
+      fullName: user.full_name ?? user.fullName,
+    },
+    env.JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+}
 
 /**
  * @swagger
@@ -22,7 +77,7 @@ const router = Router();
  *     tags: [Auth]
  *     security: []
  */
-router.post('/analyze-document', async (req: Request, res: Response) => {
+router.post('/analyze-document', documentOcrLimiter, async (req: Request, res: Response) => {
   try {
     const { imageBase64, side } = req.body;
     const result = await KycVerificationService.analyzeIdDocumentPreview({
@@ -67,7 +122,7 @@ router.get('/liveness-challenge', (_req: Request, res: Response) => {
  *     tags: [Auth]
  *     security: []
  */
-router.post('/liveness-probe', async (req: Request, res: Response) => {
+router.post('/liveness-probe', livenessProbeLimiter, async (req: Request, res: Response) => {
   try {
     const { stage, frameBase64, token } = req.body;
     const result = await KycVerificationService.evaluateLiveGuidanceProbe({
@@ -99,7 +154,7 @@ router.post('/liveness-probe', async (req: Request, res: Response) => {
  *     tags: [Auth]
  *     security: []
  */
-router.post('/verify-biometrics', async (req: Request, res: Response) => {
+router.post('/verify-biometrics', biometricVerifyLimiter, async (req: Request, res: Response) => {
   try {
     const { idCardFront, selfieNeutral, selfiePhoto, challengeToken } = req.body;
     const result = await KycVerificationService.verifyFaceMatchPreview({
@@ -173,7 +228,7 @@ router.post('/verify-biometrics', async (req: Request, res: Response) => {
  *       500:
  *         $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', credentialsLimiter, async (req: Request, res: Response) => {
   try {
     const { fullName, cedula, email, password, role, phone, ciudad, idCardFront, idCardBack, selfiePhoto, livenessProofToken } = req.body;
 
@@ -227,28 +282,17 @@ router.post('/register', async (req: Request, res: Response) => {
       );
     }
 
-    const token = jwt.sign(
-      { userId: user.id, role: user.role, cedula: user.cedula },
-      env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const token = signAuthToken(user);
 
     res.status(201).json({
       success: true,
       message: 'Usuario registrado exitosamente',
       data: {
-        user: {
-          id: user.id,
-          fullName: user.full_name,
-          cedula: user.cedula,
-          email: user.email,
-          role: user.role,
-          phone: user.phone,
-          ciudad: user.ciudad,
+        user: User.toDTO(user, {
           isVerified: kycEvaluation.isVerified,
           facialVerificationStatus: kycEvaluation.facialVerificationStatus,
           kycSimilarityScore: kycEvaluation.similarityScore,
-        },
+        }),
         token,
       },
     });
@@ -297,7 +341,7 @@ router.post('/register', async (req: Request, res: Response) => {
  *       500:
  *         $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', credentialsLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
@@ -322,21 +366,13 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    const token = jwt.sign(
-      { userId: user.id, role: user.role, cedula: user.cedula },
-      env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const token = signAuthToken(user);
 
     res.json({
       success: true,
       message: 'Login exitoso',
       data: {
-        user: {
-          id: user.id, fullName: user.full_name, cedula: user.cedula,
-          email: user.email, role: user.role, phone: user.phone, ciudad: user.ciudad, isVerified: user.is_verified,
-          facialVerificationStatus: user.facial_verification_status,
-        },
+        user: User.toDTO(user),
         token,
       },
     });
@@ -371,7 +407,10 @@ router.post('/login', async (req: Request, res: Response) => {
  */
 router.get('/me', requireAuth, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.userId;
+    const userId = getRequestUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+    }
     const user = await User.findById(userId);
 
     if (!user) {
@@ -380,18 +419,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: {
-        id: user.id,
-        fullName: user.full_name,
-        cedula: user.cedula,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        ciudad: user.ciudad,
-        isVerified: user.is_verified,
-        facialVerificationStatus: user.facial_verification_status,
-        createdAt: user.created_at,
-      },
+      data: User.toDTO(user),
     });
   } catch (error) {
     console.error('Error en /me:', error);

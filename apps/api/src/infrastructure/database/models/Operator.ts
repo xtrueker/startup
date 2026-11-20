@@ -1,4 +1,4 @@
-import { supabase, getPgPool } from '../connection';
+import { getPgPool } from '../connection';
 
 export type OperatorShift = 'mañana' | 'tarde' | 'noche' | '24x48';
 export type OperatorSpecialty = 'cctv' | 'despacho' | 'tactico' | 'supervisor';

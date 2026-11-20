@@ -221,8 +221,10 @@ class PatrolService {
     const token = await authService.getToken();
     if (!token) throw new Error('Sin token de autenticación');
 
+    const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
+
     return new Promise<void>((resolve, reject) => {
-      this.socket = io(config.API_URL, {
+      this.socket = io(config.SOCKET_URL, {
         auth: { token },
         transports: ['websocket'],
         reconnection: true,
@@ -237,7 +239,11 @@ class PatrolService {
       this.socket.on('connect', () => {
         clearTimeout(timeout);
         console.log('🚔 [PatrolService] WebSocket conectado:', this.socket?.id);
-        this.socket?.emit('patrol:start', { timestamp: new Date().toISOString() });
+        this.socket?.emit('patrol:start', {
+          latitude: lastKnown?.coords.latitude,
+          longitude: lastKnown?.coords.longitude,
+          timestamp: new Date().toISOString(),
+        });
         resolve();
       });
 

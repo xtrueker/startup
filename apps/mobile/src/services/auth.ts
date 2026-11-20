@@ -48,6 +48,13 @@ const safeStorage = {
   },
 };
 
+const STORAGE_KEYS = {
+  TOKEN: 'token',
+  USER_ID: 'userId',
+  USER_ROLE: 'userRole',
+  USER_PROFILE: 'userProfile',
+} as const;
+
 type AuthListener = (isAuthenticated: boolean) => void;
 const authListeners = new Set<AuthListener>();
 
@@ -61,11 +68,21 @@ function notifyAuthChange(isAuthenticated: boolean) {
   });
 }
 
+async function persistAuthenticatedSession(token: string, user: Record<string, any>) {
+  await Promise.all([
+    safeStorage.setItemAsync(STORAGE_KEYS.TOKEN, token),
+    safeStorage.setItemAsync(STORAGE_KEYS.USER_ID, String(user.id)),
+    safeStorage.setItemAsync(STORAGE_KEYS.USER_ROLE, String(user.role || 'citizen')),
+    safeStorage.setItemAsync(STORAGE_KEYS.USER_PROFILE, JSON.stringify(user)),
+  ]);
+  notifyAuthChange(true);
+}
+
 const api = axios.create({ baseURL: `${config.API_URL}/api` });
 
 // Auto-inject JWT token into every request
 api.interceptors.request.use(async (req) => {
-  const token = await safeStorage.getItemAsync('token');
+  const token = await safeStorage.getItemAsync(STORAGE_KEYS.TOKEN);
   if (token) req.headers.Authorization = `Bearer ${token}`;
   return req;
 });
@@ -103,22 +120,14 @@ export const authService = {
   login: async (data: LoginData) => {
     const res = await api.post('/auth/login', data);
     const { token, user } = res.data.data;
-    await safeStorage.setItemAsync('token', token);
-    await safeStorage.setItemAsync('userId', user.id);
-    await safeStorage.setItemAsync('userRole', user.role);
-    await safeStorage.setItemAsync('userProfile', JSON.stringify(user));
-    notifyAuthChange(true);
+    await persistAuthenticatedSession(token, user);
     return user;
   },
 
   register: async (data: RegisterData) => {
     const res = await api.post('/auth/register', data);
     const { token, user } = res.data.data;
-    await safeStorage.setItemAsync('token', token);
-    await safeStorage.setItemAsync('userId', user.id);
-    await safeStorage.setItemAsync('userRole', user.role);
-    await safeStorage.setItemAsync('userProfile', JSON.stringify(user));
-    notifyAuthChange(true);
+    await persistAuthenticatedSession(token, user);
     return user;
   },
 
@@ -176,10 +185,12 @@ export const authService = {
   },
 
   logout: async () => {
-    await safeStorage.deleteItemAsync('token');
-    await safeStorage.deleteItemAsync('userId');
-    await safeStorage.deleteItemAsync('userRole');
-    await safeStorage.deleteItemAsync('userProfile');
+    await Promise.all([
+      safeStorage.deleteItemAsync(STORAGE_KEYS.TOKEN),
+      safeStorage.deleteItemAsync(STORAGE_KEYS.USER_ID),
+      safeStorage.deleteItemAsync(STORAGE_KEYS.USER_ROLE),
+      safeStorage.deleteItemAsync(STORAGE_KEYS.USER_PROFILE),
+    ]);
     notifyAuthChange(false);
   },
 
@@ -190,14 +201,14 @@ export const authService = {
     };
   },
 
-  getToken: () => safeStorage.getItemAsync('token'),
-  getUserId: () => safeStorage.getItemAsync('userId'),
+  getToken: () => safeStorage.getItemAsync(STORAGE_KEYS.TOKEN),
+  getUserId: () => safeStorage.getItemAsync(STORAGE_KEYS.USER_ID),
   getProfile: async () => {
-    const json = await safeStorage.getItemAsync('userProfile');
+    const json = await safeStorage.getItemAsync(STORAGE_KEYS.USER_PROFILE);
     return json ? JSON.parse(json) : null;
   },
   getApiUrl: () => config.API_URL,
-  isAuthenticated: async () => !!(await safeStorage.getItemAsync('token')),
+  isAuthenticated: async () => !!(await safeStorage.getItemAsync(STORAGE_KEYS.TOKEN)),
 };
 
 export { api };

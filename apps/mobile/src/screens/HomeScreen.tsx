@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Vibration,
   Platform,
@@ -18,11 +17,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { TacticalMap } from '../components/TacticalMap';
 import { EvidenceVaultModal } from '../components/EvidenceVaultModal';
 import * as Location from 'expo-location';
+import { config } from '../config';
 import { authService } from '../services/auth';
 import { panicService, PanicState } from '../services/panicService';
 import { ghostModeService } from '../services/GhostModeService';
 import { useLocationStreaming } from '../hooks/useLocationStreaming';
 import { useCameras } from '../hooks/useCameras';
+import { confirmAction, showAlert } from '../utils/dialogs';
+import { reverseGeocodeCoordinates } from '../utils/geocoding';
 import {
   palette,
   fontSans,
@@ -39,12 +41,7 @@ import {
   TelemetryEqualizer,
 } from '../components/ui/PrismPrimitives';
 
-const INITIAL_REGION = {
-  latitude: 7.0653,
-  longitude: -73.8547,
-  latitudeDelta: 0.018,
-  longitudeDelta: 0.018,
-};
+const INITIAL_REGION = config.DEFAULT_MAP_REGION;
 
 export interface HomeScreenProps {
   onLogout?: () => void;
@@ -130,43 +127,11 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
   }, []);
 
   // Cross-platform reverse geocoding (iOS, Android & Web)
-  const resolveReadableAddress = useCallback(async (lat: number, lng: number) => {
-    if (Platform.OS !== 'web') {
-      try {
-        const [geo] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-        if (geo) {
-          const str = [geo.street, geo.name, geo.district || geo.city]
-            .filter(Boolean)
-            .join(', ');
-          if (str) return str;
-        }
-      } catch {
-        // Fallback below
-      }
-    }
-
-    try {
-      const resp = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=es`
-      );
-      if (resp.ok) {
-        const data = await resp.json();
-        const addr = data?.address;
-        if (addr) {
-          const parts = [
-            addr.road || addr.pedestrian || addr.suburb,
-            addr.neighbourhood || addr.city_district,
-            addr.city || addr.town || addr.municipality,
-          ].filter(Boolean);
-          if (parts.length > 0) return parts.join(', ');
-        }
-      }
-    } catch {
-      // Ignore network reverse geocode errors
-    }
-
-    return 'Ubicación GPS confirmada';
-  }, []);
+  const resolveReadableAddress = useCallback(
+    (lat: number, lng: number) =>
+      reverseGeocodeCoordinates(lat, lng, 'Ubicación GPS confirmada'),
+    []
+  );
 
   // Reliable geolocation across iOS, Android, and Web/Mobile Browsers
   const acquireLocation = useCallback(async () => {
@@ -283,90 +248,59 @@ export default function HomeScreen({ onLogout, onOpenPatrol }: HomeScreenProps =
         customAddress: currentAddress,
       });
     } catch {
-      if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined') {
-          window.alert(
-            'Tu alerta fue guardada de forma segura y se enviará en cuanto regrese la señal.'
-          );
-        }
-      } else {
-        Alert.alert(
-          'Alerta resguardada',
-          'Detectamos poca señal, pero tu alerta quedó guardada para enviarse de inmediato.',
-          [{ text: 'Entendido' }]
-        );
-      }
+      showAlert(
+        'Alerta resguardada',
+        Platform.OS === 'web'
+          ? 'Tu alerta fue guardada de forma segura y se enviará en cuanto regrese la señal.'
+          : 'Detectamos poca señal, pero tu alerta quedó guardada para enviarse de inmediato.',
+        { buttonText: 'Entendido' }
+      );
     }
   };
 
   const handleCancelAlert = async () => {
-    const executeCancel = async () => {
-      try {
-        await panicService.cancelPanicAlert();
-      } catch {
-        if (Platform.OS !== 'web') {
-          Alert.alert('Aviso', 'Alerta desactivada en tu dispositivo.');
-        }
-      }
-    };
+    const confirmed = await confirmAction({
+      title: 'Cancelar alerta',
+      message: '¿Deseas reportar como falsa alarma y detener el envío de ubicación?',
+      webMessage: '¿Deseas cancelar la alerta activa y reportarla como falsa alarma?',
+      confirmText: 'Sí, cancelar',
+      cancelText: 'Seguir con alerta',
+      destructive: true,
+    });
+    if (!confirmed) return;
 
-    if (Platform.OS === 'web') {
-      const ok =
-        typeof window !== 'undefined'
-          ? window.confirm('¿Deseas cancelar la alerta activa y reportarla como falsa alarma?')
-          : true;
-      if (ok) await executeCancel();
-      return;
+    try {
+      await panicService.cancelPanicAlert();
+    } catch {
+      showAlert('Aviso', 'Alerta desactivada en tu dispositivo.', { showOnWeb: false });
     }
-
-    Alert.alert(
-      'Cancelar alerta',
-      '¿Deseas reportar como falsa alarma y detener el envío de ubicación?',
-      [
-        { text: 'Seguir con alerta', style: 'cancel' },
-        {
-          text: 'Sí, cancelar',
-          style: 'destructive',
-          onPress: executeCancel,
-        },
-      ]
-    );
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (panicState.status === 'active' || panicState.status === 'triggering') {
-      const msg = 'Cancela primero la alerta activa antes de cerrar tu sesión.';
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.alert(msg);
-      } else {
-        Alert.alert('Alerta en curso', msg);
-      }
+      showAlert(
+        'Alerta en curso',
+        'Cancela primero la alerta activa antes de cerrar tu sesión.'
+      );
       return;
     }
 
-    const performLogout = async () => {
-      try {
-        await authService.logout();
-        onLogout?.();
-      } catch (err) {
-        console.error('Error al cerrar sesión:', err);
-        if (Platform.OS !== 'web') {
-          Alert.alert('Error', 'No se pudo cerrar la sesión correctamente.');
-        }
-      }
-    };
+    const confirmed = await confirmAction({
+      title: 'Cerrar sesión',
+      message: '¿Seguro que deseas salir de tu cuenta?',
+      webMessage: '¿Deseas cerrar tu sesión en Red Ciudadana?',
+      confirmText: 'Salir',
+      cancelText: 'Cancelar',
+      destructive: true,
+    });
+    if (!confirmed) return;
 
-    if (Platform.OS === 'web') {
-      const confirmed =
-        typeof window !== 'undefined'
-          ? window.confirm('¿Deseas cerrar tu sesión en Red Ciudadana?')
-          : true;
-      if (confirmed) performLogout();
-    } else {
-      Alert.alert('Cerrar sesión', '¿Seguro que deseas salir de tu cuenta?', [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Salir', style: 'destructive', onPress: performLogout },
-      ]);
+    try {
+      await authService.logout();
+      onLogout?.();
+    } catch (err) {
+      console.error('Error al cerrar sesión:', err);
+      showAlert('Error', 'No se pudo cerrar la sesión correctamente.', { showOnWeb: false });
     }
   };
 

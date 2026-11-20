@@ -3,20 +3,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.cameraRouter = void 0;
 const express_1 = require("express");
 const auth_1 = require("../../../shared/middlewares/auth");
+const system_1 = require("../../../shared/constants/system");
 const CameraRepository_1 = require("../infrastructure/CameraRepository");
 const CameraService_1 = require("../application/CameraService");
-// 1. Inyección de Dependencias (Ideal usar TypeDI o NestJS a futuro)
-const cameraRepository = new CameraRepository_1.MongoCameraRepository();
+const cameraRepository = new CameraRepository_1.SupabaseCameraRepository();
 const cameraService = new CameraService_1.CameraService(cameraRepository);
 const router = (0, express_1.Router)();
 exports.cameraRouter = router;
-// 2. Controladores Ligeros (Solo gestionan HTTP y respuestas)
-router.post('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (req, res) => {
+router.post('/', auth_1.requireAuth, (0, auth_1.requireRole)(system_1.COMMAND_CENTER_ROLES), async (req, res) => {
     try {
-        const authReq = req;
         const body = {
             ...req.body,
-            authorityId: req.body.authorityId || authReq.user?.userId || authReq.user?.id || '00000000-0000-0000-0000-000000000000'
+            authorityId: req.body.authorityId || (0, auth_1.getRequestUserId)(req) || system_1.FALLBACK_AUTHORITY_UUID,
         };
         const newCamera = await cameraService.createCamera(body);
         return res.status(201).json({
@@ -33,7 +31,7 @@ router.post('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervis
         });
     }
 });
-router.get('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator', 'police', 'citizen']), async (req, res) => {
+router.get('/', auth_1.requireAuth, (0, auth_1.requireRole)(system_1.ALL_AUTHENTICATED_ROLES), async (req, res) => {
     try {
         const userRole = req.user?.role;
         const cameras = await cameraService.getAllCameras();
@@ -56,7 +54,7 @@ router.get('/', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'superviso
         return res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
-router.put('/:id', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (req, res) => {
+router.put('/:id', auth_1.requireAuth, (0, auth_1.requireRole)(system_1.COMMAND_CENTER_ROLES), async (req, res) => {
     try {
         const updatedCamera = await cameraService.updateCamera(req.params.id, req.body);
         if (!updatedCamera) {
@@ -72,7 +70,7 @@ router.put('/:id', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'superv
         return res.status(500).json({ success: false, message: 'Error interno del servidor', error: error.message });
     }
 });
-router.delete('/:id', auth_1.requireAuth, (0, auth_1.requireRole)(['admin', 'supervisor', 'operator']), async (req, res) => {
+router.delete('/:id', auth_1.requireAuth, (0, auth_1.requireRole)(system_1.COMMAND_CENTER_ROLES), async (req, res) => {
     try {
         const deleted = await cameraService.deleteCamera(req.params.id);
         if (!deleted) {

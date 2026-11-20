@@ -1,32 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import L from 'leaflet';
+import { config } from '../config';
 import { palette } from '../theme/prismTheme';
+import {
+  CameraItem,
+  DEFAULT_CAMERA_RADIUS_M,
+  deltaToZoom,
+  isValidCoordinate,
+  SOS_PERIMETER_RADIUS_M,
+  TacticalMapProps,
+} from './tacticalMapShared';
 
-export interface CameraItem {
-  id: string;
-  name: string;
-  location: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  };
-  coverageRadius?: number;
-}
-
-export interface TacticalMapProps {
-  mapRef?: any;
-  initialRegion: {
-    latitude: number;
-    longitude: number;
-    latitudeDelta: number;
-    longitudeDelta: number;
-  };
-  userLocation: { latitude: number; longitude: number } | null;
-  currentLocation: { lat: number; lng: number } | null;
-  cameras: CameraItem[];
-  isAlertActive: boolean;
-}
+export type { CameraItem, TacticalMapProps };
 
 const LEAFLET_STYLE_ID = 'rc-leaflet-core-styles';
 
@@ -37,7 +23,7 @@ function ensureLeafletStyles() {
   // Load official Leaflet stylesheet + sculpted Pearl/Aqua pin animations
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  link.href = config.MAP_ASSETS.LEAFLET_CSS_URL;
   document.head.appendChild(link);
 
   const style = document.createElement('style');
@@ -112,12 +98,6 @@ function ensureLeafletStyles() {
   document.head.appendChild(style);
 }
 
-function deltaToZoom(latDelta?: number): number {
-  if (!latDelta || latDelta <= 0) return 16;
-  const z = Math.round(Math.log2(360 / latDelta));
-  return Math.max(11, Math.min(18, z));
-}
-
 export function TacticalMap({
   mapRef,
   initialRegion,
@@ -151,7 +131,7 @@ export function TacticalMap({
     });
 
     // Official OpenStreetMap street tiles (100% free, zero watermarks, Pearl-Silver toned)
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer(config.MAP_ASSETS.OSM_TILE_URL, {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap',
     }).addTo(map);
@@ -179,8 +159,8 @@ export function TacticalMap({
     const ro =
       typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => {
-            map.invalidateSize();
-          })
+          map.invalidateSize();
+        })
         : null;
     ro?.observe(container);
 
@@ -243,11 +223,11 @@ export function TacticalMap({
       map.flyTo([lat, lng], 16, { duration: 0.9 });
     }
 
-    // SOS 220m perimeter circle
+    // SOS perimeter circle
     if (isAlertActive) {
       if (!alertCircleRef.current) {
         alertCircleRef.current = L.circle([lat, lng], {
-          radius: 220,
+          radius: SOS_PERIMETER_RADIUS_M,
           color: 'rgba(225, 29, 72, 0.72)',
           weight: 2,
           fillColor: 'rgba(225, 29, 72, 0.14)',
@@ -291,9 +271,9 @@ export function TacticalMap({
     cameras.forEach((cam) => {
       const clat = Number(cam.location?.latitude);
       const clng = Number(cam.location?.longitude);
-      if (Number.isFinite(clat) && Number.isFinite(clng) && (clat !== 0 || clng !== 0)) {
+      if (isValidCoordinate(clat, clng)) {
         L.circle([clat, clng], {
-          radius: Number(cam.coverageRadius) || 120,
+          radius: Number(cam.coverageRadius) || DEFAULT_CAMERA_RADIUS_M,
           color: 'rgba(14, 165, 233, 0.45)',
           weight: 1.5,
           fillColor: 'rgba(14, 165, 233, 0.10)',

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { config } from '../config';
 import { api } from '../services/auth';
 import { OfflineBufferService } from '../features/panic/services/OfflineBufferService';
 
@@ -16,7 +17,7 @@ interface LocationStreamingOptions {
  */
 export function useLocationStreaming({
   alertId,
-  intervalMs = 3000,
+  intervalMs = config.LOCATION_STREAM_INTERVAL_MS,
 }: LocationStreamingOptions) {
   const [currentLocation, setCurrentLocation] = useState<{
     lat: number;

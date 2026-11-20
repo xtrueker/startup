@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SpatialRoutingWorker = void 0;
 const ioredis_1 = require("ioredis");
-// En producción, reemplazar con las entidades Mongoose reales de la base de datos de Autoridades/Patrullas
+const env_1 = require("../config/env");
 const mockFindAuthoritiesNear = async (_latitude, _longitude, _maxDistanceMeters) => {
     return [
         { id: 'police-station-central', name: 'Comisaría Central', distance: 1200 },
@@ -11,22 +11,22 @@ const mockFindAuthoritiesNear = async (_latitude, _longitude, _maxDistanceMeters
 };
 class SpatialRoutingWorker {
     constructor() {
-        this.publisher = new ioredis_1.Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-        console.log('🗺️ [SpatialRoutingWorker] Online and processing Geospatial Streams');
+        this.publisher = new ioredis_1.Redis(env_1.env.REDIS_URL || 'redis://127.0.0.1:6379', {
+            lazyConnect: true,
+        });
     }
     /**
      * BUCLE DE CONSUMO: Topic de Pánico y Ubicaciones en Vivo
      */
     async startConsuming() {
         setInterval(async () => {
-            // Mock de consumo del topic "topic.alert.location"
             const rawEvents = [
                 {
                     id: 'mock-loc-123',
                     message: {
                         alertId: 'ALT-999',
-                        latitude: 4.6097,
-                        longitude: -74.0817,
+                        latitude: env_1.env.DEFAULT_LAT,
+                        longitude: env_1.env.DEFAULT_LNG,
                         timestamp: Date.now()
                     }
                 }

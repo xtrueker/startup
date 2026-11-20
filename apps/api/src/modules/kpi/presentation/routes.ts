@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { getPgPool } from '../../../infrastructure/database/connection';
+import { Operator, Team } from '../../../infrastructure/database/models';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
+import { ADMIN_SUPERVISOR_ROLES } from '../../../shared/constants/system';
 
 const router = Router();
 
@@ -23,15 +25,15 @@ const router = Router();
  *       200:
  *         description: Métricas de emergencias, cámaras, operadores y equipos
  */
-router.get('/summary', requireAuth, requireRole(['admin', 'supervisor']), async (_req: Request, res: Response) => {
+router.get('/summary', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (_req: Request, res: Response) => {
   try {
     const pool = getPgPool();
 
     const [
       alertsRes,
       camerasRes,
-      operatorsRes,
-      teamsRes,
+      operatorStats,
+      teamStats,
       usersRes,
       responseTimeRes,
       alertsByTypeRes,
@@ -58,26 +60,21 @@ router.get('/summary', requireAuth, requireRole(['admin', 'supervisor']), async 
         FROM public.cameras
       `).catch(() => ({ rows: [{ total: 0, online: 0, offline: 0 }] })),
 
-      // Operators summary
-      pool.query(`
-        SELECT
-          COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE status = 'en_servicio') AS en_servicio,
-          COUNT(*) FILTER (WHERE status = 'disponible') AS disponible,
-          COUNT(*) FILTER (WHERE status = 'inactivo') AS inactivo
-        FROM public.operators
-      `).catch(() => ({ rows: [{ total: 0, en_servicio: 0, disponible: 0, inactivo: 0 }] })),
+      // Reuse canonical Operator.stats() & Team.stats() instead of duplicating SQL
+      Operator.stats().catch(() => ({
+        total: 0,
+        en_servicio: 0,
+        disponible: 0,
+        inactivo: 0,
+      })),
 
-      // Teams summary
-      pool.query(`
-        SELECT
-          COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE status = 'patrullando') AS patrullando,
-          COUNT(*) FILTER (WHERE status = 'disponible') AS disponible,
-          COUNT(*) FILTER (WHERE status = 'en_incidente') AS en_incidente,
-          (SELECT COUNT(*) FROM public.team_members) AS total_members
-        FROM public.teams
-      `).catch(() => ({ rows: [{ total: 0, patrullando: 0, disponible: 0, en_incidente: 0, total_members: 0 }] })),
+      Team.stats().catch(() => ({
+        total: 0,
+        patrullando: 0,
+        disponible: 0,
+        en_incidente: 0,
+        totalMembers: 0,
+      })),
 
       // Users/Citizens summary
       pool.query(`
@@ -125,8 +122,6 @@ router.get('/summary', requireAuth, requireRole(['admin', 'supervisor']), async 
 
     const alerts = alertsRes.rows[0];
     const cameras = camerasRes.rows[0];
-    const operators = operatorsRes.rows[0];
-    const teams = teamsRes.rows[0];
     const users = usersRes.rows[0];
     const avgResponse = responseTimeRes.rows[0];
 
@@ -155,17 +150,17 @@ router.get('/summary', requireAuth, requireRole(['admin', 'supervisor']), async 
             : 0,
         },
         operators: {
-          total: parseInt(operators.total),
-          enServicio: parseInt(operators.en_servicio),
-          disponible: parseInt(operators.disponible),
-          inactivo: parseInt(operators.inactivo),
+          total: operatorStats.total || 0,
+          enServicio: operatorStats.en_servicio || 0,
+          disponible: operatorStats.disponible || 0,
+          inactivo: operatorStats.inactivo || 0,
         },
         teams: {
-          total: parseInt(teams.total),
-          patrullando: parseInt(teams.patrullando),
-          disponible: parseInt(teams.disponible),
-          enIncidente: parseInt(teams.en_incidente),
-          totalMembers: parseInt(teams.total_members),
+          total: teamStats.total || 0,
+          patrullando: teamStats.patrullando || 0,
+          disponible: teamStats.disponible || 0,
+          enIncidente: teamStats.en_incidente || 0,
+          totalMembers: teamStats.totalMembers || 0,
         },
         users: {
           total: parseInt(users.total),
@@ -204,7 +199,7 @@ router.get('/summary', requireAuth, requireRole(['admin', 'supervisor']), async 
  *     summary: Timeline de alertas (últimas N horas o días)
  *     tags: [KPI]
  */
-router.get('/alerts-timeline', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.get('/alerts-timeline', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const pool = getPgPool();
     const days = Math.min(parseInt(req.query.days as string) || 7, 30);

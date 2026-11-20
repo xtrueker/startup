@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, CameraViewProps, useCameraPermissions } from 'expo-camera';
 import { authService } from '../services/auth';
+import { showAlert } from '../utils/dialogs';
 import { palette, fontSans, glassSurfaceStyle, sculptedShadow } from '../theme/prismTheme';
 import {
   AmbientPrismCanvas,
@@ -103,9 +103,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
 
   const reportError = (title: string, message: string) => {
     setStepError(message);
-    if (Platform.OS !== 'web') {
-      Alert.alert(title, message);
-    }
+    showAlert(title, message, { showOnWeb: false });
   };
 
   const resetBiometrics = useCallback(() => {
@@ -319,7 +317,7 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
           // Ignorar microcortes de red momentáneos y seguir guiando con calma
         }
 
-        await new Promise((r) => setTimeout(r, 550));
+        await new Promise((r) => setTimeout(r, 750));
       }
     } catch {
       loopActiveRef.current = false;
@@ -361,73 +359,57 @@ export default function RegisterScreen({ onRegister, onGoLogin }: RegisterScreen
         dataUri = await normalizeWebImage(asset.uri, 1600, 0.86);
       }
 
-      if (target === 'idFront') {
-        setAnalyzingSide('front');
+      const isFront = target === 'idFront';
+      const side: 'front' | 'back' = isFront ? 'front' : 'back';
+      setAnalyzingSide(side);
+      if (isFront) {
         resetBiometrics();
-        try {
-          const analysis = await authService.analyzeDocument({
-            imageBase64: dataUri,
-            side: 'front',
-          });
+      }
 
+      try {
+        const analysis = await authService.analyzeDocument({
+          imageBase64: dataUri,
+          side,
+        });
+
+        if (isFront) {
           setIdCardFront(dataUri);
           setDetectedDocType(analysis.documentType || 'Cédula de Ciudadanía');
           setDocFaceConfidence(analysis.faceConfidence);
+        } else {
+          setIdCardBack(dataUri);
+        }
 
-          if (analysis.detectedFullName) {
-            setFullName(analysis.detectedFullName);
-            setAiExtractedName(true);
-          }
-          if (analysis.detectedCedula) {
-            setCedula(analysis.detectedCedula);
-            setAiExtractedCedula(true);
-          }
+        if (analysis.detectedFullName && (isFront || !fullName)) {
+          setFullName(analysis.detectedFullName);
+          setAiExtractedName(true);
+        }
+        if (analysis.detectedCedula && (isFront || !cedula)) {
+          setCedula(analysis.detectedCedula);
+          setAiExtractedCedula(true);
+        }
 
-          if (Platform.OS !== 'web') Vibration.vibrate(45);
-          if (idCardBack) {
-            setTimeout(() => setStep(2), 500);
-          }
-        } catch (err: any) {
+        if (Platform.OS !== 'web') Vibration.vibrate(45);
+        const oppositeSideReady = isFront ? Boolean(idCardBack) : Boolean(idCardFront);
+        if (oppositeSideReady) {
+          setTimeout(() => setStep(2), isFront ? 500 : 550);
+        }
+      } catch (err: any) {
+        if (isFront) {
           setIdCardFront(null);
           reportError(
             'Toma otra foto del frente',
             err?.response?.data?.message ||
               'No pudimos ver bien tu foto en la cédula. Ponla sobre una mesa con buena luz.'
           );
-        } finally {
-          setAnalyzingSide(null);
+        } else {
+          setIdCardBack(null);
+          reportError(
+            'Toma otra foto del respaldo',
+            err?.response?.data?.message ||
+              'Se vio algo borroso o con brillo. Acerca un poquito más el celular.'
+          );
         }
-        return;
-      }
-
-      setAnalyzingSide('back');
-      try {
-        const backAnalysis = await authService.analyzeDocument({
-          imageBase64: dataUri,
-          side: 'back',
-        });
-
-        setIdCardBack(dataUri);
-        if (!fullName && backAnalysis.detectedFullName) {
-          setFullName(backAnalysis.detectedFullName);
-          setAiExtractedName(true);
-        }
-        if (!cedula && backAnalysis.detectedCedula) {
-          setCedula(backAnalysis.detectedCedula);
-          setAiExtractedCedula(true);
-        }
-
-        if (Platform.OS !== 'web') Vibration.vibrate(45);
-        if (idCardFront) {
-          setTimeout(() => setStep(2), 550);
-        }
-      } catch (err: any) {
-        setIdCardBack(null);
-        reportError(
-          'Toma otra foto del respaldo',
-          err?.response?.data?.message ||
-            'Se vio algo borroso o con brillo. Acerca un poquito más el celular.'
-        );
       } finally {
         setAnalyzingSide(null);
       }

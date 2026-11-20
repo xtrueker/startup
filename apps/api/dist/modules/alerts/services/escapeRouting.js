@@ -39,6 +39,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.calculateEscapeRoutes = calculateEscapeRoutes;
 const turf = __importStar(require("@turf/turf"));
 const Camera_1 = __importDefault(require("../../../infrastructure/database/models/Camera"));
+const env_1 = require("../../../config/env");
+const postgis_1 = require("../../../shared/utils/postgis");
+const system_1 = require("../../../shared/constants/system");
 /**
  * Routing service using public OSRM driving API.
  * This gives an approximation of how someone might escape along the road network,
@@ -75,7 +78,7 @@ function getDestinationPoints(startLat, startLng, direction) {
     });
 }
 async function fetchRoute(startLat, startLng, endLat, endLng) {
-    const url = `http://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?geometries=geojson&overview=full`;
+    const url = `${env_1.env.OSRM_BASE_URL}/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?geometries=geojson&overview=full`;
     try {
         const response = await fetch(url);
         if (!response.ok)
@@ -117,24 +120,17 @@ async function calculateEscapeRoutes(startLat, startLng, direction) {
         if (routeData.geometry.type === 'LineString' && routeData.geometry.coordinates.length > 1) {
             const line = turf.lineString(routeData.geometry.coordinates);
             activeCameras.forEach((camera) => {
-                let lng = 0, lat = 0;
-                if (camera.location && typeof camera.location === 'object' && camera.location.coordinates) {
-                    lng = camera.location.coordinates[0];
-                    lat = camera.location.coordinates[1];
-                }
-                else if (typeof camera.location === 'string') {
-                    const match = camera.location.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-                    if (match) {
-                        lng = parseFloat(match[1]);
-                        lat = parseFloat(match[2]);
-                    }
-                }
+                const coords = (0, postgis_1.parsePostgisPoint)(camera.location);
+                if (!coords)
+                    return;
+                const { latitude: lat, longitude: lng } = coords;
                 // Camera location is [lng, lat]
                 const pt = turf.point([lng, lat]);
                 // Calculate shortest distance from camera to the route (in kilometers)
                 const distance = turf.pointToLineDistance(pt, line, { units: 'kilometers' });
-                // If the route passes within ~100 meters (0.1 km) of the camera, consider it exposed
-                const coverageKm = (camera.coverageRadius || 100) / 1000;
+                // If the route passes within coverage radius of the camera, consider it exposed
+                const radiusMeters = camera.coverage_radius ?? camera.coverageRadius ?? system_1.DEFAULT_CAMERA_COVERAGE_RADIUS_M;
+                const coverageKm = radiusMeters / 1000;
                 if (distance <= coverageKm) {
                     camerasIntersected++;
                     nearbyCameras.push(camera.id);

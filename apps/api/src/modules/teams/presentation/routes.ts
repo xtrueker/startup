@@ -1,6 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { Team } from '../../../infrastructure/database/models/Team';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
+import {
+  ADMIN_ONLY_ROLES,
+  ADMIN_SUPERVISOR_ROLES,
+  COMMAND_CENTER_ROLES,
+} from '../../../shared/constants/system';
 
 const router = Router();
 
@@ -34,7 +39,7 @@ const router = Router();
  *       200:
  *         description: Lista de equipos
  */
-router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const teamType = req.query.teamType as string | undefined;
     const status = req.query.status as string | undefined;
@@ -59,7 +64,7 @@ router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), a
  *     summary: Estadísticas de equipos
  *     tags: [Teams]
  */
-router.get('/stats', requireAuth, requireRole(['admin', 'supervisor']), async (_req: Request, res: Response) => {
+router.get('/stats', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (_req: Request, res: Response) => {
   try {
     const stats = await Team.stats();
     res.json({ success: true, data: stats });
@@ -76,7 +81,7 @@ router.get('/stats', requireAuth, requireRole(['admin', 'supervisor']), async (_
  *     summary: Obtener un equipo por ID (incluye miembros)
  *     tags: [Teams]
  */
-router.get('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+router.get('/:id', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const team = await Team.findById(req.params.id);
     if (!team) {
@@ -96,7 +101,7 @@ router.get('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator'])
  *     summary: Crear un nuevo equipo con su dotación de personal
  *     tags: [Teams]
  */
-router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const {
       teamName,
@@ -150,7 +155,7 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: 
  *     summary: Actualizar datos de un equipo
  *     tags: [Teams]
  */
-router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.patch('/:id', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const {
       teamName,
@@ -192,7 +197,7 @@ router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (r
  *     summary: Eliminar un equipo (elimina también sus miembros)
  *     tags: [Teams]
  */
-router.delete('/:id', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireRole(ADMIN_ONLY_ROLES), async (req: Request, res: Response) => {
   try {
     await Team.delete(req.params.id);
     res.json({ success: true, message: 'Equipo eliminado exitosamente' });
@@ -209,7 +214,7 @@ router.delete('/:id', requireAuth, requireRole(['admin']), async (req: Request, 
  *     summary: Agregar un integrante a un equipo existente
  *     tags: [Teams]
  */
-router.post('/:id/members', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.post('/:id/members', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const { name, identification, badgeOrPlate, roleInTeam } = req.body;
 
@@ -245,7 +250,7 @@ router.post('/:id/members', requireAuth, requireRole(['admin', 'supervisor']), a
  *     summary: Eliminar un integrante de un equipo
  *     tags: [Teams]
  */
-router.delete('/:id/members/:memberId', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.delete('/:id/members/:memberId', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     await Team.removeMember(req.params.id, req.params.memberId);
     res.json({ success: true, message: 'Integrante eliminado del equipo' });

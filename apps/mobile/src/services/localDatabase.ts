@@ -1,25 +1,11 @@
 import { Platform } from 'react-native';
+import {
+  CachedCameraRecord,
+  ILocalDatabase,
+  LocalAlertRecord,
+} from './localDatabase.types';
 
-export interface LocalAlertRecord {
-  id: string;
-  alertId?: string;
-  triggerType: string;
-  latitude: number;
-  longitude: number;
-  address: string;
-  description: string;
-  status: string;
-  createdAt: string;
-}
-
-export interface CachedCameraRecord {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  streamUrl?: string;
-  status: string;
-}
+export type { LocalAlertRecord, CachedCameraRecord };
 
 let dbInstance: any = null;
 let isInitialized = false;
@@ -28,10 +14,9 @@ let isInitialized = false;
 const memoryStore = {
   alerts: [] as LocalAlertRecord[],
   cameras: [] as CachedCameraRecord[],
-  offlineEvents: [] as any[],
 };
 
-class LocalDatabaseService {
+class LocalDatabaseService implements ILocalDatabase {
   /**
    * Inicializa la base de datos local SQLite (o memoria en web)
    */

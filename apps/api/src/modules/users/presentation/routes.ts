@@ -1,9 +1,42 @@
 import { Router, Request, Response } from 'express';
 import { User, Role } from '../../../infrastructure/database/models';
-import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
+import {
+  requireAuth,
+  requireRole,
+  getRequestUserId,
+  AuthRequest,
+} from '../../../shared/middlewares/auth';
+import {
+  ADMIN_ONLY_ROLES,
+  ADMIN_SUPERVISOR_ROLES,
+  FACIAL_VERIFICATION_STATUSES,
+  STANDARD_SYSTEM_ROLES,
+} from '../../../shared/constants/system';
 import { KycVerificationService } from '../../kyc/services/KycVerificationService';
 
 const router = Router();
+
+async function validateAssignableRole(
+  targetRole: string,
+  actorRole?: string
+): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+  const dbRole = await Role.findById(targetRole);
+  if (!dbRole && !STANDARD_SYSTEM_ROLES.includes(targetRole)) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Rol '${targetRole}' no válido o no configurado`,
+    };
+  }
+  if (ADMIN_SUPERVISOR_ROLES.includes(targetRole) && actorRole !== 'admin') {
+    return {
+      ok: false,
+      status: 403,
+      message: 'Solo un admin puede asignar roles de supervisor o admin',
+    };
+  }
+  return { ok: true };
+}
 
 /**
  * @swagger
@@ -56,7 +89,7 @@ const router = Router();
  *       403:
  *         description: Sin permisos
  */
-router.get('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const offset = parseInt(req.query.offset as string) || 0;
@@ -69,18 +102,7 @@ router.get('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: R
       total,
       limit,
       offset,
-      data: users.map((u: any) => ({
-        id: u.id,
-        fullName: u.full_name,
-        cedula: u.cedula,
-        email: u.email,
-        role: u.role,
-        phone: u.phone,
-        ciudad: u.ciudad,
-        isVerified: u.is_verified,
-        facialVerificationStatus: u.facial_verification_status,
-        createdAt: u.created_at,
-      })),
+      data: users.map((u: any) => User.toDTO(u)),
     });
   } catch (error: any) {
     console.error('Error listando usuarios:', error.message);
@@ -116,7 +138,7 @@ router.get('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: R
  *       404:
  *         description: Usuario no encontrado
  */
-router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.get('/:id', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -125,18 +147,7 @@ router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req
 
     res.json({
       success: true,
-      data: {
-        id: user.id,
-        fullName: user.full_name,
-        cedula: user.cedula,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        ciudad: user.ciudad,
-        isVerified: user.is_verified,
-        facialVerificationStatus: user.facial_verification_status,
-        createdAt: user.created_at,
-      },
+      data: User.toDTO(user),
     });
   } catch (error: any) {
     console.error('Error obteniendo usuario:', error.message);
@@ -196,7 +207,7 @@ router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req
  *     summary: Crear un usuario manualmente (solo admin/supervisor)
  *     tags: [Users]
  */
-router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const { fullName, cedula, email, password, role, phone, ciudad, isVerified } = req.body;
 
@@ -215,15 +226,10 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: 
     }
 
     const targetRole = role || 'citizen';
-    const dbRole = await Role.findById(targetRole);
-    const standardRoles = ['citizen', 'operator', 'supervisor', 'admin', 'police'];
-    if (!dbRole && !standardRoles.includes(targetRole)) {
-      return res.status(400).json({ success: false, message: `Rol '${targetRole}' no válido o no configurado` });
-    }
-
-    const actorRole = (req as any).user?.role;
-    if (['supervisor', 'admin'].includes(targetRole) && actorRole !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Solo un admin puede crear usuarios con rol supervisor o admin' });
+    const actorRole = (req as AuthRequest).user?.role;
+    const roleCheck = await validateAssignableRole(targetRole, actorRole);
+    if (!roleCheck.ok) {
+      return res.status(roleCheck.status).json({ success: false, message: roleCheck.message });
     }
 
     const user = await User.create({
@@ -241,17 +247,7 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: 
     res.status(201).json({
       success: true,
       message: 'Usuario creado exitosamente',
-      data: {
-        id: user.id,
-        fullName: user.full_name,
-        cedula: user.cedula,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        ciudad: user.ciudad,
-        isVerified: user.is_verified,
-        createdAt: user.created_at,
-      },
+      data: User.toDTO(user),
     });
   } catch (error: any) {
     console.error('Error creando usuario:', error.message);
@@ -259,27 +255,23 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: 
   }
 });
 
-router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.patch('/:id', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const { fullName, role, phone, ciudad, isVerified, facialVerificationStatus } = req.body;
 
     if (role) {
-      const dbRole = await Role.findById(role);
-      const standardRoles = ['citizen', 'operator', 'supervisor', 'admin', 'police'];
-      if (!dbRole && !standardRoles.includes(role)) {
-        return res.status(400).json({ success: false, message: `Rol '${role}' no válido o no existe en el sistema` });
+      const actorRole = (req as AuthRequest).user?.role;
+      const roleCheck = await validateAssignableRole(role, actorRole);
+      if (!roleCheck.ok) {
+        return res.status(roleCheck.status).json({ success: false, message: roleCheck.message });
       }
     }
 
-    const validFacialStatuses = ['pending', 'verified', 'under_review', 'rejected'];
-    if (facialVerificationStatus && !validFacialStatuses.includes(facialVerificationStatus)) {
+    if (
+      facialVerificationStatus &&
+      !FACIAL_VERIFICATION_STATUSES.includes(facialVerificationStatus)
+    ) {
       return res.status(400).json({ success: false, message: 'Estado de verificación facial inválido' });
-    }
-
-    // Solo admin puede cambiar roles a supervisor/admin
-    const actorRole = (req as any).user?.role;
-    if (role && ['supervisor', 'admin'].includes(role) && actorRole !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Solo un admin puede asignar roles de supervisor o admin' });
     }
 
     const updated = await User.update(req.params.id, {
@@ -293,18 +285,7 @@ router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (r
     res.json({
       success: true,
       message: 'Usuario actualizado exitosamente',
-      data: {
-        id: updated.id,
-        fullName: updated.full_name,
-        cedula: updated.cedula,
-        email: updated.email,
-        role: updated.role,
-        phone: updated.phone,
-        ciudad: updated.ciudad,
-        isVerified: updated.is_verified,
-        facialVerificationStatus: updated.facial_verification_status,
-        createdAt: updated.created_at,
-      },
+      data: User.toDTO(updated),
     });
   } catch (error: any) {
     console.error('Error actualizando usuario:', error.message);
@@ -333,7 +314,7 @@ router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (r
  *       404:
  *         description: Usuario no encontrado
  */
-router.delete('/:id', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireRole(ADMIN_ONLY_ROLES), async (req: Request, res: Response) => {
   try {
     const existing = await User.findById(req.params.id);
     if (!existing) {
@@ -341,7 +322,7 @@ router.delete('/:id', requireAuth, requireRole(['admin']), async (req: Request, 
     }
 
     // Prevent self-deletion
-    const actorId = (req as any).user?.userId;
+    const actorId = getRequestUserId(req);
     if (actorId === req.params.id) {
       return res.status(400).json({ success: false, message: 'No puedes eliminar tu propia cuenta' });
     }
@@ -361,9 +342,9 @@ router.delete('/:id', requireAuth, requireRole(['admin']), async (req: Request, 
  *     summary: Descifrar y auditar expediente biométrico KYC (Ley 1581 — solo admin/supervisor)
  *     tags: [Users]
  */
-router.get('/:id/kyc-dossier', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.get('/:id/kyc-dossier', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
-    const actorId = (req as any).user?.userId || (req as any).user?.id;
+    const actorId = getRequestUserId(req) || '';
     const dossier = await KycVerificationService.getDecryptedKycDossier(
       req.params.id,
       actorId,

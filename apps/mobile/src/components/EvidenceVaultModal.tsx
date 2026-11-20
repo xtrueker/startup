@@ -400,7 +400,9 @@ export function EvidenceVaultModal({
                             {bundle.clips.map((clip, idx) => {
                               const isPlaying = playingClipId === clip.id;
                               const isBuffering = bufferingClipId === clip.id;
-                              const secs = Math.round((clip.durationMs || 15000) / 1000);
+                              const secs = Math.round(
+                                (clip.durationMs || config.AUDIO_CHUNK_DURATION_MS) / 1000
+                              );
 
                               return (
                                 <View

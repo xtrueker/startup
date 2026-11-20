@@ -1,4 +1,9 @@
 import { getPgPool } from '../../infrastructure/database/connection';
+import { env } from '../../config/env';
+import {
+  AUTHORITY_ROLES,
+  EMERGENCY_PUSH_CHANNEL_ID,
+} from '../constants/system';
 import { logger } from '../utils/logger';
 
 export interface RegisterPushTokenInput {
@@ -55,7 +60,8 @@ export class PushDispatchService {
       const pool = getPgPool();
       const res = await pool.query(
         `SELECT expo_push_token FROM public.user_push_tokens
-         WHERE is_active = true AND role IN ('police', 'operator', 'supervisor', 'admin')`
+         WHERE is_active = true AND role = ANY($1::text[])`,
+        [AUTHORITY_ROLES]
       );
 
       const tokens: string[] = res.rows.map((r) => r.expo_push_token);
@@ -111,7 +117,7 @@ export class PushDispatchService {
       to,
       sound: 'default',
       priority: 'high',
-      channelId: 'rc-emergency-siren',
+      channelId: EMERGENCY_PUSH_CHANNEL_ID,
       title: payload.title,
       body: payload.body,
       data: {
@@ -120,7 +126,7 @@ export class PushDispatchService {
       },
     }));
 
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    const response = await fetch(env.EXPO_PUSH_API_URL, {
       method: 'POST',
       headers: {
         Accept: 'application/json',

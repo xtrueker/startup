@@ -1,6 +1,10 @@
 import { useState, useCallback } from 'react';
 import { api } from '../services/auth';
 import { localDatabase } from '../services/localDatabase';
+import {
+  DEFAULT_CAMERA_RADIUS_M,
+  isValidCoordinate,
+} from '../components/tacticalMapShared';
 
 export interface PublicCamera {
   id: string;
@@ -13,16 +17,6 @@ export interface PublicCamera {
   streamUrl: string;
   status: string;
   coverageRadius?: number;
-}
-
-function isValidCoord(lat: number, lng: number): boolean {
-  return (
-    Number.isFinite(lat) &&
-    Number.isFinite(lng) &&
-    Math.abs(lat) <= 90 &&
-    Math.abs(lng) <= 180 &&
-    (Math.abs(lat) > 0.0001 || Math.abs(lng) > 0.0001)
-  );
 }
 
 export function useCameras() {
@@ -50,11 +44,11 @@ export function useCameras() {
               },
               streamUrl: c.streamUrl || '',
               status: c.status || 'online',
-              coverageRadius: Number(c.coverageRadius) || 120,
+              coverageRadius: Number(c.coverageRadius) || DEFAULT_CAMERA_RADIUS_M,
             };
           })
           .filter((c: PublicCamera) =>
-            isValidCoord(c.location.latitude, c.location.longitude)
+            isValidCoordinate(c.location.latitude, c.location.longitude)
           );
 
         setCameras(normalized);
@@ -75,7 +69,7 @@ export function useCameras() {
     } catch (err: any) {
       const cached = await localDatabase.getCachedCameras();
       const validCached = cached
-        .filter((c) => isValidCoord(Number(c.latitude), Number(c.longitude)))
+        .filter((c) => isValidCoordinate(c.latitude, c.longitude))
         .map((c) => ({
           id: c.id,
           name: c.name,
@@ -85,7 +79,7 @@ export function useCameras() {
           },
           streamUrl: c.streamUrl || '',
           status: c.status,
-          coverageRadius: 120,
+          coverageRadius: DEFAULT_CAMERA_RADIUS_M,
         }));
 
       if (validCached.length > 0) {

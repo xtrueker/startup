@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.authRouter = void 0;
 const express_1 = require("express");
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const models_1 = require("../../../infrastructure/database/models");
 const env_1 = require("../../../config/env");
@@ -12,6 +13,51 @@ const auth_1 = require("../../../shared/middlewares/auth");
 const KycVerificationService_1 = require("../../kyc/services/KycVerificationService");
 const router = (0, express_1.Router)();
 exports.authRouter = router;
+// Rate limiters granulares por costo computacional / facturación AWS Rekognition
+const credentialsLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 25,
+    standardHeaders: true,
+    message: {
+        success: false,
+        message: 'Demasiados intentos de acceso desde esta red. Espera unos minutos.',
+    },
+});
+const documentOcrLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    standardHeaders: true,
+    message: {
+        success: false,
+        message: 'Límite temporal de lecturas de documento alcanzado. Intenta nuevamente en unos minutos.',
+    },
+});
+const biometricVerifyLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 12,
+    standardHeaders: true,
+    message: {
+        success: false,
+        message: 'Demasiadas validaciones biométricas seguidas. Espera unos minutos.',
+    },
+});
+const livenessProbeLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 10 * 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    message: {
+        success: false,
+        message: 'Sesión de cámara excedida temporalmente. Espera un momento e intenta de nuevo.',
+    },
+});
+function signAuthToken(user) {
+    return jsonwebtoken_1.default.sign({
+        userId: user.id,
+        role: user.role,
+        cedula: user.cedula,
+        fullName: user.full_name ?? user.fullName,
+    }, env_1.env.JWT_SECRET, { expiresIn: '24h' });
+}
 /**
  * @swagger
  * tags:
@@ -26,7 +72,7 @@ exports.authRouter = router;
  *     tags: [Auth]
  *     security: []
  */
-router.post('/analyze-document', async (req, res) => {
+router.post('/analyze-document', documentOcrLimiter, async (req, res) => {
     try {
         const { imageBase64, side } = req.body;
         const result = await KycVerificationService_1.KycVerificationService.analyzeIdDocumentPreview({
@@ -70,7 +116,7 @@ router.get('/liveness-challenge', (_req, res) => {
  *     tags: [Auth]
  *     security: []
  */
-router.post('/liveness-probe', async (req, res) => {
+router.post('/liveness-probe', livenessProbeLimiter, async (req, res) => {
     try {
         const { stage, frameBase64, token } = req.body;
         const result = await KycVerificationService_1.KycVerificationService.evaluateLiveGuidanceProbe({
@@ -102,7 +148,7 @@ router.post('/liveness-probe', async (req, res) => {
  *     tags: [Auth]
  *     security: []
  */
-router.post('/verify-biometrics', async (req, res) => {
+router.post('/verify-biometrics', biometricVerifyLimiter, async (req, res) => {
     try {
         const { idCardFront, selfieNeutral, selfiePhoto, challengeToken } = req.body;
         const result = await KycVerificationService_1.KycVerificationService.verifyFaceMatchPreview({
@@ -176,7 +222,7 @@ router.post('/verify-biometrics', async (req, res) => {
  *       500:
  *         $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/register', async (req, res) => {
+router.post('/register', credentialsLimiter, async (req, res) => {
     try {
         const { fullName, cedula, email, password, role, phone, ciudad, idCardFront, idCardBack, selfiePhoto, livenessProofToken } = req.body;
         if (!fullName || !cedula || !email || !password) {
@@ -218,23 +264,16 @@ router.post('/register', async (req, res) => {
         if (kycEvaluation.encryptedVault) {
             await KycVerificationService_1.KycVerificationService.persistEncryptedKycForUser(user.id, kycEvaluation, req.ip);
         }
-        const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role, cedula: user.cedula }, env_1.env.JWT_SECRET, { expiresIn: '24h' });
+        const token = signAuthToken(user);
         res.status(201).json({
             success: true,
             message: 'Usuario registrado exitosamente',
             data: {
-                user: {
-                    id: user.id,
-                    fullName: user.full_name,
-                    cedula: user.cedula,
-                    email: user.email,
-                    role: user.role,
-                    phone: user.phone,
-                    ciudad: user.ciudad,
+                user: models_1.User.toDTO(user, {
                     isVerified: kycEvaluation.isVerified,
                     facialVerificationStatus: kycEvaluation.facialVerificationStatus,
                     kycSimilarityScore: kycEvaluation.similarityScore,
-                },
+                }),
                 token,
             },
         });
@@ -283,7 +322,7 @@ router.post('/register', async (req, res) => {
  *       500:
  *         $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/login', async (req, res) => {
+router.post('/login', credentialsLimiter, async (req, res) => {
     try {
         const { email, password } = req.body;
         if (!email || !password) {
@@ -303,16 +342,12 @@ router.post('/login', async (req, res) => {
                 message: 'Acceso denegado: la verificación biométrica de esta cuenta fue rechazada por seguridad.',
             });
         }
-        const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role, cedula: user.cedula }, env_1.env.JWT_SECRET, { expiresIn: '24h' });
+        const token = signAuthToken(user);
         res.json({
             success: true,
             message: 'Login exitoso',
             data: {
-                user: {
-                    id: user.id, fullName: user.full_name, cedula: user.cedula,
-                    email: user.email, role: user.role, phone: user.phone, ciudad: user.ciudad, isVerified: user.is_verified,
-                    facialVerificationStatus: user.facial_verification_status,
-                },
+                user: models_1.User.toDTO(user),
                 token,
             },
         });
@@ -347,25 +382,17 @@ router.post('/login', async (req, res) => {
  */
 router.get('/me', auth_1.requireAuth, async (req, res) => {
     try {
-        const userId = req.user?.userId;
+        const userId = (0, auth_1.getRequestUserId)(req);
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+        }
         const user = await models_1.User.findById(userId);
         if (!user) {
             return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
         }
         res.json({
             success: true,
-            data: {
-                id: user.id,
-                fullName: user.full_name,
-                cedula: user.cedula,
-                email: user.email,
-                role: user.role,
-                phone: user.phone,
-                ciudad: user.ciudad,
-                isVerified: user.is_verified,
-                facialVerificationStatus: user.facial_verification_status,
-                createdAt: user.created_at,
-            },
+            data: models_1.User.toDTO(user),
         });
     }
     catch (error) {

@@ -1,9 +1,10 @@
-import { Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { config } from '../config';
 import { api } from './auth';
 import { CovertAudioService } from '../features/panic/services/CovertAudioService';
 import { OfflineBufferService } from '../features/panic/services/OfflineBufferService';
 import { localDatabase } from './localDatabase';
+import { reverseGeocodeCoordinates } from '../utils/geocoding';
 
 export interface PanicTriggerOptions {
   triggerType?: 'button' | 'ghost_mode';
@@ -25,8 +26,8 @@ export interface PanicState {
 
 type PanicListener = (state: PanicState) => void;
 
-class PanicService {
-  private state: PanicState = {
+function createIdlePanicState(): PanicState {
+  return {
     alertId: null,
     status: 'idle',
     latitude: null,
@@ -36,6 +37,10 @@ class PanicService {
     isOffline: false,
     errorMessage: null,
   };
+}
+
+class PanicService {
+  private state: PanicState = createIdlePanicState();
 
   private listeners: Set<PanicListener> = new Set();
 
@@ -84,60 +89,24 @@ class PanicService {
     longitude: number;
     address: string;
   }> {
-    let latitude = 4.6097; // Coordenadas de contingencia (Bogotá)
-    let longitude = -74.0817;
+    let latitude = config.FALLBACK_PANIC_COORDS.latitude;
+    let longitude = config.FALLBACK_PANIC_COORDS.longitude;
     let address = 'Ubicación móvil';
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
-        // Intentar obtener posición de alta precisión
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
         latitude = loc.coords.latitude;
         longitude = loc.coords.longitude;
-
-        if (Platform.OS !== 'web') {
-          try {
-            const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
-            if (geo) {
-              const street = geo.street || geo.name || '';
-              const district = geo.district || geo.subregion || '';
-              const city = geo.city || '';
-              address = [street, district, city].filter(Boolean).join(', ') || 'Dirección detectada por GPS';
-            }
-          } catch (geoError) {
-            console.warn('[PanicService] Error en geocodificación inversa:', geoError);
-          }
-        } else {
-          try {
-            const resp = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=es`
-            );
-            if (resp.ok) {
-              const data = await resp.json();
-              const addr = data?.address;
-              if (addr) {
-                const parts = [
-                  addr.road || addr.pedestrian || addr.suburb,
-                  addr.neighbourhood || addr.city_district,
-                  addr.city || addr.town || addr.municipality,
-                ].filter(Boolean);
-                address = parts.length > 0 ? parts.join(', ') : 'Dirección detectada por GPS';
-              } else {
-                address = 'Dirección detectada por GPS';
-              }
-            } else {
-              address = 'Dirección detectada por GPS';
-            }
-          } catch (geoError) {
-            console.warn('[PanicService] Error en geocodificación inversa (web):', geoError);
-            address = 'Dirección detectada por GPS';
-          }
-        }
+        address = await reverseGeocodeCoordinates(
+          latitude,
+          longitude,
+          'Dirección detectada por GPS'
+        );
       } else {
-        // Fallback a última posición conocida si el permiso no fue concedido recientemente
         const lastKnown = await Location.getLastKnownPositionAsync();
         if (lastKnown) {
           latitude = lastKnown.coords.latitude;
@@ -297,31 +266,12 @@ class PanicService {
         await api.patch(`/mobile/alerts/${serverAlertId}/cancel`);
       }
 
-      this.state = {
-        alertId: null,
-        status: 'idle',
-        latitude: null,
-        longitude: null,
-        address: null,
-        triggerType: null,
-        isOffline: false,
-        errorMessage: null,
-      };
+      this.state = createIdlePanicState();
       this.notify();
     } catch (err: any) {
       console.error('[PanicService] Error cancelando alerta:', err);
-      // Aún así restablecemos el estado en el dispositivo si el usuario confirmó falsa alarma
       await CovertAudioService.stopCovertRecording({ discardFinalChunk: true });
-      this.state = {
-        alertId: null,
-        status: 'idle',
-        latitude: null,
-        longitude: null,
-        address: null,
-        triggerType: null,
-        isOffline: false,
-        errorMessage: null,
-      };
+      this.state = createIdlePanicState();
       this.notify();
     }
   }

@@ -2,6 +2,10 @@ import { Router, Request, Response } from 'express';
 import { Operator } from '../../../infrastructure/database/models/Operator';
 import { User } from '../../../infrastructure/database/models';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
+import {
+  ADMIN_ONLY_ROLES,
+  ADMIN_SUPERVISOR_ROLES,
+} from '../../../shared/constants/system';
 
 const router = Router();
 
@@ -35,7 +39,7 @@ const router = Router();
  *       200:
  *         description: Lista de operadores
  */
-router.get('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const shift = req.query.shift as string | undefined;
     const status = req.query.status as string | undefined;
@@ -60,7 +64,7 @@ router.get('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: R
  *     summary: Estadísticas rápidas de operadores
  *     tags: [Operators]
  */
-router.get('/stats', requireAuth, requireRole(['admin', 'supervisor']), async (_req: Request, res: Response) => {
+router.get('/stats', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (_req: Request, res: Response) => {
   try {
     const stats = await Operator.stats();
     res.json({ success: true, data: stats });
@@ -77,7 +81,7 @@ router.get('/stats', requireAuth, requireRole(['admin', 'supervisor']), async (_
  *     summary: Obtener un operador por ID
  *     tags: [Operators]
  */
-router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.get('/:id', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const operator = await Operator.findById(req.params.id);
     if (!operator) {
@@ -97,7 +101,7 @@ router.get('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req
  *     summary: Crear un nuevo operador (también crea usuario del sistema)
  *     tags: [Operators]
  */
-router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const {
       fullName,
@@ -176,7 +180,7 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: 
  *     summary: Actualizar datos de un operador
  *     tags: [Operators]
  */
-router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.patch('/:id', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const {
       fullName,
@@ -216,7 +220,7 @@ router.patch('/:id', requireAuth, requireRole(['admin', 'supervisor']), async (r
  *     summary: Dar de baja a un operador
  *     tags: [Operators]
  */
-router.delete('/:id', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireRole(ADMIN_ONLY_ROLES), async (req: Request, res: Response) => {
   try {
     await Operator.delete(req.params.id);
     res.json({ success: true, message: 'Operador dado de baja exitosamente' });

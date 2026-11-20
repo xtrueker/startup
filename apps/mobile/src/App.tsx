@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { authService, api } from './services/auth';
@@ -22,23 +22,35 @@ export default function App() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [view, setView] = useState<'login' | 'register'>('login');
   const [activeScreen, setActiveScreen] = useState<'home' | 'patrol'>('home');
-
   const [isGhostModeActive, setIsGhostModeActive] = useState(false);
+
+  const hydrateAuthenticatedSession = useCallback(async () => {
+    setAuthenticated(true);
+    const profile = await authService.getProfile();
+    const role = profile?.role || null;
+    setUserRole(role);
+    if (role === 'police') {
+      setActiveScreen('patrol');
+    }
+    pushNotificationService.registerDevicePushToken().catch(() => {});
+  }, []);
+
+  const resetUnauthenticatedState = useCallback(() => {
+    setAuthenticated(false);
+    setUserRole(null);
+    setActiveScreen('home');
+    setView('login');
+  }, []);
 
   useEffect(() => {
     async function checkAuth() {
       try {
         await localDatabase.init();
         const auth = await authService.isAuthenticated();
-        setAuthenticated(auth);
         if (auth) {
-          const profile = await authService.getProfile();
-          const role = profile?.role || null;
-          setUserRole(role);
-          if (role === 'police') {
-            setActiveScreen('patrol');
-          }
-          pushNotificationService.registerDevicePushToken().catch(() => {});
+          await hydrateAuthenticatedSession();
+        } else {
+          setAuthenticated(false);
         }
       } catch (error) {
         console.error('Auth check failed:', error);
@@ -51,20 +63,11 @@ export default function App() {
     const stopOfflineSync = OfflineBufferService.startAutoSync(api);
 
     const unsubscribeAuth = authService.subscribe(async (isAuth) => {
-      setAuthenticated(isAuth);
       if (!isAuth) {
         pushNotificationService.unregisterDevicePushToken().catch(() => {});
-        setUserRole(null);
-        setActiveScreen('home');
-        setView('login');
+        resetUnauthenticatedState();
       } else {
-        const profile = await authService.getProfile();
-        const role = profile?.role || null;
-        setUserRole(role);
-        if (role === 'police') {
-          setActiveScreen('patrol');
-        }
-        pushNotificationService.registerDevicePushToken().catch(() => {});
+        await hydrateAuthenticatedSession();
       }
     });
 
@@ -89,7 +92,7 @@ export default function App() {
       unsubscribeAuth();
       ghostModeService.stopListening();
     };
-  }, []);
+  }, [hydrateAuthenticatedSession, resetUnauthenticatedState]);
 
   if (checking) {
     return (
@@ -132,20 +135,12 @@ export default function App() {
             onBack={() => setActiveScreen('home')}
             onLogout={async () => {
               await authService.logout();
-              setAuthenticated(false);
-              setUserRole(null);
-              setActiveScreen('home');
-              setView('login');
+              resetUnauthenticatedState();
             }}
           />
         ) : (
           <HomeScreen
-            onLogout={() => {
-              setAuthenticated(false);
-              setUserRole(null);
-              setActiveScreen('home');
-              setView('login');
-            }}
+            onLogout={resetUnauthenticatedState}
             onOpenPatrol={() => setActiveScreen('patrol')}
           />
         )}

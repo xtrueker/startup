@@ -1,14 +1,13 @@
 import { Redis } from 'ioredis';
-// En un sistema real masivo (Uber/911 scale), reemplazaríamos Redis Pub/Sub por Apache Kafka 
-// o Google Cloud Pub/Sub para garantizar retención ("Exactly-Once").
-// Para este ejemplo de infraestructura base, simulamos la capa de abstracción.
+import { env } from '../../config/env';
 
 export class EventPublisher {
   private publisher: Redis;
 
   constructor() {
-    this.publisher = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-    console.log('⚡ [EventPublisher] Conectado al Message Broker');
+    this.publisher = new Redis(env.REDIS_URL || 'redis://127.0.0.1:6379', {
+      lazyConnect: true,
+    });
   }
 
   /**

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CameraService = void 0;
 const socket_1 = require("../../../shared/utils/socket");
 const postgis_1 = require("../../../shared/utils/postgis");
+const system_1 = require("../../../shared/constants/system");
 class CameraService {
     constructor(cameraRepository) {
         this.cameraRepository = cameraRepository;
@@ -19,12 +20,12 @@ class CameraService {
             address,
             streamUrl,
             status: 'online',
-            coverageRadius: coverageRadius || 100,
+            coverageRadius: coverageRadius || system_1.DEFAULT_CAMERA_COVERAGE_RADIUS_M,
             isPublic: isPublic || false,
             authorityId,
         });
         const cameraDTO = this.mapToDTO(camera);
-        this.emitWebSocketEvent('camera:new', cameraDTO);
+        (0, socket_1.emitToOperatorsAndRoot)('camera:new', cameraDTO);
         return cameraDTO;
     }
     async getAllCameras() {
@@ -36,13 +37,13 @@ class CameraService {
         if (!updated)
             return null;
         const cameraDTO = this.mapToDTO(updated);
-        this.emitWebSocketEvent('camera:updated', cameraDTO);
+        (0, socket_1.emitToOperatorsAndRoot)('camera:updated', cameraDTO);
         return cameraDTO;
     }
     async deleteCamera(id) {
         const deleted = await this.cameraRepository.delete(id);
         if (deleted) {
-            this.emitWebSocketEvent('camera:deleted', { id });
+            (0, socket_1.emitToOperatorsAndRoot)('camera:deleted', { id });
         }
         return deleted;
     }
@@ -51,7 +52,7 @@ class CameraService {
         const lat = parsedCoords ? parsedCoords.latitude : 0;
         const lng = parsedCoords ? parsedCoords.longitude : 0;
         return {
-            id: camera.id || camera._id, // soporta ambos
+            id: camera.id || camera._id,
             name: camera.name,
             location: {
                 latitude: lat,
@@ -63,15 +64,6 @@ class CameraService {
             coverageRadius: camera.coverage_radius || camera.coverageRadius,
             isPublic: camera.is_public !== undefined ? camera.is_public : camera.isPublic,
         };
-    }
-    emitWebSocketEvent(event, payload) {
-        try {
-            (0, socket_1.getSocket)().emit(event, payload);
-            (0, socket_1.emitToOperators)(event, payload);
-        }
-        catch (wsError) {
-            console.error(`Error emitiendo WebSocket (${event}):`, wsError);
-        }
     }
 }
 exports.CameraService = CameraService;

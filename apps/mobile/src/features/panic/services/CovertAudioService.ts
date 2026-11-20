@@ -6,10 +6,11 @@ import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from 'expo-audio';
+import { config } from '../../../config';
 import { api } from '../../../services/auth';
 import { OfflineBufferService } from './OfflineBufferService';
 
-const CHUNK_DURATION_MS = 15000;
+const CHUNK_DURATION_MS = config.AUDIO_CHUNK_DURATION_MS;
 
 export class CovertAudioService {
   private static recording: any = null;

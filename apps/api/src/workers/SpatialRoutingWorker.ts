@@ -1,18 +1,20 @@
 import { Redis } from 'ioredis';
-// En producción, reemplazar con las entidades Mongoose reales de la base de datos de Autoridades/Patrullas
+import { env } from '../config/env';
+
 const mockFindAuthoritiesNear = async (_latitude: number, _longitude: number, _maxDistanceMeters: number) => {
-    return [
-       { id: 'police-station-central', name: 'Comisaría Central', distance: 1200 },
-       { id: 'patrol-car-9x', name: 'Patrulla 9X', distance: 350 }
-    ];
+  return [
+    { id: 'police-station-central', name: 'Comisaría Central', distance: 1200 },
+    { id: 'patrol-car-9x', name: 'Patrulla 9X', distance: 350 }
+  ];
 };
 
 export class SpatialRoutingWorker {
   private publisher: Redis;
 
   constructor() {
-    this.publisher = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-    console.log('🗺️ [SpatialRoutingWorker] Online and processing Geospatial Streams');
+    this.publisher = new Redis(env.REDIS_URL || 'redis://127.0.0.1:6379', {
+      lazyConnect: true,
+    });
   }
 
   /**
@@ -20,14 +22,13 @@ export class SpatialRoutingWorker {
    */
   async startConsuming() {
     setInterval(async () => {
-      // Mock de consumo del topic "topic.alert.location"
       const rawEvents = [
-        { 
-          id: 'mock-loc-123', 
-          message: { 
-            alertId: 'ALT-999', 
-            latitude: 4.6097, 
-            longitude: -74.0817,
+        {
+          id: 'mock-loc-123',
+          message: {
+            alertId: 'ALT-999',
+            latitude: env.DEFAULT_LAT,
+            longitude: env.DEFAULT_LNG,
             timestamp: Date.now()
           }
         }
@@ -60,13 +61,13 @@ export class SpatialRoutingWorker {
       // evitando saturar el socket cluster de las autoridades en otras ciudades.
       for (const authority of nearbyAuthorities) {
         const routingKey = `authority.channel.${authority.id}`;
-        
+
         await this.publisher.publish(routingKey, JSON.stringify({
-           type: 'ALARM_PROXIMITY_ALERT',
-           alertId: payload.alertId,
-           citizenLocation: { lat: payload.latitude, lng: payload.longitude },
-           distanceToYouMeters: authority.distance,
-           urgency: 'CRITICAL_LIFE_THREAT'
+          type: 'ALARM_PROXIMITY_ALERT',
+          alertId: payload.alertId,
+          citizenLocation: { lat: payload.latitude, lng: payload.longitude },
+          distanceToYouMeters: authority.distance,
+          urgency: 'CRITICAL_LIFE_THREAT'
         }));
       }
 
@@ -76,10 +77,10 @@ export class SpatialRoutingWorker {
       await this.publisher.geoadd('livestats:danger_zones', payload.longitude, payload.latitude, payload.alertId);
 
     } catch (error) {
-       console.error(`[SpatialRouter] Falla ruteando alerta ${payload.alertId}`, error);
-       // Estrategia de Fallback: Si el motor de proximidad cae, se asume el peor caso 
-       // y se envía la alerta a la delegación más grande por defecto (Fail-Safe global).
-       await this.publisher.publish('FAILSAFE_DISPATCH', JSON.stringify(payload));
+      console.error(`[SpatialRouter] Falla ruteando alerta ${payload.alertId}`, error);
+      // Estrategia de Fallback: Si el motor de proximidad cae, se asume el peor caso 
+      // y se envía la alerta a la delegación más grande por defecto (Fail-Safe global).
+      await this.publisher.publish('FAILSAFE_DISPATCH', JSON.stringify(payload));
     }
   }
 }

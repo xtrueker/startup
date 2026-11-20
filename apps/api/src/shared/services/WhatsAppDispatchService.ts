@@ -1,5 +1,6 @@
 import { env } from '../../config/env';
 import { logger } from '../utils/logger';
+import { buildCitizenTrackingUrl } from '../utils/url';
 
 export interface WhatsAppEmergencyInput {
   alertId: string;
@@ -24,8 +25,7 @@ export class WhatsAppDispatchService {
     trackingUrl: string;
     mapsUrl: string;
   }> {
-    const frontendBase = (env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
-    const trackingUrl = `${frontendBase}/citizen-tracker?alertId=${encodeURIComponent(input.alertId)}`;
+    const trackingUrl = buildCitizenTrackingUrl(input.alertId);
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${input.latitude},${input.longitude}`;
 
     const verifiedBadge = input.isVerified ? 'Identidad KYC Verificada' : 'Reporte Ciudadano';
@@ -45,10 +45,10 @@ export class WhatsAppDispatchService {
       .filter(Boolean)
       .join('\n');
 
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    const rawRecipients = process.env.WHATSAPP_DISPATCH_RECIPIENTS || '';
-    const webhookUrl = process.env.WHATSAPP_WEBHOOK_URL;
+    const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID;
+    const accessToken = env.WHATSAPP_ACCESS_TOKEN;
+    const rawRecipients = env.WHATSAPP_DISPATCH_RECIPIENTS;
+    const webhookUrl = env.WHATSAPP_WEBHOOK_URL;
 
     const recipients = rawRecipients
       .split(',')
@@ -62,7 +62,7 @@ export class WhatsAppDispatchService {
         recipients.map(async (to) => {
           try {
             const resp = await fetch(
-              `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+              `${env.META_GRAPH_API_BASE_URL}/${phoneNumberId}/messages`,
               {
                 method: 'POST',
                 headers: {

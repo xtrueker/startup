@@ -6,111 +6,130 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.User = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const connection_1 = require("../connection");
+const system_1 = require("../../../shared/constants/system");
+const PUBLIC_USER_COLUMNS = 'id, full_name, cedula, email, role, phone, ciudad, is_verified, facial_verification_status, created_at';
 class User {
+    static toDTO(row, extras) {
+        return {
+            id: row.id,
+            fullName: row.full_name ?? row.fullName,
+            cedula: row.cedula,
+            email: row.email,
+            role: row.role,
+            phone: row.phone ?? null,
+            ciudad: row.ciudad ?? null,
+            isVerified: Boolean(row.is_verified ?? row.isVerified),
+            facialVerificationStatus: row.facial_verification_status ?? row.facialVerificationStatus ?? 'pending',
+            ...(row.created_at !== undefined ? { createdAt: row.created_at } : {}),
+            ...(extras || {}),
+        };
+    }
     static async findByEmail(email) {
-        const sb = (0, connection_1.supabase)();
-        const { data, error } = await sb.from('users').select('*').eq('email', email.toLowerCase()).maybeSingle();
-        if (error)
-            throw error;
-        return data;
+        const pool = (0, connection_1.getPgPool)();
+        const res = await pool.query(`SELECT * FROM public.users WHERE email = $1 LIMIT 1`, [email.toLowerCase().trim()]);
+        return res.rows[0] || null;
     }
     static async findByCedula(cedula) {
-        const sb = (0, connection_1.supabase)();
-        const { data, error } = await sb.from('users').select('*').eq('cedula', cedula).maybeSingle();
-        if (error)
-            throw error;
-        return data;
+        const pool = (0, connection_1.getPgPool)();
+        const res = await pool.query(`SELECT * FROM public.users WHERE cedula = $1 LIMIT 1`, [cedula.trim()]);
+        return res.rows[0] || null;
     }
     static async create(data) {
-        const sb = (0, connection_1.supabase)();
-        let passwordHash = data.password;
+        const pool = (0, connection_1.getPgPool)();
+        let passwordHash = data.password || null;
         if (passwordHash) {
             passwordHash = await bcryptjs_1.default.hash(passwordHash, 10);
         }
         const isKycComplete = Boolean(data.idCardFront && data.selfiePhoto);
-        const defaultVerification = data.isVerified !== undefined
-            ? data.isVerified
-            : (isKycComplete ? true : false);
-        const defaultFacialStatus = data.facialVerificationStatus ||
-            (isKycComplete ? 'verified' : 'pending');
-        const { data: inserted, error } = await sb.from('users').insert({
-            full_name: data.fullName,
-            cedula: data.cedula,
-            email: data.email.toLowerCase(),
-            password: passwordHash,
-            role: data.role || 'citizen',
-            phone: data.phone || null,
-            ciudad: data.ciudad || null,
-            id_card_front: data.idCardFront || null,
-            id_card_back: data.idCardBack || null,
-            selfie_photo: data.selfiePhoto || null,
-            is_verified: defaultVerification,
-            facial_verification_status: defaultFacialStatus
-        }).select().single();
-        if (error)
-            throw error;
-        return inserted;
+        const defaultVerification = data.isVerified !== undefined ? data.isVerified : isKycComplete;
+        const defaultFacialStatus = data.facialVerificationStatus || (isKycComplete ? 'verified' : 'pending');
+        const res = await pool.query(`INSERT INTO public.users
+         (full_name, cedula, email, password, role, phone, ciudad,
+          id_card_front, id_card_back, selfie_photo, is_verified, facial_verification_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING *`, [
+            data.fullName,
+            data.cedula,
+            data.email.toLowerCase().trim(),
+            passwordHash,
+            data.role || 'citizen',
+            data.phone || null,
+            data.ciudad || null,
+            data.idCardFront || null,
+            data.idCardBack || null,
+            data.selfiePhoto || null,
+            defaultVerification,
+            defaultFacialStatus,
+        ]);
+        return res.rows[0];
     }
     static async comparePassword(plain, hash) {
         if (!hash || !plain)
             return false;
-        return await bcryptjs_1.default.compare(plain, hash);
+        return bcryptjs_1.default.compare(plain, hash);
     }
     static async findById(id) {
-        const sb = (0, connection_1.supabase)();
-        const { data, error } = await sb
-            .from('users')
-            .select('id, full_name, cedula, email, role, phone, ciudad, is_verified, facial_verification_status, created_at')
-            .eq('id', id)
-            .maybeSingle();
-        if (error)
-            throw error;
-        return data;
+        if (!id || !system_1.UUID_REGEX.test(id))
+            return null;
+        const pool = (0, connection_1.getPgPool)();
+        const res = await pool.query(`SELECT ${PUBLIC_USER_COLUMNS} FROM public.users WHERE id = $1 LIMIT 1`, [id]);
+        return res.rows[0] || null;
     }
     static async findAll(limit = 100, offset = 0, role) {
-        const sb = (0, connection_1.supabase)();
-        let query = sb
-            .from('users')
-            .select('id, full_name, cedula, email, role, phone, ciudad, is_verified, facial_verification_status, created_at', { count: 'exact' })
-            .order('created_at', { ascending: false })
-            .range(offset, offset + limit - 1);
-        if (role)
-            query = query.eq('role', role);
-        const { data, error, count } = await query;
-        if (error)
-            throw error;
-        return { users: data || [], total: count || 0 };
+        const pool = (0, connection_1.getPgPool)();
+        const params = [];
+        let whereClause = '';
+        if (role) {
+            params.push(role);
+            whereClause = `WHERE role = $1`;
+        }
+        const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM public.users ${whereClause}`, params);
+        const dataRes = await pool.query(`SELECT ${PUBLIC_USER_COLUMNS}
+       FROM public.users
+       ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, limit, offset]);
+        return {
+            users: dataRes.rows,
+            total: Number(countRes.rows[0]?.total) || 0,
+        };
     }
     static async update(id, updates) {
-        const sb = (0, connection_1.supabase)();
-        const dbUpdates = {};
-        if (updates.fullName !== undefined)
-            dbUpdates.full_name = updates.fullName;
-        if (updates.role !== undefined)
-            dbUpdates.role = updates.role;
-        if (updates.phone !== undefined)
-            dbUpdates.phone = updates.phone;
-        if (updates.ciudad !== undefined)
-            dbUpdates.ciudad = updates.ciudad;
-        if (updates.isVerified !== undefined)
-            dbUpdates.is_verified = updates.isVerified;
-        if (updates.facialVerificationStatus !== undefined)
-            dbUpdates.facial_verification_status = updates.facialVerificationStatus;
-        const { data, error } = await sb
-            .from('users')
-            .update(dbUpdates)
-            .eq('id', id)
-            .select('id, full_name, cedula, email, role, phone, ciudad, is_verified, facial_verification_status, created_at')
-            .single();
-        if (error)
-            throw error;
-        return data;
+        if (!id || !system_1.UUID_REGEX.test(id))
+            return null;
+        const pool = (0, connection_1.getPgPool)();
+        const fields = [];
+        const values = [];
+        const columnMap = {
+            fullName: 'full_name',
+            role: 'role',
+            phone: 'phone',
+            ciudad: 'ciudad',
+            isVerified: 'is_verified',
+            facialVerificationStatus: 'facial_verification_status',
+        };
+        for (const [key, col] of Object.entries(columnMap)) {
+            if (updates[key] !== undefined) {
+                fields.push(`${col} = $${values.length + 1}`);
+                values.push(updates[key]);
+            }
+        }
+        if (fields.length === 0) {
+            return this.findById(id);
+        }
+        fields.push(`updated_at = NOW()`);
+        values.push(id);
+        const res = await pool.query(`UPDATE public.users
+       SET ${fields.join(', ')}
+       WHERE id = $${values.length}
+       RETURNING ${PUBLIC_USER_COLUMNS}`, values);
+        return res.rows[0] || null;
     }
     static async delete(id) {
-        const sb = (0, connection_1.supabase)();
-        const { error } = await sb.from('users').delete().eq('id', id);
-        if (error)
-            throw error;
+        if (!id || !system_1.UUID_REGEX.test(id))
+            return;
+        const pool = (0, connection_1.getPgPool)();
+        await pool.query(`DELETE FROM public.users WHERE id = $1`, [id]);
     }
 }
 exports.User = User;

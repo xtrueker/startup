@@ -1,8 +1,13 @@
-import { supabase } from '../connection';
+import { getPgPool } from '../connection';
 import {
   normalizePostgisLocationToWkt,
   parsePostgisPoint,
 } from '../../../shared/utils/postgis';
+import {
+  ANONYMOUS_CITIZEN_UUID,
+  SYSTEM_ADMIN_UUID,
+  UUID_REGEX,
+} from '../../../shared/constants/system';
 
 export interface CreateAlertDTO {
   userId: string;
@@ -33,15 +38,22 @@ export interface HydratedAlertRecord {
   [key: string]: any;
 }
 
+const ALERT_SELECT_COLUMNS = `
+  id, user_id, type, status, address, description, direction, escape_routes,
+  created_at, updated_at, ST_AsText(location) AS location_wkt, location
+`;
+
 export class Alert {
   private static hydrateRow(row: any): HydratedAlertRecord {
-    const coords = parsePostgisPoint(row?.location);
+    const rawGeometry = row?.location_wkt ?? row?.location;
+    const coords = parsePostgisPoint(rawGeometry);
+    const { location_wkt: _ignored, ...rest } = row || {};
     return {
-      ...row,
+      ...rest,
       userId: row?.user_id ?? row?.userId ?? null,
       latitude: coords?.latitude ?? null,
       longitude: coords?.longitude ?? null,
-      location: normalizePostgisLocationToWkt(row?.location),
+      location: normalizePostgisLocationToWkt(rawGeometry),
     };
   }
 
@@ -49,145 +61,150 @@ export class Alert {
    * Fetch active alerts with their PostGIS location hydrated to numeric coords + WKT
    */
   static async findActive(limit = 50): Promise<HydratedAlertRecord[]> {
-    const sb = supabase();
-    const { data, error } = await sb
-      .from('alerts')
-      .select('*')
-      .not('status', 'in', '("resolved","discarded")')
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const pool = getPgPool();
+    const res = await pool.query(
+      `SELECT ${ALERT_SELECT_COLUMNS}
+       FROM public.alerts
+       WHERE status NOT IN ('resolved', 'discarded')
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
 
-    if (error) {
-      console.error('Error fetching active alerts:', error);
-      throw error;
-    }
-
-    return (data || []).map((alert) => this.hydrateRow(alert));
+    return res.rows.map((alert) => this.hydrateRow(alert));
   }
 
   static async findById(id: string): Promise<HydratedAlertRecord | null> {
-    const sb = supabase();
-    const { data, error } = await sb
-      .from('alerts')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    if (!id || !UUID_REGEX.test(id)) return null;
+    const pool = getPgPool();
+    const res = await pool.query(
+      `SELECT ${ALERT_SELECT_COLUMNS}
+       FROM public.alerts
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
 
-    if (error) {
-      console.error('Error fetching alert by id:', error);
-      throw error;
-    }
-
-    if (!data) return null;
-    return this.hydrateRow(data);
+    if (!res.rows[0]) return null;
+    return this.hydrateRow(res.rows[0]);
   }
 
   static async create(data: CreateAlertDTO) {
-    const sb = supabase();
-    const wktLocation = `POINT(${data.longitude} ${data.latitude})`;
+    const pool = getPgPool();
+    const safeUserId = UUID_REGEX.test(data.userId)
+      ? data.userId
+      : ANONYMOUS_CITIZEN_UUID;
 
     // Ensure user exists (auto-create anonymous citizen if missing)
     try {
-      const cleanSub = data.userId.replace(/[^0-9]/g, '').substring(0, 10).padEnd(10, '0');
-      await sb.from('users').upsert({
-        id: data.userId,
-        full_name: 'Ciudadano Anónimo',
-        cedula: cleanSub,
-        email: `anon_${data.userId.substring(0, 8)}@red-ciudadana.local`,
-        password: 'nopassword_anonymous_placeholder',
-        role: 'citizen'
-      }, { onConflict: 'id', ignoreDuplicates: true });
+      const cleanSub = `anon_${safeUserId.replace(/-/g, '').substring(0, 12)}`;
+      await pool.query(
+        `INSERT INTO public.users (id, full_name, cedula, email, password, role)
+         VALUES ($1, 'Ciudadano Anónimo', $2, $3, 'nopassword_anonymous_placeholder', 'citizen')
+         ON CONFLICT DO NOTHING`,
+        [safeUserId, cleanSub, `${cleanSub}@red-ciudadana.local`]
+      );
     } catch (uErr: any) {
       console.warn('Warning creating anonymous user in Alert.create:', uErr.message);
     }
 
-    const { data: inserted, error } = await sb.from('alerts').insert({
-      user_id: data.userId,
-      type: data.type,
-      status: 'pending',
-      location: wktLocation,
-      address: data.address || '',
-      description: data.description || '',
-      direction: data.direction || null,
-      escape_routes: data.escapeRoutes || []
-    }).select().single();
+    const insertRes = await pool.query(
+      `INSERT INTO public.alerts
+         (user_id, type, status, location, address, description, direction, escape_routes)
+       VALUES ($1, $2, 'pending', ST_SetSRID(ST_MakePoint($3, $4), 4326), $5, $6, $7, $8::jsonb)
+       RETURNING ${ALERT_SELECT_COLUMNS}`,
+      [
+        safeUserId,
+        data.type,
+        Number(data.longitude),
+        Number(data.latitude),
+        data.address || '',
+        data.description || '',
+        data.direction || null,
+        JSON.stringify(data.escapeRoutes || []),
+      ]
+    );
 
-    if (error) {
-      console.error('Error in Alert.create (Supabase REST):', error);
-      throw error;
-    }
+    const inserted = insertRes.rows[0];
 
     // Insert Event Sourcing Log
     try {
-      await sb.from('alert_events').insert({
-        alert_id: inserted.id,
-        actor_id: data.userId,
-        event_type: 'created',
-        new_status: 'pending',
-        location: wktLocation,
-        notes: 'Alert reported by citizen'
-      });
+      await pool.query(
+        `INSERT INTO public.alert_events
+           (alert_id, actor_id, event_type, new_status, location, notes)
+         VALUES ($1, $2, 'created', 'pending', ST_SetSRID(ST_MakePoint($3, $4), 4326), 'Alert reported by citizen')`,
+        [inserted.id, safeUserId, Number(data.longitude), Number(data.latitude)]
+      );
     } catch (eventErr: any) {
       console.warn('Warning logging alert event:', eventErr.message);
     }
 
-    return this.hydrateRow({
-      ...inserted,
-      location: wktLocation,
-    });
+    return this.hydrateRow(inserted);
   }
 
   static async updateStatus(id: string, newStatus: string, actorId: string, notes?: string) {
-    const sb = supabase();
+    if (!id || !UUID_REGEX.test(id)) {
+      throw new Error('Alert not found');
+    }
 
-    // Get old status
-    const { data: oldAlert } = await sb.from('alerts').select('status').eq('id', id).maybeSingle();
-    const oldStatus = oldAlert?.status;
+    const pool = getPgPool();
+    const prevRes = await pool.query(
+      `SELECT status FROM public.alerts WHERE id = $1 LIMIT 1`,
+      [id]
+    );
+    const oldStatus = prevRes.rows[0]?.status ?? null;
 
-    // Validate UUID format, fallback to System Admin UUID
-    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actorId);
-    const finalActorId = isValidUUID ? actorId : '00000000-0000-0000-0000-000000000001';
+    let eventActorId: string | null = UUID_REGEX.test(actorId) ? actorId : SYSTEM_ADMIN_UUID;
 
     // Ensure actor exists to satisfy foreign key (alert_events_actor_id_fkey)
     try {
-      await sb.from('users').upsert({
-        id: finalActorId,
-        full_name: 'Operador del Sistema',
-        cedula: '0000000001',
-        email: 'system@red-ciudadana.local',
-        role: 'admin'
-      }, { onConflict: 'id', ignoreDuplicates: true });
+      const actorCheck = await pool.query(
+        `SELECT id FROM public.users WHERE id = $1 LIMIT 1`,
+        [eventActorId]
+      );
+      if (!actorCheck.rows[0]) {
+        await pool.query(
+          `INSERT INTO public.users (id, full_name, cedula, email, password, role)
+           VALUES ($1, 'Operador del Sistema', 'sys_00000001', 'system@red-ciudadana.local', 'nopassword_system_placeholder', 'admin')
+           ON CONFLICT DO NOTHING`,
+          [SYSTEM_ADMIN_UUID]
+        );
+        const sysCheck = await pool.query(
+          `SELECT id FROM public.users WHERE id = $1 LIMIT 1`,
+          [SYSTEM_ADMIN_UUID]
+        );
+        eventActorId = sysCheck.rows[0]?.id ?? null;
+      }
     } catch (aErr: any) {
       console.warn('Warning ensuring actor exists in Alert.updateStatus:', aErr.message);
+      eventActorId = null;
     }
 
-    // Update alert
-    const { data: updated, error } = await sb
-      .from('alerts')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
+    const updateRes = await pool.query(
+      `UPDATE public.alerts
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING ${ALERT_SELECT_COLUMNS}`,
+      [newStatus, id]
+    );
 
-    if (error || !updated) {
-      throw new Error(error?.message || 'Alert not found');
+    const updated = updateRes.rows[0];
+    if (!updated) {
+      throw new Error('Alert not found');
     }
 
-    // Log event
     try {
-      await sb.from('alert_events').insert({
-        alert_id: id,
-        actor_id: finalActorId,
-        event_type: 'status_change',
-        previous_status: oldStatus,
-        new_status: newStatus,
-        notes: notes || 'Status updated manually'
-      });
+      await pool.query(
+        `INSERT INTO public.alert_events
+           (alert_id, actor_id, event_type, previous_status, new_status, notes)
+         VALUES ($1, $2, 'status_change', $3, $4, $5)`,
+        [id, eventActorId, oldStatus, newStatus, notes || 'Status updated manually']
+      );
     } catch (eventErr: any) {
       console.warn('Warning logging alert update event:', eventErr.message);
     }
 
-    return updated;
+    return this.hydrateRow(updated);
   }
 
   static async archive(id: string, actorId: string) {

@@ -40,7 +40,7 @@ app.use(helmet({
 const allowedOrigins = env.FRONTEND_URL.split(',').map((o) => o.trim()).filter(Boolean);
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes('*')) {
+    if (!origin || env.NODE_ENV !== 'production' || allowedOrigins.includes('*')) {
       return callback(null, true);
     }
     const isAllowed =
@@ -124,7 +124,7 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
 
 logger.info(`📱 Mobile API: /api/mobile (panic, location, alerts/me)`);
-logger.info(`📚 Swagger Docs: http://localhost:3001/api/docs`);
+logger.info(`📚 Swagger Docs: http://localhost:${env.PORT}/api/docs`);
 
 // Ruta no encontrada
 app.use((_req, res) => {
@@ -136,7 +136,7 @@ app.use((_req, res) => {
 
 // Iniciar servidor
 function startServer() {
-  const PORT = Number(process.env.PORT) || 3001;
+  const PORT = env.PORT;
 
   // 1. ESCUCHAR INMEDIATAMENTE (Crítico para Cloud Run Health Check)
   server.listen(PORT, '0.0.0.0', () => {

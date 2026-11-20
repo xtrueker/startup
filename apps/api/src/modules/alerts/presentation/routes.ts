@@ -1,24 +1,50 @@
 import { Router, Request, Response } from 'express';
-import Alert from '../../../infrastructure/database/models/Alert';
-import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
+import Alert, { HydratedAlertRecord } from '../../../infrastructure/database/models/Alert';
+import {
+  requireAuth,
+  requireRole,
+  getRequestUserId,
+} from '../../../shared/middlewares/auth';
+import {
+  ALERT_VALID_STATUSES,
+  AUTHORITY_ROLES,
+  COMMAND_CENTER_ROLES,
+  UUID_REGEX,
+} from '../../../shared/constants/system';
 import { calculateEscapeRoutes } from '../services/escapeRouting';
-import { getSocket, emitToOperators, dispatchTacticalAlert } from '../../../shared/utils/socket';
+import { emitToOperatorsAndRoot, dispatchTacticalAlert } from '../../../shared/utils/socket';
+import { resolveRequestBaseUrl } from '../../../shared/utils/url';
 import { AuditService } from '../../../shared/services/AuditService';
-import { supabase } from '../../../infrastructure/database/connection';
+import { getPgPool } from '../../../infrastructure/database/connection';
 import { User } from '../../../infrastructure/database/models';
 import { EvidenceStorageService } from '../../mobile/services/EvidenceStorageService';
-import { env } from '../../../config/env';
 
 const router = Router();
 
+function formatAlertDTO(alert: HydratedAlertRecord) {
+  return {
+    id: alert.id,
+    type: alert.type,
+    status: alert.status,
+    location: {
+      latitude: alert.latitude ?? 0,
+      longitude: alert.longitude ?? 0,
+      address: alert.address,
+    },
+    description: alert.description,
+    direction: alert.direction,
+    escapeRoutes: alert.escape_routes,
+    createdAt: alert.created_at,
+  };
+}
+
 // CREAR ALERTA DE EMERGENCIA
 // POST /api/alerts
-router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
-  console.log('INFO: POST /api/alerts called');
+router.post('/', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const { userId, type, latitude, longitude, address, description, direction } = req.body;
 
-    if (!userId || !latitude || !longitude) {
+    if (!userId || latitude === undefined || longitude === undefined) {
       return res.status(400).json({ success: false, message: 'Faltan datos obligatorios' });
     }
 
@@ -35,29 +61,17 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), 
       address,
       description,
       direction,
-      escapeRoutes
+      escapeRoutes,
     });
 
     const alertData = {
-      id: alert.id,
-      type: alert.type,
-      status: alert.status,
+      ...formatAlertDTO(alert),
       location: { latitude, longitude, address },
-      description: alert.description,
-      direction: alert.direction,
-      escapeRoutes: alert.escape_routes,
-      createdAt: alert.created_at,
     };
 
-    try {
-      getSocket().emit('alert:new', alertData);
-      emitToOperators('alert:new', alertData);
-    } catch (wsError) {
-      console.error('Error emitiendo WebSocket:', wsError);
-    }
+    emitToOperatorsAndRoot('alert:new', alertData);
 
     res.status(201).json({ success: true, message: 'Alerta creada exitosamente', data: { alert: alertData } });
-
   } catch (error: any) {
     console.error('ERROR creando alerta:', error.message);
     res.status(500).json({ success: false, message: 'Error interno', error: error.message });
@@ -66,35 +80,15 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), 
 
 // OBTENER TODAS LAS ALERTAS ACTIVAS
 // GET /api/alerts
-router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
-  console.log('INFO: GET /api/alerts called');
+router.get('/', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (_req: Request, res: Response) => {
   try {
     const alerts = await Alert.findActive(50);
 
     res.json({
       success: true,
       count: alerts.length,
-      data: alerts.map((alert) => {
-        const lat = alert.latitude ?? 0;
-        const lng = alert.longitude ?? 0;
-
-        return {
-          id: alert.id,
-          type: alert.type,
-          status: alert.status,
-          location: {
-            latitude: lat,
-            longitude: lng,
-            address: alert.address,
-          },
-          description: alert.description,
-          direction: alert.direction,
-          escapeRoutes: alert.escape_routes,
-          createdAt: alert.created_at,
-        };
-      }),
+      data: alerts.map(formatAlertDTO),
     });
-
   } catch (error: any) {
     console.error('ERROR obteniendo alertas:', error.message);
     res.status(500).json({ success: false, message: 'Error interno', error: error.message });
@@ -103,23 +97,15 @@ router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), a
 
 // ELIMINAR/RESOLVER ALERTA
 // DELETE /api/alerts/:id
-router.delete('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
-  console.log(`INFO: DELETE /api/alerts/${req.params.id} called`);
+router.delete('/:id', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const adminId = (req as any).user?.id || 'system';
-    
-    await Alert.archive(id, adminId);
+    const actorId = getRequestUserId(req) || 'system';
 
-    try {
-      getSocket().emit('alert:deleted', { id });
-      emitToOperators('alert:deleted', { id });
-    } catch (wsError) {
-      console.error('Error emitiendo WebSocket:', wsError);
-    }
+    await Alert.archive(id, actorId);
+    emitToOperatorsAndRoot('alert:deleted', { id });
 
     res.json({ success: true, message: 'Alerta resuelta y archivada históricamente' });
-
   } catch (error: any) {
     console.error('ERROR eliminando alerta:', error.message);
     res.status(500).json({ success: false, message: 'Error interno', error: error.message });
@@ -128,38 +114,28 @@ router.delete('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator
 
 // ACTUALIZAR ESTADO DE ALERTA (MÁQUINA DE ESTADOS)
 // PATCH /api/alerts/:id/status
-router.patch('/:id/status', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
-  console.log(`INFO: PATCH /api/alerts/${req.params.id}/status called`);
+router.patch('/:id/status', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, notes } = req.body;
-    const actorId = (req as any).user?.id || (req as any).user?.userId || 'system';
+    const actorId = getRequestUserId(req) || 'system';
 
-    const validStatuses = ['pending', 'reviewing', 'verified', 'resolved', 'discarded'];
-    if (!validStatuses.includes(status)) {
+    if (!ALERT_VALID_STATUSES.includes(status)) {
       return res.status(400).json({ success: false, message: 'Estado inválido' });
     }
 
     const alertBefore = await Alert.findById(id);
     const oldStatus = alertBefore ? alertBefore.status : 'unknown';
 
-    // Call DAO which handles the update and also logs the event in alert_events
     await Alert.updateStatus(id, status, actorId, notes);
 
-    // General Audit tracking
     try {
       await AuditService.logAlertTransition(actorId, id, oldStatus, status, req.ip);
     } catch (auditErr: any) {
       console.warn('⚠️ Warning: AuditService.logAlertTransition failed, but skipping crash:', auditErr.message);
     }
 
-    // Broadcast update
-    try {
-      getSocket().emit('alert:updated', { id, status });
-      emitToOperators('alert:updated', { id, status });
-    } catch (wsError) {
-      console.error('Error emitiendo WebSocket:', wsError);
-    }
+    emitToOperatorsAndRoot('alert:updated', { id, status });
 
     res.json({ success: true, message: `Estado de alerta actualizado a ${status}` });
   } catch (error: any) {
@@ -170,7 +146,7 @@ router.patch('/:id/status', requireAuth, requireRole(['admin', 'supervisor', 'op
 
 // DESPACHO TÁCTICO DE ALERTA A PATRULLAS POLICIALES
 // POST /api/alerts/:id/dispatch
-router.post('/:id/dispatch', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+router.post('/:id/dispatch', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { officerId, notes } = req.body;
@@ -237,20 +213,22 @@ router.post('/:id/dispatch', requireAuth, requireRole(['admin', 'supervisor', 'o
 
 // HISTORIAL DE EVENTOS DE ALERTA
 // GET /api/alerts/:id/events
-router.get('/:id/events', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+router.get('/:id/events', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { data, error } = await supabase()
-      .from('alert_events')
-      .select('id, event_type, previous_status, new_status, notes, created_at')
-      .eq('alert_id', id)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      throw error;
+    if (!UUID_REGEX.test(id)) {
+      return res.status(400).json({ success: false, message: 'ID de alerta inválido' });
     }
+    const pool = getPgPool();
+    const eventsRes = await pool.query(
+      `SELECT id, event_type, previous_status, new_status, notes, created_at
+       FROM public.alert_events
+       WHERE alert_id = $1
+       ORDER BY created_at ASC`,
+      [id]
+    );
 
-    res.json({ success: true, data: data || [] });
+    res.json({ success: true, data: eventsRes.rows });
   } catch (error: any) {
     console.error('ERROR obteniendo eventos de alerta:', error.message);
     res.status(500).json({ success: false, message: 'Error interno', error: error.message });
@@ -259,17 +237,13 @@ router.get('/:id/events', requireAuth, requireRole(['admin', 'supervisor', 'oper
 
 // EVIDENCIAS ACÚSTICAS DE UNA ALERTA (CON URLS FIRMADAS DE REPRODUCCIÓN)
 // GET /api/alerts/:id/evidence
-router.get('/:id/evidence', requireAuth, requireRole(['admin', 'supervisor', 'operator', 'police']), async (req: Request, res: Response) => {
+router.get('/:id/evidence', requireAuth, requireRole(AUTHORITY_ROLES), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const rawProto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
-    const proto = rawProto.split(',')[0].trim();
-    const host = req.get('host') || `localhost:${env.PORT}`;
-    const apiBaseUrl = process.env.PUBLIC_API_URL
-      ? process.env.PUBLIC_API_URL.replace(/\/+$/, '')
-      : `${proto}://${host}`;
-
-    const clips = await EvidenceStorageService.listAlertEvidence(id, apiBaseUrl);
+    const clips = await EvidenceStorageService.listAlertEvidence(
+      id,
+      resolveRequestBaseUrl(req)
+    );
     res.json({
       success: true,
       count: clips.length,

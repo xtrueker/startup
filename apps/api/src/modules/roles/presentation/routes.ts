@@ -1,6 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { Role } from '../../../infrastructure/database/models';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
+import {
+  ADMIN_ONLY_ROLES,
+  ADMIN_SUPERVISOR_ROLES,
+} from '../../../shared/constants/system';
 
 const router = Router();
 
@@ -41,7 +45,7 @@ router.get('/', requireAuth, async (_req: Request, res: Response) => {
  *     summary: Crear un nuevo rol (solo admin/supervisor)
  *     tags: [Roles]
  */
-router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole(ADMIN_SUPERVISOR_ROLES), async (req: Request, res: Response) => {
   try {
     const { id, name, description, permissions } = req.body;
 
@@ -75,7 +79,7 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor']), async (req: 
  *     summary: Actualizar un rol existente (solo admin)
  *     tags: [Roles]
  */
-router.patch('/:id', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+router.patch('/:id', requireAuth, requireRole(ADMIN_ONLY_ROLES), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, description, permissions } = req.body;
@@ -104,7 +108,7 @@ router.patch('/:id', requireAuth, requireRole(['admin']), async (req: Request, r
  *     summary: Eliminar un rol personalizado (solo admin)
  *     tags: [Roles]
  */
-router.delete('/:id', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireRole(ADMIN_ONLY_ROLES), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await Role.delete(id);

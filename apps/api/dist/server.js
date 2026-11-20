@@ -39,7 +39,7 @@ app.use((0, helmet_1.default)({
 const allowedOrigins = env_1.env.FRONTEND_URL.split(',').map((o) => o.trim()).filter(Boolean);
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
-        if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes('*')) {
+        if (!origin || env_1.env.NODE_ENV !== 'production' || allowedOrigins.includes('*')) {
             return callback(null, true);
         }
         const isAllowed = allowedOrigins.includes(origin) ||
@@ -113,7 +113,7 @@ app.use('/api/docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.de
 }));
 app.get('/api/docs.json', (_req, res) => res.json(swagger_1.swaggerSpec));
 logger_1.logger.info(`📱 Mobile API: /api/mobile (panic, location, alerts/me)`);
-logger_1.logger.info(`📚 Swagger Docs: http://localhost:3001/api/docs`);
+logger_1.logger.info(`📚 Swagger Docs: http://localhost:${env_1.env.PORT}/api/docs`);
 // Ruta no encontrada
 app.use((_req, res) => {
     res.status(404).json({
@@ -123,7 +123,7 @@ app.use((_req, res) => {
 });
 // Iniciar servidor
 function startServer() {
-    const PORT = Number(process.env.PORT) || 3001;
+    const PORT = env_1.env.PORT;
     // 1. ESCUCHAR INMEDIATAMENTE (Crítico para Cloud Run Health Check)
     server.listen(PORT, '0.0.0.0', () => {
         logger_1.logger.info(`🚀 Servidor HTTP/WS activo en puerto ${PORT} (0.0.0.0)`);

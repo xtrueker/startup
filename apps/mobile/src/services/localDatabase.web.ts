@@ -1,70 +1,59 @@
-export interface LocalAlertRecord {
-  id: string;
-  alertId?: string;
-  triggerType: string;
-  latitude: number;
-  longitude: number;
-  address: string;
-  description: string;
-  status: string;
-  createdAt: string;
-}
+import {
+  CachedCameraRecord,
+  ILocalDatabase,
+  LOCAL_DB_STORAGE_KEYS,
+  LocalAlertRecord,
+} from './localDatabase.types';
 
-export interface CachedCameraRecord {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  streamUrl?: string;
-  status: string;
-}
+export type { LocalAlertRecord, CachedCameraRecord };
 
 const memoryStore = {
   alerts: [] as LocalAlertRecord[],
   cameras: [] as CachedCameraRecord[],
 };
 
-class LocalDatabaseWeb {
+function readWebList<T>(key: string, fallback: T[]): T[] {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    }
+  } catch {}
+  return [...fallback];
+}
+
+function writeWebList<T>(key: string, items: T[]): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, JSON.stringify(items));
+    }
+  } catch {}
+}
+
+class LocalDatabaseWeb implements ILocalDatabase {
   public async init(): Promise<void> {
     console.log('🗄️ [LocalDB] Base de datos local activa (Modo Web Storage).');
   }
 
   public async saveAlert(alert: LocalAlertRecord): Promise<void> {
     memoryStore.alerts.unshift(alert);
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem('rc_local_alerts', JSON.stringify(memoryStore.alerts));
-      }
-    } catch (_) {}
+    writeWebList(LOCAL_DB_STORAGE_KEYS.ALERTS, memoryStore.alerts);
   }
 
   public async getAlerts(): Promise<LocalAlertRecord[]> {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem('rc_local_alerts');
-        if (stored) return JSON.parse(stored);
-      }
-    } catch (_) {}
-    return [...memoryStore.alerts];
+    return readWebList(LOCAL_DB_STORAGE_KEYS.ALERTS, memoryStore.alerts);
   }
 
   public async cacheCameras(cameras: CachedCameraRecord[]): Promise<void> {
     memoryStore.cameras = [...cameras];
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem('rc_cached_cameras', JSON.stringify(cameras));
-      }
-    } catch (_) {}
+    writeWebList(LOCAL_DB_STORAGE_KEYS.CAMERAS, cameras);
   }
 
   public async getCachedCameras(): Promise<CachedCameraRecord[]> {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem('rc_cached_cameras');
-        if (stored) return JSON.parse(stored);
-      }
-    } catch (_) {}
-    return [...memoryStore.cameras];
+    return readWebList(LOCAL_DB_STORAGE_KEYS.CAMERAS, memoryStore.cameras);
   }
 }
 

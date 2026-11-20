@@ -23,7 +23,7 @@ export class DatabaseConnection {
     }
 
     try {
-      const effectiveSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_KEY;
+      const effectiveSupabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_KEY;
       this.supabaseClient = createClient(env.SUPABASE_URL, effectiveSupabaseKey, {
         auth: {
           persistSession: false,
@@ -32,17 +32,20 @@ export class DatabaseConnection {
 
       let connectionString = env.DATABASE_URL;
       if (!connectionString && env.SUPABASE_URL && env.DB_PASSWORD) {
+        let urlObj: URL;
         try {
-          const urlObj = new URL(env.SUPABASE_URL);
-          let host = urlObj.hostname;
-          if (!host.startsWith('db.')) {
-            host = `db.${host}`;
-          }
-          connectionString = `postgresql://postgres:${env.DB_PASSWORD}@${host}:5432/postgres`;
-        } catch (e) {
-          // Fallback just in case SUPABASE_URL parsing fails
-          connectionString = `postgresql://postgres:${env.DB_PASSWORD}@db.yqfltmwohsyumwpqdkwh.supabase.co:5432/postgres`;
+          urlObj = new URL(env.SUPABASE_URL);
+        } catch {
+          throw new Error(
+            'SUPABASE_URL no tiene un formato de URL válido para derivar la conexión PostgreSQL.'
+          );
         }
+        const host = urlObj.hostname.startsWith('db.')
+          ? urlObj.hostname
+          : `db.${urlObj.hostname}`;
+        connectionString = `postgresql://postgres:${encodeURIComponent(
+          env.DB_PASSWORD
+        )}@${host}:5432/postgres`;
       }
 
       if (!connectionString) {
@@ -54,9 +57,8 @@ export class DatabaseConnection {
         ssl: { rejectUnauthorized: false }
       });
 
-      // Hacer una consulta rápida para verificar conectividad
-      const { error } = await this.supabaseClient.from('users').select('*').limit(1);
-      if (error) throw error;
+      // Verificar conectividad directa sobre el pool nativo PostgreSQL (sin depender de permisos anon en PostgREST)
+      await this.pgPool.query('SELECT 1');
 
       this.isConnected = true;
       console.log('✅ Conectado a Supabase (PostgreSQL)');

@@ -1,6 +1,7 @@
 import { ICameraRepository } from '../infrastructure/CameraRepository';
-import { getSocket, emitToOperators } from '../../../shared/utils/socket';
+import { emitToOperatorsAndRoot } from '../../../shared/utils/socket';
 import { parsePostgisPoint } from '../../../shared/utils/postgis';
+import { DEFAULT_CAMERA_COVERAGE_RADIUS_M } from '../../../shared/constants/system';
 
 export class CameraService {
   constructor(private readonly cameraRepository: ICameraRepository) {}
@@ -19,13 +20,13 @@ export class CameraService {
       address,
       streamUrl,
       status: 'online',
-      coverageRadius: coverageRadius || 100,
+      coverageRadius: coverageRadius || DEFAULT_CAMERA_COVERAGE_RADIUS_M,
       isPublic: isPublic || false,
       authorityId,
     });
 
     const cameraDTO = this.mapToDTO(camera);
-    this.emitWebSocketEvent('camera:new', cameraDTO);
+    emitToOperatorsAndRoot('camera:new', cameraDTO);
     return cameraDTO;
   }
 
@@ -38,14 +39,14 @@ export class CameraService {
     const updated = await this.cameraRepository.update(id, data);
     if (!updated) return null;
     const cameraDTO = this.mapToDTO(updated);
-    this.emitWebSocketEvent('camera:updated', cameraDTO);
+    emitToOperatorsAndRoot('camera:updated', cameraDTO);
     return cameraDTO;
   }
 
   async deleteCamera(id: string) {
     const deleted = await this.cameraRepository.delete(id);
     if (deleted) {
-      this.emitWebSocketEvent('camera:deleted', { id });
+      emitToOperatorsAndRoot('camera:deleted', { id });
     }
     return deleted;
   }
@@ -56,7 +57,7 @@ export class CameraService {
     const lng = parsedCoords ? parsedCoords.longitude : 0;
 
     return {
-      id: camera.id || camera._id, // soporta ambos
+      id: camera.id || camera._id,
       name: camera.name,
       location: {
         latitude: lat,
@@ -68,14 +69,5 @@ export class CameraService {
       coverageRadius: camera.coverage_radius || camera.coverageRadius,
       isPublic: camera.is_public !== undefined ? camera.is_public : camera.isPublic,
     };
-  }
-
-  private emitWebSocketEvent(event: string, payload: any) {
-    try {
-      getSocket().emit(event, payload);
-      emitToOperators(event, payload);
-    } catch (wsError) {
-      console.error(`Error emitiendo WebSocket (${event}):`, wsError);
-    }
   }
 }

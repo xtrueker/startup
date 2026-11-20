@@ -1,5 +1,10 @@
 import { getPgPool } from '../../../infrastructure/database/connection';
 import {
+  AUTHORITY_ROLES,
+  DEFAULT_AUDIO_CHUNK_DURATION_MS,
+  UUID_REGEX,
+} from '../../../shared/constants/system';
+import {
   encryptBuffer,
   decryptBuffer,
   sha256Hex,
@@ -26,8 +31,6 @@ export interface SavedAudioEvidenceResult {
   signedStreamUrl: string;
   createdAt: string;
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function stripDataUriPrefix(raw: string): { base64: string; detectedMime?: string } {
   const match = raw.match(/^data:([^;]+);base64,(.+)$/s);
@@ -185,7 +188,7 @@ export class EvidenceStorageService {
     limit?: number;
   }) {
     const pool = getPgPool();
-    const isAuthority = ['admin', 'supervisor', 'operator', 'police'].includes(params.role);
+    const isAuthority = AUTHORITY_ROLES.includes(params.role);
     const maxAlerts = params.limit || 20;
 
     const alertsQuery = isAuthority
@@ -235,7 +238,7 @@ export class EvidenceStorageService {
         alertId: c.alert_id,
         mimeType: c.media_type,
         chunkIndex: c.chunk_index,
-        durationMs: c.duration_ms || 15000,
+        durationMs: c.duration_ms || DEFAULT_AUDIO_CHUNK_DURATION_MS,
         byteSize: c.byte_size,
         sha256Hash: c.sha256_hash,
         url: signEvidenceStreamUrl(c.id, params.apiBaseUrl, 3600),

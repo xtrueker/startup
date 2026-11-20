@@ -2,9 +2,12 @@ import { Server, Namespace, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { createClient } from 'redis';
 import { createAdapter } from '@socket.io/redis-adapter';
-import jwt from 'jsonwebtoken';
 import { logger } from './logger';
+import { resolveHeadersBaseUrl } from './url';
 import { env } from '../../config/env';
+import { COMMAND_CENTER_ROLES, UUID_REGEX } from '../constants/system';
+import { verifyBearerToken, AuthUserPayload } from '../middlewares/auth';
+import User from '../../infrastructure/database/models/User';
 import { predictiveEngine } from '../../services/PredictiveEngine';
 import { PushDispatchService } from '../services/PushDispatchService';
 import { EvidenceStorageService } from '../../modules/mobile/services/EvidenceStorageService';
@@ -44,29 +47,26 @@ export const getActivePatrolUnits = (): PatrolUnitInfo[] => {
 /**
  * Helper to extract user from socket token
  */
-function extractUserFromSocket(socket: Socket): any | null {
-  const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '');
-  if (!token) return null;
-  try {
-    return jwt.verify(token, env.JWT_SECRET) as any;
-  } catch {
-    return null;
-  }
+function extractUserFromSocket(socket: Socket): AuthUserPayload | null {
+  const rawToken =
+    (socket.handshake.auth?.token as string | undefined) ||
+    socket.handshake.headers?.authorization;
+  return verifyBearerToken(rawToken);
 }
 
 /**
  * Configure police patrol listeners for any socket connection (default or /citizens)
  */
-function setupPatrolListeners(socket: Socket, user: any | null) {
+function setupPatrolListeners(socket: Socket, user: AuthUserPayload | null) {
   const officerId = user?.userId || user?.id || socket.id;
-  const officerName = user?.fullName || 'Patrullero Pérez - Cuadrante 04';
-  const cedula = user?.cedula || '1098765432';
+  const officerName = user?.fullName || user?.email || 'Unidad Policial';
+  const cedula = user?.cedula || '';
   const isPolice = user?.role === 'police';
 
   if (isPolice) {
     socket.join('police');
     socket.join(`officer:${officerId}`);
-    logger.info(`🚔 Oficial de Policía conectado [${socket.id}]: ${officerName} (Cédula: ${cedula})`);
+    logger.info(`🚔 Oficial de Policía conectado [${socket.id}]: ${officerName}${cedula ? ` (Cédula: ${cedula})` : ''}`);
   }
 
   // 1. Inicio de Patrulla
@@ -75,16 +75,21 @@ function setupPatrolListeners(socket: Socket, user: any | null) {
     socket.join('police');
     socket.join(`officer:${officerId}`);
 
+    const parsedLat = Number(data?.latitude);
+    const parsedLng = Number(data?.longitude);
+    const initialLat = Number.isFinite(parsedLat) ? parsedLat : env.DEFAULT_LAT;
+    const initialLng = Number.isFinite(parsedLng) ? parsedLng : env.DEFAULT_LNG;
+
     const unitInfo: PatrolUnitInfo = {
       socketId: socket.id,
       officerId,
       officerName,
       cedula,
       role: 'police',
-      lat: data?.latitude || 4.6097,
-      lng: data?.longitude || -74.0817,
-      latitude: data?.latitude || 4.6097,
-      longitude: data?.longitude || -74.0817,
+      lat: initialLat,
+      lng: initialLng,
+      latitude: initialLat,
+      longitude: initialLng,
       speed: 0,
       heading: 0,
       accuracy: 5,
@@ -94,8 +99,7 @@ function setupPatrolListeners(socket: Socket, user: any | null) {
     activePatrolUnits.set(socket.id, unitInfo);
 
     emitToOperators('police:unit_online', unitInfo);
-    emitToOperators('police:unit_moved', unitInfo);
-    io?.emit('police:unit_moved', unitInfo);
+    emitToOperatorsAndRoot('police:unit_moved', unitInfo);
   });
 
   // 2. Transmisión GPS en Vivo (Streaming continuo)
@@ -128,8 +132,7 @@ function setupPatrolListeners(socket: Socket, user: any | null) {
     activePatrolUnits.set(socket.id, unitUpdate);
 
     // 📡 RETRANSMISIÓN AL CENTRO DE MANDO WEB mediante 'police:unit_moved'
-    emitToOperators('police:unit_moved', unitUpdate);
-    io?.emit('police:unit_moved', unitUpdate);
+    emitToOperatorsAndRoot('police:unit_moved', unitUpdate);
   });
 
   // 3. Heartbeat cada 30 segundos
@@ -154,12 +157,7 @@ function setupPatrolListeners(socket: Socket, user: any | null) {
       existing.status = payload.status;
       existing.lastUpdate = payload.timestamp || new Date().toISOString();
     }
-    emitToOperators('police:unit_status_changed', {
-      officerId,
-      status: payload.status,
-      timestamp: payload.timestamp || new Date().toISOString(),
-    });
-    io?.emit('police:unit_status_changed', {
+    emitToOperatorsAndRoot('police:unit_status_changed', {
       officerId,
       status: payload.status,
       timestamp: payload.timestamp || new Date().toISOString(),
@@ -170,16 +168,14 @@ function setupPatrolListeners(socket: Socket, user: any | null) {
   socket.on('patrol:end', () => {
     logger.info(`🚔 Fin de patrulla: ${officerName}`);
     activePatrolUnits.delete(socket.id);
-    emitToOperators('police:unit_offline', { officerId, timestamp: new Date().toISOString() });
-    io?.emit('police:unit_offline', { officerId, timestamp: new Date().toISOString() });
+    emitToOperatorsAndRoot('police:unit_offline', { officerId, timestamp: new Date().toISOString() });
   });
 
   // 6. Desconexión
   socket.on('disconnect', () => {
     if (activePatrolUnits.has(socket.id)) {
       activePatrolUnits.delete(socket.id);
-      emitToOperators('police:unit_offline', { officerId, timestamp: new Date().toISOString() });
-      io?.emit('police:unit_offline', { officerId, timestamp: new Date().toISOString() });
+      emitToOperatorsAndRoot('police:unit_offline', { officerId, timestamp: new Date().toISOString() });
     }
   });
 }
@@ -223,7 +219,7 @@ export const initSocket = async (server: HttpServer) => {
 
     // Operator dispatches alert to police
     socket.on('patrol:dispatch', (data: any) => {
-      if (!user || !['admin', 'supervisor', 'operator'].includes(user.role)) {
+      if (!user || !COMMAND_CENTER_ROLES.includes(user.role)) {
         logger.warn({ socketId: socket.id }, '⚠️ Intento no autorizado de patrol:dispatch en namespace raíz');
         return;
       }
@@ -291,29 +287,63 @@ export const initSocket = async (server: HttpServer) => {
 
   // ── /operators namespace (Web Command Center) ─────────────────────────────
   operatorsNs = io.of('/operators');
+
+  // Guard de autenticación en handshake para impedir acceso anónimo a telemetría policial y audios firmados
+  operatorsNs.use(async (socket, next) => {
+    const jwtUser = extractUserFromSocket(socket);
+    if (jwtUser && COMMAND_CENTER_ROLES.includes(jwtUser.role)) {
+      socket.data.operatorUser = jwtUser;
+      return next();
+    }
+
+    // Compatibilidad controlada solo en desarrollo local cuando la consola web envía userId sin token
+    if (!env.REQUIRE_WS_AUTH) {
+      const candidateUserId = String(socket.handshake.auth?.userId || '').trim();
+      if (UUID_REGEX.test(candidateUserId)) {
+        try {
+          const dbUser = await User.findById(candidateUserId);
+          if (dbUser && COMMAND_CENTER_ROLES.includes(dbUser.role)) {
+            socket.data.operatorUser = {
+              userId: dbUser.id,
+              id: dbUser.id,
+              role: dbUser.role,
+              cedula: dbUser.cedula || '',
+              fullName: dbUser.full_name,
+              email: dbUser.email,
+            } as AuthUserPayload;
+            return next();
+          }
+        } catch (err) {
+          logger.warn({ err }, 'Error verificando identidad de operador en handshake WS');
+        }
+      }
+    }
+
+    logger.warn(
+      { socketId: socket.id, ip: socket.handshake.address },
+      '🚫 Conexión rechazada en /operators: credenciales ausentes o sin rol de Centro de Mando'
+    );
+    return next(new Error('No autorizado para conectar al canal de operadores'));
+  });
+
   operatorsNs.on('connection', (socket) => {
-    logger.info(`🖥️ Operador conectado: ${socket.id}`);
+    const connectedOperator: AuthUserPayload | undefined = socket.data.operatorUser;
+    logger.info(
+      `🖥️ Operador autenticado conectado: ${socket.id} (${connectedOperator?.fullName || connectedOperator?.userId || 'operador'})`
+    );
 
     // Enviar inmediatamente las unidades policiales activas al operador
     socket.emit('police:active_units', getActivePatrolUnits());
 
     // Hidratar al Centro de Mando con los fragmentos de audio cifrados ya guardados en Supabase
-    const resolveSocketApiBaseUrl = (): string => {
-      if (process.env.PUBLIC_API_URL) {
-        return process.env.PUBLIC_API_URL.replace(/\/+$/, '');
-      }
-      const rawProto = (socket.handshake.headers['x-forwarded-proto'] as string) || 'http';
-      const proto = rawProto.split(',')[0].trim();
-      const host = socket.handshake.headers.host || `localhost:${env.PORT}`;
-      return `${proto}://${host}`;
-    };
+    const resolveSocketApiBaseUrl = (): string => resolveHeadersBaseUrl(socket.handshake.headers);
 
     const hydrateTimer = setTimeout(async () => {
       if (!socket.connected) return;
       try {
         const bundles = await EvidenceStorageService.listEvidenceVault({
-          userId: 'operator_console',
-          role: 'operator',
+          userId: connectedOperator?.userId || 'operator_console',
+          role: connectedOperator?.role || 'operator',
           apiBaseUrl: resolveSocketApiBaseUrl(),
           limit: 15,
         });
@@ -336,6 +366,7 @@ export const initSocket = async (server: HttpServer) => {
 
     // Operator joins a specific alert room to receive live GPS of that victim
     socket.on('watch:alert', async (alertId: string) => {
+      if (!UUID_REGEX.test(String(alertId || ''))) return;
       socket.join(`alert:${alertId}`);
       logger.info(`👁️ Operador ${socket.id} observando alerta: ${alertId}`);
       try {
@@ -352,11 +383,16 @@ export const initSocket = async (server: HttpServer) => {
       logger.info(`🚶 Operador ${socket.id} dejó de observar: ${alertId}`);
     });
 
-    // Despacho táctico emitido desde la consola web
+    // Despacho táctico emitido desde la consola web (exige identidad verificada de operador)
     socket.on('patrol:dispatch', (data: any) => {
-      const opUser = extractUserFromSocket(socket);
-      if (opUser && !['admin', 'supervisor', 'operator'].includes(opUser.role)) {
-        logger.warn({ socketId: socket.id, role: opUser.role }, '⚠️ Rol no autorizado para patrol:dispatch');
+      const opUser =
+        (socket.data.operatorUser as AuthUserPayload | undefined) ||
+        extractUserFromSocket(socket);
+      if (!opUser || !COMMAND_CENTER_ROLES.includes(opUser.role)) {
+        logger.warn(
+          { socketId: socket.id, role: opUser?.role },
+          '⚠️ Intento no autorizado de patrol:dispatch bloqueado en /operators'
+        );
         return;
       }
       dispatchTacticalAlert(data);
@@ -383,6 +419,16 @@ export const getSocket = (): Server => {
 /** Emit a new alert to ALL operators */
 export const emitToOperators = (event: string, data: unknown) => {
   if (operatorsNs) operatorsNs.emit(event, data);
+};
+
+/** Emit safely to both default namespace and /operators namespace */
+export const emitToOperatorsAndRoot = (event: string, data: unknown) => {
+  try {
+    if (io) io.emit(event, data);
+    if (operatorsNs) operatorsNs.emit(event, data);
+  } catch (wsError) {
+    logger.warn({ err: wsError, event }, 'Error emitiendo evento WebSocket');
+  }
 };
 
 /** Emit a targeted event inside a specific alert room */

@@ -3,10 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MongoCameraRepository = void 0;
+exports.MongoCameraRepository = exports.SupabaseCameraRepository = void 0;
 const Camera_1 = __importDefault(require("../../../infrastructure/database/models/Camera"));
-// Adaptador de salida (Adapter) - Implementación concreta usando Mongoose
-class MongoCameraRepository {
+// Adaptador de salida (Adapter) - Implementación concreta sobre Supabase PostgreSQL
+class SupabaseCameraRepository {
     async create(data) {
         return await Camera_1.default.create(data);
     }
@@ -23,5 +23,7 @@ class MongoCameraRepository {
         return await Camera_1.default.delete(id);
     }
 }
-exports.MongoCameraRepository = MongoCameraRepository;
+exports.SupabaseCameraRepository = SupabaseCameraRepository;
+/** @deprecated Alias retrocompatible preservado para consumidores existentes */
+exports.MongoCameraRepository = SupabaseCameraRepository;
 //# sourceMappingURL=CameraRepository.js.map

@@ -1,53 +1,55 @@
 import { Router, Request, Response } from 'express';
 import * as turf from '@turf/turf';
 import Alert from '../../../infrastructure/database/models/Alert';
+import { getPgPool } from '../../../infrastructure/database/connection';
 import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
+import { COMMAND_CENTER_ROLES } from '../../../shared/constants/system';
+import { parsePostgisPoint } from '../../../shared/utils/postgis';
 
 const router = Router();
 
+const REACHABILITY_SPEEDS_KMH: Record<string, number> = {
+  caminando: 5,
+  bicicleta: 15,
+  motocicleta: 40,
+  vehiculo: 60,
+};
+
 // GET /api/analysis/hotspots
-// Devuelve una agregación de incidentes históricos para Heatmaps
-router.get('/hotspots', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
-  console.log('INFO: GET /api/analysis/hotspots called');
+// Devuelve una agregación de incidentes activos para Heatmaps
+router.get('/hotspots', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (_req: Request, res: Response) => {
   try {
-    // Retornamos todas las activas por ahora para el heatmap (hasta tener la API de históricos lista)
     const incidents = await Alert.findActive(100);
-    
-    // Devolvemos el array de coordenadas [lat, lng, weight] para el Heatmap de Leaflet
-    const heatmapData = incidents.map((inc: any) => {
-      let lat = 0, lng = 0;
-      if (inc.location && typeof inc.location === 'object' && inc.location.coordinates) {
-         lng = inc.location.coordinates[0];
-         lat = inc.location.coordinates[1];
-      } else if (typeof inc.location === 'string') {
-         const match = inc.location.match(/POINT\(([^ ]+) ([^)]+)\)/);
-         if (match) {
-           lng = parseFloat(match[1]);
-           lat = parseFloat(match[2]);
-         }
-      }
-      return [lat, lng, 1]; // lat, lng, peso base
-    });
+
+    // Devolvemos el array de coordenadas [lat, lng, weight] reutilizando la hidratación PostGIS centralizada
+    const heatmapData = incidents
+      .map((inc) => {
+        const fallback = parsePostgisPoint(inc.location);
+        const lat = inc.latitude ?? fallback?.latitude ?? null;
+        const lng = inc.longitude ?? fallback?.longitude ?? null;
+        if (lat === null || lng === null) return null;
+        return [lat, lng, 1] as [number, number, number];
+      })
+      .filter((point): point is [number, number, number] => point !== null);
 
     res.json({
       success: true,
-      count: incidents.length,
-      data: heatmapData
+      count: heatmapData.length,
+      data: heatmapData,
     });
   } catch (error: any) {
     console.error('ERROR obteniendo hotspots:', error.message, error.stack);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor al obtener zonas calientes',
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // GET /api/analysis/reachability
 // Estima la zona de alcance de un sospechoso (Isochrone simple usando Buffer de Turf)
-router.get('/reachability', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
-  console.log('INFO: GET /api/analysis/reachability called');
+router.get('/reachability', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const { lat, lng, mode, minutes } = req.query;
 
@@ -62,63 +64,80 @@ router.get('/reachability', requireAuth, requireRole(['admin', 'supervisor', 'op
     const longitude = parseFloat(lng as string);
     const mins = parseFloat(minutes as string);
 
-    // Velocidades estimadas en km/h
-    const speeds: Record<string, number> = {
-      caminando: 5,
-      bicicleta: 15,
-      motocicleta: 40,
-      vehiculo: 60,
-    };
-
-    const speedKmh = speeds[mode as string] || speeds['caminando'];
-    
-    // Distancia posible en X minutos
-    const hours = mins / 60;
-    const distanceKm = speedKmh * hours;
-
-    // Crear un punto inicial
+    const speedKmh = REACHABILITY_SPEEDS_KMH[mode as string] || REACHABILITY_SPEEDS_KMH.caminando;
+    const distanceKm = speedKmh * (mins / 60);
     const center = turf.point([longitude, latitude]);
-    
-    // Crear un polígono buffer (isócrona circular aproximada)
-    // En OSRM avanzado existe una API de isochrones, pero Turf buffer da una excelente estimación geométrica rápida.
     const reachabilityPolygon = turf.buffer(center, distanceKm, { units: 'kilometers', steps: 32 });
 
     res.json({
       success: true,
-      data: reachabilityPolygon
+      data: reachabilityPolygon,
     });
-
   } catch (error: any) {
     console.error('ERROR calculando reachability:', error.message, error.stack);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor al calcular alcance',
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // GET /api/analysis/kpis
-// Estadísticas agregadas para el dashboard de supervisores
-router.get('/kpis', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (_req: Request, res: Response) => {
-  console.log('INFO: GET /api/analysis/kpis called');
+// Estadísticas agregadas reales desde PostgreSQL para supervisores
+router.get('/kpis', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (_req: Request, res: Response) => {
   try {
-    // Simulación de datos extraídos por consultas de agregación SQL sobre alert_events
+    const pool = getPgPool();
+    const [zonesRes, overdueRes, loadsRes] = await Promise.all([
+      pool
+        .query(
+          `SELECT COALESCE(NULLIF(TRIM(address), ''), 'Sin dirección') AS name,
+                  COUNT(*)::int AS incidents
+           FROM public.alerts
+           GROUP BY 1
+           ORDER BY incidents DESC
+           LIMIT 3`
+        )
+        .catch(() => ({ rows: [] })),
+      pool
+        .query(
+          `SELECT COUNT(*)::int AS overdue
+           FROM public.alerts
+           WHERE status = 'pending' AND created_at < NOW() - INTERVAL '5 minutes'`
+        )
+        .catch(() => ({ rows: [{ overdue: 0 }] })),
+      pool
+        .query(
+          `SELECT u.full_name AS operator,
+                  COUNT(*) FILTER (WHERE ae.new_status = 'reviewing')::int AS active,
+                  COUNT(*) FILTER (
+                    WHERE ae.new_status = 'resolved'
+                      AND ae.created_at >= NOW() - INTERVAL '1 hour'
+                  )::int AS resolved_last_hour
+           FROM public.alert_events ae
+           JOIN public.users u ON u.id = ae.actor_id
+           WHERE u.role IN ('operator', 'supervisor', 'admin')
+           GROUP BY u.id, u.full_name
+           ORDER BY resolved_last_hour DESC, active DESC
+           LIMIT 5`
+        )
+        .catch(() => ({ rows: [] })),
+    ]);
+
     res.json({
       success: true,
       data: {
-        topNeighborhoods: [
-          { name: 'Centro Histórico', incidents: 12 },
-          { name: 'Distrito Financiero', incidents: 8 },
-          { name: 'Zona Industrial Sur', incidents: 5 }
-        ],
-        overdueAlerts: 2, // Alertas en pendiente > 5 min
-        operatorLoads: [
-          { operator: 'Op. Alpha', active: 4, resolvedLastHour: 15 },
-          { operator: 'Op. Bravo', active: 1, resolvedLastHour: 8 },
-          { operator: 'Op. Charlie', active: 0, resolvedLastHour: 2 }
-        ]
-      }
+        topNeighborhoods: zonesRes.rows.map((r: any) => ({
+          name: r.name,
+          incidents: Number(r.incidents) || 0,
+        })),
+        overdueAlerts: Number(overdueRes.rows[0]?.overdue) || 0,
+        operatorLoads: loadsRes.rows.map((r: any) => ({
+          operator: r.operator,
+          active: Number(r.active) || 0,
+          resolvedLastHour: Number(r.resolved_last_hour) || 0,
+        })),
+      },
     });
   } catch (error: any) {
     console.error('ERROR obteniendo KPIs:', error.message);

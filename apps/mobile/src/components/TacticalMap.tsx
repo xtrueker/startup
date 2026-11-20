@@ -2,34 +2,20 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import MapView, { Marker, Circle, MapStyleElement } from 'react-native-maps';
 import { WebView, WebViewProps } from 'react-native-webview';
+import { config } from '../config';
 import { palette } from '../theme/prismTheme';
+import {
+  CameraItem,
+  DEFAULT_CAMERA_RADIUS_M,
+  deltaToZoom,
+  isValidCoordinate,
+  SOS_PERIMETER_RADIUS_M,
+  TacticalMapProps,
+} from './tacticalMapShared';
+
+export type { CameraItem, TacticalMapProps };
 
 const NativeWebView = WebView as unknown as React.ComponentType<WebViewProps & { ref?: any }>;
-
-export interface CameraItem {
-  id: string;
-  name: string;
-  location: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  };
-  coverageRadius?: number;
-}
-
-export interface TacticalMapProps {
-  mapRef?: React.RefObject<any>;
-  initialRegion: {
-    latitude: number;
-    longitude: number;
-    latitudeDelta: number;
-    longitudeDelta: number;
-  };
-  userLocation: { latitude: number; longitude: number } | null;
-  currentLocation: { lat: number; lng: number } | null;
-  cameras: CameraItem[];
-  isAlertActive: boolean;
-}
 
 const USE_NATIVE_MAP_SDK =
   process.env.EXPO_PUBLIC_USE_NATIVE_MAPS === 'true' &&
@@ -63,13 +49,14 @@ const PEARL_LIGHT_MAP_STYLE: MapStyleElement[] = [
 ];
 
 function buildMobileLeafletHtml(lat: number, lng: number): string {
+  const { LEAFLET_CSS_URL, LEAFLET_JS_URL, OSM_TILE_URL } = config.MAP_ASSETS;
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="${LEAFLET_CSS_URL}" />
+  <script src="${LEAFLET_JS_URL}"></script>
   <style>
     html, body, #map {
       margin: 0;
@@ -153,7 +140,7 @@ function buildMobileLeafletHtml(lat: number, lng: number): string {
       attributionControl: true
     });
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('${OSM_TILE_URL}', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap'
     }).addTo(map);
@@ -189,7 +176,7 @@ function buildMobileLeafletHtml(lat: number, lng: number): string {
         if (payload.isAlertActive) {
           if (!sosCircle) {
             sosCircle = L.circle([payload.lat, payload.lng], {
-              radius: 220,
+              radius: ${SOS_PERIMETER_RADIUS_M},
               color: 'rgba(225,29,72,0.72)',
               weight: 2,
               fillColor: 'rgba(225,29,72,0.14)',
@@ -212,7 +199,7 @@ function buildMobileLeafletHtml(lat: number, lng: number): string {
           var clng = Number(c.location.longitude);
           if (!isFinite(clat) || !isFinite(clng) || (clat === 0 && clng === 0)) return;
 
-          var radius = Number(c.coverageRadius) || 120;
+          var radius = Number(c.coverageRadius) || ${DEFAULT_CAMERA_RADIUS_M};
           L.circle([clat, clng], {
             radius: radius,
             color: 'rgba(14,165,233,0.45)',
@@ -272,10 +259,7 @@ function MobileLeafletWebViewMap({
     if (!mapRef) return;
     (mapRef as React.MutableRefObject<any>).current = {
       animateToRegion: (region: { latitude: number; longitude: number; latitudeDelta?: number }) => {
-        const zoom =
-          region.latitudeDelta && region.latitudeDelta > 0
-            ? Math.max(12, Math.min(18, Math.round(Math.log2(360 / region.latitudeDelta))))
-            : 16;
+        const zoom = deltaToZoom(region.latitudeDelta, 12, 18);
         webViewRef.current?.injectJavaScript(
           `window.__rcFlyTo && window.__rcFlyTo(${region.latitude}, ${region.longitude}, ${zoom}); true;`
         );
@@ -313,7 +297,7 @@ function MobileLeafletWebViewMap({
       }}
       style={StyleSheet.absoluteFill}
       originWhitelist={['*']}
-      source={{ html, baseUrl: 'https://redciudadana.app' }}
+      source={{ html, baseUrl: config.MAP_ASSETS.WEBVIEW_BASE_URL }}
       onMessage={(event: any) => {
         if (event?.nativeEvent?.data === 'MAP_READY') {
           setLoaded(true);
@@ -407,14 +391,14 @@ function NativeMapView({
         {cameras.map((camera) => {
           const lat = Number(camera?.location?.latitude);
           const lng = Number(camera?.location?.longitude);
-          if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+          if (!isValidCoordinate(lat, lng)) {
             return null;
           }
           return (
             <React.Fragment key={camera.id}>
               <Circle
                 center={{ latitude: lat, longitude: lng }}
-                radius={camera.coverageRadius || 120}
+                radius={camera.coverageRadius || DEFAULT_CAMERA_RADIUS_M}
                 strokeWidth={1.5}
                 strokeColor="rgba(14, 165, 233, 0.5)"
                 fillColor="rgba(14, 165, 233, 0.12)"
@@ -435,7 +419,7 @@ function NativeMapView({
               latitude: activeLat,
               longitude: activeLng,
             }}
-            radius={220}
+            radius={SOS_PERIMETER_RADIUS_M}
             strokeWidth={2}
             strokeColor="rgba(225, 29, 72, 0.72)"
             fillColor="rgba(225, 29, 72, 0.14)"

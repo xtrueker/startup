@@ -1,5 +1,9 @@
-import { supabase } from '../connection';
+import { getPgPool } from '../connection';
 import { normalizePostgisLocationToWkt } from '../../../shared/utils/postgis';
+import {
+  DEFAULT_CAMERA_COVERAGE_RADIUS_M,
+  UUID_REGEX,
+} from '../../../shared/constants/system';
 
 export interface CreateCameraDTO {
   name: string;
@@ -12,83 +16,132 @@ export interface CreateCameraDTO {
   authorityId?: string;
 }
 
-export class Camera {
-  /**
-   * Fetch all cameras
-   */
-  static async find() {
-    const sb = supabase();
-    try {
-      const { data, error } = await sb
-        .from('cameras')
-        .select('*')
-        .order('created_at', { ascending: false });
+const CAMERA_SELECT_COLUMNS = `
+  id, name, address, stream_url, status, coverage_radius, is_public,
+  authority_id, created_at, updated_at, ST_AsText(location) AS location_wkt, location
+`;
 
-      if (error) throw error;
-      return (data || []).map(cam => ({
-        ...cam,
-        location: normalizePostgisLocationToWkt(cam.location)
-      }));
-    } catch (error) {
-      console.error('Error fetching cameras:', error);
-      throw error;
-    }
+export class Camera {
+  private static hydrateRow(row: any) {
+    const rawLocation = row?.location_wkt ?? row?.location;
+    const { location_wkt: _ignored, ...rest } = row || {};
+    return {
+      ...rest,
+      location: normalizePostgisLocationToWkt(rawLocation),
+    };
+  }
+
+  static async find() {
+    const pool = getPgPool();
+    const res = await pool.query(
+      `SELECT ${CAMERA_SELECT_COLUMNS}
+       FROM public.cameras
+       ORDER BY created_at DESC`
+    );
+    return res.rows.map((cam) => this.hydrateRow(cam));
   }
 
   static async findById(id: string) {
-    const sb = supabase();
-    const { data, error } = await sb.from('cameras').select('*').eq('id', id).maybeSingle();
-    if (error) throw error;
-    return data;
+    if (!id || !UUID_REGEX.test(id)) return null;
+    const pool = getPgPool();
+    const res = await pool.query(
+      `SELECT ${CAMERA_SELECT_COLUMNS}
+       FROM public.cameras
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+    return res.rows[0] ? this.hydrateRow(res.rows[0]) : null;
   }
 
   static async create(data: CreateCameraDTO) {
-    const sb = supabase();
-    
-    const wktLocation = `POINT(${data.longitude} ${data.latitude})`;
+    const pool = getPgPool();
+    const safeAuthorityId =
+      data.authorityId && UUID_REGEX.test(data.authorityId) ? data.authorityId : null;
 
-    const { data: inserted, error } = await sb.from('cameras').insert({
-      name: data.name,
-      location: wktLocation,
-      address: data.address || '',
-      stream_url: data.streamUrl || '',
-      status: 'online',
-      coverage_radius: data.coverageRadius || 100,
-      is_public: data.isPublic ?? true,
-      authority_id: data.authorityId || null
-    }).select().single();
+    const res = await pool.query(
+      `INSERT INTO public.cameras
+         (name, location, address, stream_url, status, coverage_radius, is_public, authority_id)
+       VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4, $5, 'online', $6, $7, $8)
+       RETURNING ${CAMERA_SELECT_COLUMNS}`,
+      [
+        data.name,
+        Number(data.longitude),
+        Number(data.latitude),
+        data.address || '',
+        data.streamUrl || '',
+        data.coverageRadius || DEFAULT_CAMERA_COVERAGE_RADIUS_M,
+        data.isPublic ?? true,
+        safeAuthorityId,
+      ]
+    );
 
-    if (error) {
-      console.error('Error in Camera.create PostGIS:', error);
-      throw error;
-    }
-
-    return inserted;
+    return this.hydrateRow(res.rows[0]);
   }
 
   static async delete(id: string) {
-    const sb = supabase();
-    const { data, error } = await sb.from('cameras').delete().eq('id', id).select().maybeSingle();
-    if (error) throw error;
-    return data;
+    if (!id || !UUID_REGEX.test(id)) return null;
+    const pool = getPgPool();
+    const res = await pool.query(
+      `DELETE FROM public.cameras WHERE id = $1 RETURNING ${CAMERA_SELECT_COLUMNS}`,
+      [id]
+    );
+    return res.rows[0] ? this.hydrateRow(res.rows[0]) : null;
   }
 
   static async update(id: string, updateData: any) {
-    const sb = supabase();
-    const mappedUpdate: any = {};
-    if (updateData.name !== undefined) mappedUpdate.name = updateData.name;
-    if (updateData.status !== undefined) mappedUpdate.status = updateData.status;
-    if (updateData.streamUrl !== undefined) mappedUpdate.stream_url = updateData.streamUrl;
-    if (updateData.coverageRadius !== undefined) mappedUpdate.coverage_radius = updateData.coverageRadius;
-    if (updateData.isPublic !== undefined) mappedUpdate.is_public = updateData.isPublic;
+    if (!id || !UUID_REGEX.test(id)) return null;
+    const pool = getPgPool();
+    const fields: string[] = [];
+    const values: any[] = [];
 
-    if (updateData.latitude && updateData.longitude) {
-      mappedUpdate.location = `POINT(${updateData.longitude} ${updateData.latitude})`;
+    if (updateData.name !== undefined) {
+      fields.push(`name = $${values.length + 1}`);
+      values.push(updateData.name);
+    }
+    if (updateData.address !== undefined) {
+      fields.push(`address = $${values.length + 1}`);
+      values.push(updateData.address);
+    }
+    if (updateData.status !== undefined) {
+      fields.push(`status = $${values.length + 1}`);
+      values.push(updateData.status);
+    }
+    if (updateData.streamUrl !== undefined) {
+      fields.push(`stream_url = $${values.length + 1}`);
+      values.push(updateData.streamUrl);
+    }
+    if (updateData.coverageRadius !== undefined) {
+      fields.push(`coverage_radius = $${values.length + 1}`);
+      values.push(updateData.coverageRadius);
+    }
+    if (updateData.isPublic !== undefined) {
+      fields.push(`is_public = $${values.length + 1}`);
+      values.push(updateData.isPublic);
+    }
+    if (updateData.latitude !== undefined && updateData.longitude !== undefined) {
+      fields.push(
+        `location = ST_SetSRID(ST_MakePoint($${values.length + 1}, $${values.length + 2}), 4326)`
+      );
+      values.push(Number(updateData.longitude), Number(updateData.latitude));
     }
 
-    const { data, error } = await sb.from('cameras').update(mappedUpdate).eq('id', id).select().maybeSingle();
-    if (error) throw error;
-    return data;
+    if (fields.length === 0) {
+      return this.findById(id);
+    }
+
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const res = await pool.query(
+      `UPDATE public.cameras
+       SET ${fields.join(', ')}
+       WHERE id = $${values.length}
+       RETURNING ${CAMERA_SELECT_COLUMNS}`,
+      values
+    );
+
+    return res.rows[0] ? this.hydrateRow(res.rows[0]) : null;
   }
 }
 

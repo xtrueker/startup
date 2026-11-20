@@ -9,8 +9,8 @@ export interface ICameraRepository {
   delete(id: string): Promise<any>;
 }
 
-// Adaptador de salida (Adapter) - Implementación concreta usando Mongoose
-export class MongoCameraRepository implements ICameraRepository {
+// Adaptador de salida (Adapter) - Implementación concreta sobre Supabase PostgreSQL
+export class SupabaseCameraRepository implements ICameraRepository {
   async create(data: any) {
     return await Camera.create(data);
   }
@@ -31,3 +31,7 @@ export class MongoCameraRepository implements ICameraRepository {
     return await Camera.delete(id);
   }
 }
+
+/** @deprecated Alias retrocompatible preservado para consumidores existentes */
+export const MongoCameraRepository = SupabaseCameraRepository;
+export type MongoCameraRepository = SupabaseCameraRepository;

@@ -4,13 +4,14 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { config } from '../config';
 import { authService } from '../services/auth';
+import { showAlert } from '../utils/dialogs';
 import { palette, fontSans, glassSurfaceStyle } from '../theme/prismTheme';
 import {
   AmbientPrismCanvas,
@@ -36,9 +37,7 @@ export default function LoginScreen({ onLogin, onGoRegister }: LoginScreenProps)
 
   const notifyError = (title: string, message: string) => {
     setErrorMsg(message);
-    if (Platform.OS !== 'web') {
-      Alert.alert(title, message);
-    }
+    showAlert(title, message, { showOnWeb: false });
   };
 
   const handleLogin = async () => {
@@ -62,8 +61,8 @@ export default function LoginScreen({ onLogin, onGoRegister }: LoginScreenProps)
 
   const handleFillDemo = () => {
     setErrorMsg(null);
-    setEmail('demo@redciudadana.org');
-    setPassword('password123');
+    setEmail(config.DEMO_ACCOUNT.email);
+    setPassword(config.DEMO_ACCOUNT.password);
   };
 
   return (
@@ -88,13 +87,15 @@ export default function LoginScreen({ onLogin, onGoRegister }: LoginScreenProps)
               </View>
 
               <View style={styles.topNavRight}>
-                <TouchableOpacity
-                  onPress={handleFillDemo}
-                  activeOpacity={0.75}
-                  style={styles.demoCapsule}
-                >
-                  <Text style={styles.demoCapsuleText}>Cuenta demo</Text>
-                </TouchableOpacity>
+                {config.DEMO_ACCOUNT.enabled ? (
+                  <TouchableOpacity
+                    onPress={handleFillDemo}
+                    activeOpacity={0.75}
+                    style={styles.demoCapsule}
+                  >
+                    <Text style={styles.demoCapsuleText}>Cuenta demo</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <StatusPill label="Conectado" tone="emerald" />
               </View>
             </View>

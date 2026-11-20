@@ -1,21 +1,28 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth, requireRole } from '../../../shared/middlewares/auth';
-import { MongoCameraRepository } from '../infrastructure/CameraRepository';
+import {
+  requireAuth,
+  requireRole,
+  getRequestUserId,
+  AuthRequest,
+} from '../../../shared/middlewares/auth';
+import {
+  ALL_AUTHENTICATED_ROLES,
+  COMMAND_CENTER_ROLES,
+  FALLBACK_AUTHORITY_UUID,
+} from '../../../shared/constants/system';
+import { SupabaseCameraRepository } from '../infrastructure/CameraRepository';
 import { CameraService } from '../application/CameraService';
 
-// 1. Inyección de Dependencias (Ideal usar TypeDI o NestJS a futuro)
-const cameraRepository = new MongoCameraRepository();
+const cameraRepository = new SupabaseCameraRepository();
 const cameraService = new CameraService(cameraRepository);
 
 const router = Router();
 
-// 2. Controladores Ligeros (Solo gestionan HTTP y respuestas)
-router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
-    const authReq = req as any;
     const body = {
       ...req.body,
-      authorityId: req.body.authorityId || authReq.user?.userId || authReq.user?.id || '00000000-0000-0000-0000-000000000000'
+      authorityId: req.body.authorityId || getRequestUserId(req) || FALLBACK_AUTHORITY_UUID,
     };
     const newCamera = await cameraService.createCamera(body);
     return res.status(201).json({
@@ -32,9 +39,9 @@ router.post('/', requireAuth, requireRole(['admin', 'supervisor', 'operator']), 
   }
 });
 
-router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator', 'police', 'citizen']), async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole(ALL_AUTHENTICATED_ROLES), async (req: Request, res: Response) => {
   try {
-    const userRole = (req as any).user?.role;
+    const userRole = (req as AuthRequest).user?.role;
     const cameras = await cameraService.getAllCameras();
 
     // Los ciudadanos reciben únicamente las cámaras comunitarias públicas sin exponer URLs internas RTSP
@@ -58,7 +65,7 @@ router.get('/', requireAuth, requireRole(['admin', 'supervisor', 'operator', 'po
   }
 });
 
-router.put('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+router.put('/:id', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const updatedCamera = await cameraService.updateCamera(req.params.id, req.body);
     if (!updatedCamera) {
@@ -74,7 +81,7 @@ router.put('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator'])
   }
 });
 
-router.delete('/:id', requireAuth, requireRole(['admin', 'supervisor', 'operator']), async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireRole(COMMAND_CENTER_ROLES), async (req: Request, res: Response) => {
   try {
     const deleted = await cameraService.deleteCamera(req.params.id);
     if (!deleted) {

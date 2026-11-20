@@ -1,5 +1,6 @@
 import { Camera } from '../infrastructure/database/models/Camera';
 import { logger } from '../shared/utils/logger';
+import { parsePostgisPoint } from '../shared/utils/postgis';
 
 export interface CitizenCamera {
   id: string;
@@ -36,19 +37,12 @@ class PredictiveEngine {
     try {
       const dbCameras = await Camera.find();
       const mappedCameras: CitizenCamera[] = dbCameras.map((cam: any) => {
-        let lat = 0, lng = 0;
-        if (typeof cam.location === 'string') {
-          const match = cam.location.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-          if (match) {
-            lng = parseFloat(match[1]);
-            lat = parseFloat(match[2]);
-          }
-        }
+        const coords = parsePostgisPoint(cam.location);
         return {
           id: cam.id,
           name: cam.name,
-          lat,
-          lng,
+          lat: coords?.latitude ?? 0,
+          lng: coords?.longitude ?? 0,
           rtspUrl: cam.stream_url || cam.streamUrl || ''
         };
       });

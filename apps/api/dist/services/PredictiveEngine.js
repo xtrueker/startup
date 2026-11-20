@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.predictiveEngine = void 0;
 const Camera_1 = require("../infrastructure/database/models/Camera");
 const logger_1 = require("../shared/utils/logger");
+const postgis_1 = require("../shared/utils/postgis");
 /**
  * Fórmula de Haversine para calcular distancia en metros entre dos coordenadas GPS
  */
@@ -27,19 +28,12 @@ class PredictiveEngine {
         try {
             const dbCameras = await Camera_1.Camera.find();
             const mappedCameras = dbCameras.map((cam) => {
-                let lat = 0, lng = 0;
-                if (typeof cam.location === 'string') {
-                    const match = cam.location.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-                    if (match) {
-                        lng = parseFloat(match[1]);
-                        lat = parseFloat(match[2]);
-                    }
-                }
+                const coords = (0, postgis_1.parsePostgisPoint)(cam.location);
                 return {
                     id: cam.id,
                     name: cam.name,
-                    lat,
-                    lng,
+                    lat: coords?.latitude ?? 0,
+                    lng: coords?.longitude ?? 0,
                     rtspUrl: cam.stream_url || cam.streamUrl || ''
                 };
             });

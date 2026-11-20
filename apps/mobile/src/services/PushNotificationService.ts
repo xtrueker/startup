@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import { config } from '../config';
 import { api } from './auth';
 
 // Mostrar alertas críticas incluso con la app abierta en primer plano
@@ -28,7 +29,7 @@ class PushNotificationService {
 
     try {
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('rc-emergency-siren', {
+        await Notifications.setNotificationChannelAsync(config.EMERGENCY_PUSH_CHANNEL_ID, {
           name: 'Despachos de Emergencia Crítica',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 400, 200, 400, 200, 600],
