@@ -43,22 +43,17 @@ export default function Login({ onLogin }: LoginProps) {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSuccess, setForgotSuccess] = useState(false);
 
-  // Load saved credentials on mount if user previously selected "Recordar contraseña"
+  // Load saved credentials on mount if user previously selected "Recordarme"
   useEffect(() => {
     try {
+      // Limpiar por seguridad cualquier residuo previo de contraseña en localStorage
+      localStorage.removeItem('central_saved_password');
+
       const savedRemember = localStorage.getItem('central_remember_me') === 'true';
       if (savedRemember) {
         setRememberMe(true);
         const savedEmail = localStorage.getItem('central_saved_email');
-        const savedPassword = localStorage.getItem('central_saved_password');
         if (savedEmail) setEmail(savedEmail);
-        if (savedPassword) {
-          try {
-            setPassword(atob(savedPassword));
-          } catch {
-            setPassword(savedPassword);
-          }
-        }
       }
     } catch (e) {
       console.warn('Error reading saved credentials:', e);
@@ -92,7 +87,7 @@ export default function Login({ onLogin }: LoginProps) {
         if (rememberMe) {
           localStorage.setItem('central_remember_me', 'true');
           localStorage.setItem('central_saved_email', email);
-          localStorage.setItem('central_saved_password', btoa(password));
+          localStorage.removeItem('central_saved_password');
         } else {
           localStorage.removeItem('central_remember_me');
           localStorage.removeItem('central_saved_email');
@@ -230,7 +225,7 @@ export default function Login({ onLogin }: LoginProps) {
                   {rememberMe && <Check size={11} strokeWidth={3} />}
                 </span>
                 <span className="text-[12px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] font-medium">
-                  Recordar contraseña
+                  Recordarme
                 </span>
               </label>
 
