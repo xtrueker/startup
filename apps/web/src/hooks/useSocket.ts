@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:3001';
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL
+    ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
+    : 'http://localhost:3001');
 
 interface UseSocketOptions {
   /** Socket.IO namespace to connect to. Default: '' (root namespace) */
@@ -20,7 +24,7 @@ export function useSocket(options: UseSocketOptions = {}) {
       withCredentials: true,
       transports: ['websocket', 'polling'],
       auth: {
-        // Pass userId so the /citizens namespace can tag location updates
+        token: localStorage.getItem('token') || undefined,
         userId: localStorage.getItem('userId') || undefined,
       },
     });
